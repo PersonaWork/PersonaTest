@@ -34,4 +34,4 @@
   "prisma": {
     "seed": "ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
   }
-}
+}// Force sync: Mon Mar  2 08:53:39 EST 2026
