@@ -55,10 +55,10 @@ export default function ChatWindow({ slug, characterName }: ChatWindowProps) {
     };
 
     return (
-        <div className="glass-card flex flex-col h-[500px] overflow-hidden bg-white/80">
+        <div className="glass-card flex flex-col h-[500px] overflow-hidden bg-slate-900/50 border-white/5">
             {/* Header */}
-            <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-                <h3 className="font-bold text-slate-800">Chat with {characterName}</h3>
+            <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+                <h3 className="font-bold text-white">Chat with {characterName}</h3>
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
             </div>
 
@@ -70,7 +70,7 @@ export default function ChatWindow({ slug, characterName }: ChatWindowProps) {
                 {messages.length === 0 && (
                     <div className="text-center py-10">
                         <div className="text-4xl mb-4">👋</div>
-                        <p className="text-sm font-medium text-slate-400">Say hi to {characterName}!</p>
+                        <p className="text-sm font-medium text-slate-500">Say hi to {characterName}!</p>
                     </div>
                 )}
 
@@ -82,8 +82,8 @@ export default function ChatWindow({ slug, characterName }: ChatWindowProps) {
                         <div className={`
               max-w-[80%] p-4 rounded-2xl text-sm font-medium
               ${msg.role === 'user'
-                                ? 'bg-indigo-600 text-white rounded-tr-none shadow-indigo-100 shadow-lg'
-                                : 'bg-slate-100 text-slate-700 rounded-tl-none'}
+                                ? 'bg-indigo-600 text-white rounded-tr-none shadow-lg'
+                                : 'bg-slate-800 text-slate-300 rounded-tl-none border border-slate-700'}
             `}>
                             {msg.content}
                         </div>
@@ -92,17 +92,17 @@ export default function ChatWindow({ slug, characterName }: ChatWindowProps) {
 
                 {isLoading && (
                     <div className="flex justify-start">
-                        <div className="bg-slate-100 p-4 rounded-2xl rounded-tl-none animate-pulse space-x-1 flex">
-                            <div className="w-1.5 h-1.5 bg-slate-400 rounded-full"></div>
-                            <div className="w-1.5 h-1.5 bg-slate-400 rounded-full"></div>
-                            <div className="w-1.5 h-1.5 bg-slate-400 rounded-full"></div>
+                        <div className="bg-slate-800 p-4 rounded-2xl rounded-tl-none animate-pulse space-x-1 flex border border-slate-700">
+                            <div className="w-1.5 h-1.5 bg-slate-500 rounded-full"></div>
+                            <div className="w-1.5 h-1.5 bg-slate-500 rounded-full"></div>
+                            <div className="w-1.5 h-1.5 bg-slate-500 rounded-full"></div>
                         </div>
                     </div>
                 )}
             </div>
 
             {/* Input */}
-            <div className="p-4 bg-slate-50 border-t border-slate-100">
+            <div className="p-4 bg-slate-900 border-t border-slate-800">
                 <div className="relative flex items-center">
                     <input
                         type="text"
@@ -110,7 +110,7 @@ export default function ChatWindow({ slug, characterName }: ChatWindowProps) {
                         onChange={(e) => setInput(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && handleSend()}
                         placeholder="Send a message..."
-                        className="w-full h-12 pl-6 pr-14 rounded-xl bg-white border border-slate-200 focus:outline-none focus:border-indigo-400 transition-all font-medium text-slate-700"
+                        className="w-full h-12 pl-6 pr-14 rounded-xl bg-slate-800 border border-slate-700 focus:outline-none focus:border-indigo-500 transition-all font-medium text-white placeholder:text-slate-500"
                     />
                     <button
                         onClick={handleSend}

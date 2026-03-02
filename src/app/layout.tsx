@@ -1,16 +1,15 @@
 import type { Metadata } from "next";
-import { Space_Grotesk, Inter } from "next/font/google";
+import { Outfit, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import Providers from "./providers";
-import Sidebar from "@/components/ui/Sidebar";
 
-const spaceGrotesk = Space_Grotesk({
+const outfit = Outfit({
   variable: "--font-display",
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
+  weight: ["300", "400", "500", "600", "700", "800", "900"],
 });
 
-const inter = Inter({
+const plusJakarta = Plus_Jakarta_Sans({
   variable: "--font-sans",
   subsets: ["latin"],
   weight: ["300", "400", "500", "600", "700", "800"],
@@ -30,15 +29,10 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body
-        className={`${spaceGrotesk.variable} ${inter.variable} antialiased`}
+        className={`${outfit.variable} ${plusJakarta.variable} antialiased bg-[#0a0a0f] text-white`}
       >
         <Providers>
-          <div className="app-shell">
-            <Sidebar />
-            <main className="main-content">
-              {children}
-            </main>
-          </div>
+          {children}
         </Providers>
       </body>
     </html>
