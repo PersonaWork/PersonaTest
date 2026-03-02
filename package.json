@@ -31,9 +31,8 @@
     "ts-node": "^10.9.2",
     "typescript": "^5"
   },
-},
-"prisma": {
-  "seed": "ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
-},
-"sync_timestamp": "2026-03-02T08:53:39Z"
+  "prisma": {
+    "seed": "ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
+  },
+  "sync_timestamp": "2026-03-02-09-01"
 }
