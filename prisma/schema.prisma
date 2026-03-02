@@ -1,0 +1,118 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  username      String    @unique
+  walletAddress String    @unique
+  avatarUrl     String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  holdings      Holding[]
+  messages      Message[]
+}
+
+model Character {
+  id              String           @id @default(cuid())
+  name            String
+  slug            String           @unique
+  description     String
+  personality     Json             // traits, catchphrases, backstory, voice style
+  actions         Json             // action library: [{id, name, clipUrl, audioUrl, rarity, weight}]
+  environment     Json             // background assets, ambient audio
+  avatarUrl       String?
+  bannerUrl       String?
+  totalShares     Int              @default(1000000)
+  sharesIssued    Int              @default(0)
+  currentPrice    Float            @default(0.10)
+  marketCap       Float            @default(0)
+  priceHistory    Json             @default("[]") // [{timestamp, price}]
+  tiktokHandle    String?
+  instagramHandle String?
+  launchDate      DateTime?
+  isLaunched      Boolean          @default(false)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  holdings        Holding[]
+  posts           Post[]
+  messages        Message[]
+  events          CharacterEvent[]
+}
+
+model Holding {
+  id          String    @id @default(cuid())
+  userId      String
+  characterId String
+  shares      Int
+  avgBuyPrice Float
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  user        User      @relation(fields: [userId], references: [id])
+  character   Character @relation(fields: [characterId], references: [id])
+
+  @@unique([userId, characterId])
+}
+
+model Post {
+  id          String    @id @default(cuid())
+  characterId String
+  platform    String    // "tiktok" | "instagram"
+  videoUrl    String
+  caption     String
+  revenue     Float     @default(0)
+  views       Int       @default(0)
+  likes       Int       @default(0)
+  paidOut     Boolean   @default(false)
+  postedAt    DateTime  @default(now())
+  character   Character @relation(fields: [characterId], references: [id])
+  payouts     Payout[]
+}
+
+model Message {
+  id          String    @id @default(cuid())
+  userId      String
+  characterId String
+  content     String
+  role        String    // "user" | "assistant"
+  createdAt   DateTime  @default(now())
+  user        User      @relation(fields: [userId], references: [id])
+  character   Character @relation(fields: [characterId], references: [id])
+}
+
+model CharacterEvent {
+  id          String    @id @default(cuid())
+  characterId String
+  actionId    String    // references action from character.actions JSON
+  isRare      Boolean   @default(false)
+  clipUrl     String?
+  triggeredAt DateTime  @default(now())
+  character   Character @relation(fields: [characterId], references: [id])
+}
+
+model Transaction {
+  id            String   @id @default(cuid())
+  buyerId       String?
+  sellerId      String?
+  characterId   String
+  shares        Int
+  pricePerShare Float
+  total         Float
+  type          String   @default("buy") // "buy" | "sell"
+  createdAt     DateTime @default(now())
+}
+
+model Payout {
+  id          String   @id @default(cuid())
+  userId      String
+  characterId String
+  postId      String
+  amount      Float
+  paidAt      DateTime @default(now())
+  post        Post     @relation(fields: [postId], references: [id])
+}
