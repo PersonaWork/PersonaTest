@@ -12,7 +12,8 @@ interface Character {
     change: number;
     marketCap: number;
     avatarUrl?: string;
-    status: 'LIVE' | 'LAUNCHING SOON' | 'DROPPING SOON';
+    thumbnailUrl?: string;
+    status: string;
     holders?: number;
     totalShares?: number;
     sharesIssued?: number;
@@ -43,14 +44,14 @@ export default function CharacterCard({ character, showStats = true }: Character
                     <div className="absolute inset-0 flex items-center justify-center">
                         <div className="relative">
                             <div className="w-28 h-28 rounded-full bg-slate-800/80 border-4 border-slate-700 overflow-hidden shadow-2xl group-hover:scale-110 group-hover:border-indigo-500/50 transition-all duration-300">
-                                {character.avatarUrl ? (
+                                {(character.avatarUrl || character.thumbnailUrl) ? (
                                     <img
-                                        src={character.avatarUrl}
+                                        src={character.avatarUrl || character.thumbnailUrl}
                                         alt={character.name}
                                         className="w-full h-full object-cover"
                                     />
                                 ) : (
-                                    <div className="w-full h-full flex items-center justify-center text-4xl">
+                                    <div className="w-full h-full flex items-center justify-center text-4xl text-white">
                                         {character.name.charAt(0)}
                                     </div>
                                 )}

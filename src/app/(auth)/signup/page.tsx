@@ -2,27 +2,37 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button, Input, Card } from '@/components/ui';
-import { usePrivy } from '@privy-io/react-auth';
+
+// Dynamic import to avoid build-time Privy issues
+const signUp = () => import('@/lib/auth/auth-helpers').then(mod => mod.signUp);
 
 export default function SignupPage() {
+    const router = useRouter();
     const [email, setEmail] = useState('');
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const { login } = usePrivy();
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsLoading(true);
         setError(null);
 
+        if (password.length < 6) {
+            setError('Password must be at least 6 characters');
+            setIsLoading(false);
+            return;
+        }
+
         try {
-            // Using Privy's embedded wallet - auto-creates wallet on signup
-            await login();
-        } catch (err) {
-            setError('Failed to create account. Please try again.');
+            const signUpFunc = await signUp();
+            await signUpFunc(email, password, username);
+            router.push('/marketplace');
+        } catch (err: any) {
+            setError(err.message || 'Failed to create account. Please try again.');
             console.error('Signup error:', err);
         } finally {
             setIsLoading(false);

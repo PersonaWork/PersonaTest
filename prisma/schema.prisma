@@ -12,11 +12,10 @@ model User {
   email         String    @unique
   username      String    @unique
   walletAddress String    @unique
-  avatarUrl     String?
   createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
   holdings      Holding[]
   messages      Message[]
+  payouts       Payout[]
 }
 
 model Character {
@@ -24,26 +23,26 @@ model Character {
   name            String
   slug            String           @unique
   description     String
-  personality     Json             // traits, catchphrases, backstory, voice style
-  actions         Json             // action library: [{id, name, clipUrl, audioUrl, rarity, weight}]
-  environment     Json             // background assets, ambient audio
-  avatarUrl       String?
-  bannerUrl       String?
+  thumbnailUrl    String?
+  personality     Json             
+  // { traits: string[], catchphrases: string[], backstory: string, voiceStyle: string }
+  actions         Json             
+  // [{ id: string, name: string, clipUrl: string, audioUrl: string, rarity: "common"|"uncommon"|"rare"|"legendary", weight: number }]
+  environment     Json             
+  // { backgroundUrl: string, ambientAudioUrl: string, idleClipUrl: string }
   totalShares     Int              @default(1000000)
   sharesIssued    Int              @default(0)
   currentPrice    Float            @default(0.10)
   marketCap       Float            @default(0)
-  priceHistory    Json             @default("[]") // [{timestamp, price}]
+  launchAt        DateTime?
+  isLaunched      Boolean          @default(false)
   tiktokHandle    String?
   instagramHandle String?
-  launchDate      DateTime?
-  isLaunched      Boolean          @default(false)
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
   holdings        Holding[]
   posts           Post[]
   messages        Message[]
   events          CharacterEvent[]
+  transactions    Transaction[]
 }
 
 model Holding {
@@ -89,31 +88,32 @@ model Message {
 model CharacterEvent {
   id          String    @id @default(cuid())
   characterId String
-  actionId    String    // references action from character.actions JSON
+  actionId    String
   isRare      Boolean   @default(false)
-  clipUrl     String?
   triggeredAt DateTime  @default(now())
   character   Character @relation(fields: [characterId], references: [id])
 }
 
 model Transaction {
-  id            String   @id @default(cuid())
+  id            String    @id @default(cuid())
   buyerId       String?
   sellerId      String?
   characterId   String
   shares        Int
   pricePerShare Float
   total         Float
-  type          String   @default("buy") // "buy" | "sell"
-  createdAt     DateTime @default(now())
+  type          String    // "buy" or "sell"
+  createdAt     DateTime  @default(now())
+  character     Character @relation(fields: [characterId], references: [id])
 }
 
 model Payout {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   userId      String
   characterId String
   postId      String
   amount      Float
-  paidAt      DateTime @default(now())
+  paidAt      DateTime  @default(now())
+  user        User      @relation(fields: [userId], references: [id])
   post        Post     @relation(fields: [postId], references: [id])
 }

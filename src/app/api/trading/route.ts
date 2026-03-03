@@ -61,6 +61,11 @@ export async function POST(request: Request) {
                 );
             }
 
+            // Calculate new price using the algorithm from spec:
+            // newPrice = currentPrice * (1 + (sharesBought / totalShares) * 0.05)
+            const priceMultiplier = 1 + (shares / character.totalShares) * 0.05;
+            const newPrice = character.currentPrice * priceMultiplier;
+
             // Get or create user's holding
             let holding = await prisma.holding.findUnique({
                 where: {
@@ -96,12 +101,16 @@ export async function POST(request: Request) {
                 });
             }
 
-            // Update character's shares issued and market cap
+            // Update character's shares issued, current price, and market cap
+            const newSharesIssued = character.sharesIssued + shares;
+            const newMarketCap = newPrice * newSharesIssued;
+
             await prisma.character.update({
                 where: { id: characterId },
                 data: {
-                    sharesIssued: character.sharesIssued + shares,
-                    marketCap: (character.sharesIssued + shares) * pricePerShare
+                    sharesIssued: newSharesIssued,
+                    currentPrice: newPrice,
+                    marketCap: newMarketCap
                 }
             });
 
@@ -111,8 +120,8 @@ export async function POST(request: Request) {
                     buyerId: userId,
                     characterId,
                     shares,
-                    pricePerShare,
-                    total,
+                    pricePerShare: newPrice,
+                    total: shares * newPrice,
                     type: 'buy'
                 }
             });
@@ -122,8 +131,8 @@ export async function POST(request: Request) {
                 holding,
                 transaction: {
                     shares,
-                    pricePerShare,
-                    total
+                    pricePerShare: newPrice,
+                    total: shares * newPrice
                 }
             });
         }
@@ -147,6 +156,11 @@ export async function POST(request: Request) {
                 );
             }
 
+            // Calculate new price using the algorithm from spec:
+            // newPrice = currentPrice * (1 - (sharesSold / totalShares) * 0.05)
+            const priceMultiplier = 1 - (shares / character.totalShares) * 0.05;
+            const newPrice = Math.max(0.01, character.currentPrice * priceMultiplier); // Prevent negative price
+
             // Update or delete holding
             if (holding.shares === shares) {
                 await prisma.holding.delete({
@@ -161,12 +175,16 @@ export async function POST(request: Request) {
                 });
             }
 
-            // Update character's shares issued and market cap
+            // Update character's shares issued, current price, and market cap
+            const newSharesIssued = character.sharesIssued - shares;
+            const newMarketCap = newPrice * newSharesIssued;
+
             await prisma.character.update({
                 where: { id: characterId },
                 data: {
-                    sharesIssued: character.sharesIssued - shares,
-                    marketCap: (character.sharesIssued - shares) * pricePerShare
+                    sharesIssued: newSharesIssued,
+                    currentPrice: newPrice,
+                    marketCap: newMarketCap
                 }
             });
 
@@ -176,8 +194,8 @@ export async function POST(request: Request) {
                     sellerId: userId,
                     characterId,
                     shares,
-                    pricePerShare,
-                    total,
+                    pricePerShare: newPrice,
+                    total: shares * newPrice,
                     type: 'sell'
                 }
             });
@@ -186,8 +204,8 @@ export async function POST(request: Request) {
                 success: true,
                 transaction: {
                     shares,
-                    pricePerShare,
-                    total
+                    pricePerShare: newPrice,
+                    total: shares * newPrice
                 }
             });
         }
@@ -238,7 +256,7 @@ export async function GET(request: Request) {
                 characterId: holding.characterId,
                 characterName: holding.character.name,
                 characterSlug: holding.character.slug,
-                characterAvatar: holding.character.avatarUrl,
+                characterAvatar: holding.character.thumbnailUrl,
                 shares: holding.shares,
                 avgBuyPrice: holding.avgBuyPrice,
                 currentPrice: holding.character.currentPrice,

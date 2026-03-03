@@ -1,48 +1,81 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Button, Card } from '@/components/ui';
 
-const MOCK_HOLDINGS = [
-    {
-        id: '1',
-        name: 'Luna',
-        slug: 'luna',
-        shares: 5000,
-        avgBuyPrice: 0.10,
-        currentPrice: 0.12,
-        avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Luna',
-        value: 600,
-        profit: 100,
-        profitPercent: 20
-    },
-    {
-        id: '2',
-        name: 'Nova',
-        slug: 'nova',
-        shares: 2500,
-        avgBuyPrice: 0.12,
-        currentPrice: 0.15,
-        avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Nova',
-        value: 375,
-        profit: 75,
-        profitPercent: 25
-    }
-];
+interface Holding {
+  id: string;
+  characterId: string;
+  characterName: string;
+  characterSlug: string;
+  characterThumbnail?: string;
+  shares: number;
+  avgBuyPrice: number;
+  currentPrice: number;
+  totalValue: number;
+  pnl: number;
+  pnlPercent: number;
+}
 
-const MOCK_TRANSACTIONS = [
-    { id: '1', type: 'buy', character: 'Luna', shares: 1000, price: 0.10, total: 100, date: '2024-01-15' },
-    { id: '2', type: 'buy', character: 'Nova', shares: 2500, price: 0.12, total: 300, date: '2024-01-14' },
-    { id: '3', type: 'buy', character: 'Luna', shares: 4000, price: 0.10, total: 400, date: '2024-01-10' },
-];
+interface Transaction {
+  id: string;
+  type: string;
+  characterName: string;
+  shares: number;
+  pricePerShare: number;
+  total: number;
+  createdAt: string;
+}
 
 export default function PortfolioPage() {
-    const totalValue = MOCK_HOLDINGS.reduce((acc, h) => acc + h.value, 0);
-    const totalCost = MOCK_HOLDINGS.reduce((acc, h) => acc + (h.shares * h.avgBuyPrice), 0);
+    const [holdings, setHoldings] = useState<Holding[]>([]);
+    const [transactions, setTransactions] = useState<Transaction[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        fetchPortfolio();
+    }, []);
+
+    const fetchPortfolio = async () => {
+        try {
+            setLoading(true);
+            // TODO: Get actual user ID from auth
+            const userId = 'demo-user';
+            
+            // Fetch holdings with character data
+            const holdingsResponse = await fetch(`/api/users/${userId}/holdings`);
+            if (holdingsResponse.ok) {
+                const holdingsData = await holdingsResponse.json();
+                setHoldings(holdingsData);
+            }
+
+            // Fetch transactions
+            const transactionsResponse = await fetch(`/api/users/${userId}/transactions`);
+            if (transactionsResponse.ok) {
+                const transactionsData = await transactionsResponse.json();
+                setTransactions(transactionsData);
+            }
+        } catch (error) {
+            console.error('Failed to fetch portfolio:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const totalValue = holdings.reduce((acc, h) => acc + h.totalValue, 0);
+    const totalCost = holdings.reduce((acc, h) => acc + (h.shares * h.avgBuyPrice), 0);
     const totalProfit = totalValue - totalCost;
-    const totalProfitPercent = ((totalProfit / totalCost) * 100);
+    const totalProfitPercent = totalCost > 0 ? ((totalProfit / totalCost) * 100) : 0;
     const isProfit = totalProfit >= 0;
+
+    if (loading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500"></div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen pb-20">
@@ -89,25 +122,30 @@ export default function PortfolioPage() {
                         </Link>
                     </div>
 
-                    {MOCK_HOLDINGS.length > 0 ? (
+                    {holdings.length > 0 ? (
                         <div className="space-y-4">
-                            {MOCK_HOLDINGS.map((holding) => {
-                                const holdingProfit = holding.value - (holding.shares * holding.avgBuyPrice);
-                                const isHoldingProfit = holdingProfit >= 0;
+                            {holdings.map((holding) => {
+                                const isHoldingProfit = holding.pnl >= 0;
 
                                 return (
                                     <Card key={holding.id} className="p-6" hover>
                                         <div className="flex items-center gap-6">
                                             {/* Avatar */}
                                             <div className="w-14 h-14 rounded-xl bg-slate-800 overflow-hidden flex-shrink-0">
-                                                <img src={holding.avatarUrl} alt={holding.name} className="w-full h-full object-cover" />
+                                                {holding.characterThumbnail ? (
+                                                    <img src={holding.characterThumbnail} alt={holding.characterName} className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <div className="w-full h-full flex items-center justify-center text-white text-lg">
+                                                        {holding.characterName.charAt(0)}
+                                                    </div>
+                                                )}
                                             </div>
 
                                             {/* Info */}
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center gap-3 mb-1">
-                                                    <h3 className="text-lg font-bold text-white">{holding.name}</h3>
-                                                    <span className="text-sm text-slate-500">@{holding.slug}_persona</span>
+                                                    <h3 className="text-lg font-bold text-white">{holding.characterName}</h3>
+                                                    <span className="text-sm text-slate-500">@{holding.characterSlug}_persona</span>
                                                 </div>
                                                 <p className="text-sm text-slate-400">
                                                     {holding.shares.toLocaleString()} shares @ ${holding.avgBuyPrice.toFixed(2)}
@@ -116,22 +154,24 @@ export default function PortfolioPage() {
 
                                             {/* Value */}
                                             <div className="text-right">
-                                                <p className="text-xl font-bold text-white">${holding.value.toFixed(2)}</p>
+                                                <p className="text-xl font-bold text-white">${holding.totalValue.toFixed(2)}</p>
                                                 <p className={`text-sm font-semibold ${isHoldingProfit ? 'text-emerald-400' : 'text-red-400'}`}>
-                                                    {isHoldingProfit ? '+' : ''}{holding.profitPercent.toFixed(1)}%
+                                                    {isHoldingProfit ? '+' : ''}{holding.pnlPercent.toFixed(1)}%
                                                 </p>
                                             </div>
 
                                             {/* Actions */}
                                             <div className="flex gap-2">
-                                                <Link href={`/character/${holding.slug}`}>
+                                                <Link href={`/character/${holding.characterSlug}`}>
                                                     <Button variant="secondary" size="sm">
                                                         View
                                                     </Button>
                                                 </Link>
-                                                <Button variant="ghost" size="sm">
-                                                    Trade
-                                                </Button>
+                                                <Link href={`/character/${holding.characterSlug}/trade`}>
+                                                    <Button variant="ghost" size="sm">
+                                                        Trade
+                                                    </Button>
+                                                </Link>
                                             </div>
                                         </div>
                                     </Card>
@@ -167,32 +207,40 @@ export default function PortfolioPage() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {MOCK_TRANSACTIONS.map((tx) => (
-                                        <tr key={tx.id} className="border-b border-slate-800/50 hover:bg-slate-800/30 transition-colors">
-                                            <td className="p-4">
-                                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold uppercase ${tx.type === 'buy'
-                                                        ? 'bg-emerald-500/20 text-emerald-400'
-                                                        : 'bg-red-500/20 text-red-400'
-                                                    }`}>
-                                                    {tx.type === 'buy' ? (
-                                                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                                                        </svg>
-                                                    ) : (
-                                                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" d="M20 12H4" />
-                                                        </svg>
-                                                    )}
-                                                    {tx.type}
-                                                </span>
+                                    {transactions.length > 0 ? (
+                                        transactions.map((tx) => (
+                                            <tr key={tx.id} className="border-b border-slate-800/50 hover:bg-slate-800/30 transition-colors">
+                                                <td className="p-4">
+                                                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold uppercase ${tx.type === 'buy'
+                                                            ? 'bg-emerald-500/20 text-emerald-400'
+                                                            : 'bg-red-500/20 text-red-400'
+                                                        }`}>
+                                                        {tx.type === 'buy' ? (
+                                                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                                                            </svg>
+                                                        ) : (
+                                                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" d="M20 12H4" />
+                                                            </svg>
+                                                        )}
+                                                        {tx.type}
+                                                    </span>
+                                                </td>
+                                                <td className="p-4 text-sm font-medium text-white">{tx.characterName}</td>
+                                                <td className="p-4 text-sm text-slate-300 text-right">{tx.shares.toLocaleString()}</td>
+                                                <td className="p-4 text-sm text-slate-300 text-right">${tx.pricePerShare.toFixed(2)}</td>
+                                                <td className="p-4 text-sm font-semibold text-white text-right">${tx.total.toFixed(2)}</td>
+                                                <td className="p-4 text-sm text-slate-500 text-right">{new Date(tx.createdAt).toLocaleDateString()}</td>
+                                            </tr>
+                                        ))
+                                    ) : (
+                                        <tr>
+                                            <td colSpan={6} className="p-8 text-center text-slate-500">
+                                                No transactions yet
                                             </td>
-                                            <td className="p-4 text-sm font-medium text-white">{tx.character}</td>
-                                            <td className="p-4 text-sm text-slate-300 text-right">{tx.shares.toLocaleString()}</td>
-                                            <td className="p-4 text-sm text-slate-300 text-right">${tx.price.toFixed(2)}</td>
-                                            <td className="p-4 text-sm font-semibold text-white text-right">${tx.total.toFixed(2)}</td>
-                                            <td className="p-4 text-sm text-slate-500 text-right">{tx.date}</td>
                                         </tr>
-                                    ))}
+                                    )}
                                 </tbody>
                             </table>
                         </div>

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Outfit, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import Providers from "./providers";
+import Navigation from "@/components/Navigation";
 
 const outfit = Outfit({
   variable: "--font-display",
@@ -32,6 +33,7 @@ export default function RootLayout({
         className={`${outfit.variable} ${plusJakarta.variable} antialiased bg-[#0a0a0f] text-white`}
       >
         <Providers>
+          <Navigation />
           {children}
         </Providers>
       </body>

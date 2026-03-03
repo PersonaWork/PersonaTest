@@ -15,10 +15,10 @@ export async function GET(request: Request) {
 
         const characters = await prisma.character.findMany({
             where,
-            orderBy: { createdAt: 'desc' },
+            orderBy: { id: 'desc' },
             include: {
-                _count: {
-                    select: { holdings: true }
+                holdings: {
+                    select: { userId: true }
                 }
             }
         });
@@ -29,20 +29,19 @@ export async function GET(request: Request) {
             name: char.name,
             slug: char.slug,
             description: char.description,
-            avatarUrl: char.avatarUrl,
-            bannerUrl: char.bannerUrl,
+            thumbnailUrl: char.thumbnailUrl,
             price: char.currentPrice,
             marketCap: char.marketCap,
-            change: calculatePriceChange(char.priceHistory),
+            change: 0, // TODO: Calculate from transaction history
             totalShares: char.totalShares,
             sharesIssued: char.sharesIssued,
-            holders: char._count.holdings,
+            holders: char.holdings.length,
             status: char.isLaunched ? 'LIVE' : 'LAUNCHING SOON',
             personality: char.personality,
             environment: char.environment,
             tiktokHandle: char.tiktokHandle,
             instagramHandle: char.instagramHandle,
-            launchDate: char.launchDate,
+            launchAt: char.launchAt,
         }));
 
         return NextResponse.json(transformed);
@@ -79,13 +78,12 @@ export async function POST(request: Request) {
             personality,
             actions,
             environment,
-            avatarUrl,
-            bannerUrl,
+            thumbnailUrl,
             totalShares = 1000000,
             currentPrice = 0.10,
             tiktokHandle,
             instagramHandle,
-            launchDate
+            launchAt
         } = body;
 
         // Validate required fields
@@ -116,15 +114,14 @@ export async function POST(request: Request) {
                 personality: personality || {},
                 actions: actions || [],
                 environment: environment || {},
-                avatarUrl,
-                bannerUrl,
+                thumbnailUrl,
                 totalShares,
                 sharesIssued: 0,
                 currentPrice,
                 marketCap: 0,
                 tiktokHandle,
                 instagramHandle,
-                launchDate: launchDate ? new Date(launchDate) : null,
+                launchAt: launchAt ? new Date(launchAt) : null,
                 isLaunched: false,
             }
         });

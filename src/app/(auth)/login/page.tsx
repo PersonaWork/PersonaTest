@@ -2,26 +2,30 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button, Input, Card } from '@/components/ui';
-import { usePrivy } from '@privy-io/react-auth';
+
+// Dynamic import to avoid build-time Privy issues
+const signIn = () => import('@/lib/auth/auth-helpers').then(mod => mod.signIn);
 
 export default function LoginPage() {
+    const router = useRouter();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const { login, user } = usePrivy();
 
-    const handleEmailLogin = async (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsLoading(true);
         setError(null);
 
         try {
-            // Using Privy's email login
-            await login();
-        } catch (err) {
-            setError('Failed to sign in. Please try again.');
+            const signInFunc = await signIn();
+            await signInFunc(email, password);
+            router.push('/marketplace');
+        } catch (err: any) {
+            setError(err.message || 'Failed to sign in. Please try again.');
             console.error('Login error:', err);
         } finally {
             setIsLoading(false);
@@ -52,7 +56,7 @@ export default function LoginPage() {
                         <p className="text-slate-400 font-medium">Sign in to access your portfolio</p>
                     </div>
 
-                    <form onSubmit={handleEmailLogin} className="space-y-5">
+                    <form onSubmit={handleSubmit} className="space-y-5">
                         <Input
                             label="Email"
                             type="email"
