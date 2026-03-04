@@ -12,9 +12,26 @@ function getEnvVar(name: string): string {
   return value;
 }
 
+function getFirstEnvVar(names: string[], label: string): string {
+  for (const name of names) {
+    const value = process.env[name];
+    if (value) return value;
+  }
+  throw new Error(`Missing environment variable: ${label} (tried: ${names.join(', ')})`);
+}
+
 function createSupabaseClient(): SupabaseClient {
   const url = getEnvVar('NEXT_PUBLIC_SUPABASE_URL');
-  const key = getEnvVar('NEXT_PUBLIC_SUPABASE_ANON_KEY');
+  // Supabase JS client uses the project's public "anon" key.
+  // Some dashboards/tools call this "publishable". Support common aliases.
+  const key = getFirstEnvVar(
+    [
+      'NEXT_PUBLIC_SUPABASE_ANON_KEY',
+      'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY',
+      'NEXT_PUBLIC_SUPABASE_PUBLIC_KEY'
+    ],
+    'NEXT_PUBLIC_SUPABASE_ANON_KEY'
+  );
   
   return createClient(url, key, {
     auth: {
