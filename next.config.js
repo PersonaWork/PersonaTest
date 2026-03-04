@@ -6,6 +6,7 @@ const nextConfig = {
   webpack: (config, { isServer }) => {
     if (isServer) {
       config.externals.push('_next_client_manifest');
+      config.externals.push('_next_client_reference_manifest');
     }
     return config;
   },
