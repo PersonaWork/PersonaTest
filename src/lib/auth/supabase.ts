@@ -1,57 +1,116 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient, SupabaseClient } from '@supabase/supabase-js'
 
-// Singleton pattern to prevent multiple GoTrueClient instances
-let supabaseClient: ReturnType<typeof createClient> | null = null;
-let supabaseAdminClient: ReturnType<typeof createClient> | null = null;
+// Lazy initialization to prevent crashes when env vars are missing
+let supabaseClient: SupabaseClient | null = null;
+let supabaseAdminClient: SupabaseClient | null = null;
 
-function getEnvVar(name: string, required = true): string | undefined {
+function getEnvVar(name: string): string {
   const value = process.env[name];
-  if (required && !value) {
-    console.error(`Missing required environment variable: ${name}`);
-    return undefined;
+  if (!value) {
+    throw new Error(`Missing environment variable: ${name}`);
   }
   return value;
 }
 
-export const supabase = (() => {
-  if (supabaseClient) return supabaseClient;
-  
+function createSupabaseClient(): SupabaseClient {
   const url = getEnvVar('NEXT_PUBLIC_SUPABASE_URL');
   const key = getEnvVar('NEXT_PUBLIC_SUPABASE_ANON_KEY');
   
-  if (!url || !key) {
-    // Return a dummy client that will show clear errors
-    throw new Error(
-      'Supabase configuration missing. Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY environment variables.'
-    );
-  }
-  
-  supabaseClient = createClient(url, key, {
+  return createClient(url, key, {
     auth: {
       persistSession: true,
       autoRefreshToken: true,
     }
   });
-  return supabaseClient;
-})();
+}
 
-export const supabaseAdmin = (() => {
-  if (supabaseAdminClient) return supabaseAdminClient;
-  
+function createSupabaseAdmin(): SupabaseClient {
   const url = getEnvVar('NEXT_PUBLIC_SUPABASE_URL');
-  const key = getEnvVar('SUPABASE_SERVICE_ROLE_KEY', false);
+  const key = getEnvVar('SUPABASE_SERVICE_ROLE_KEY');
   
-  if (!url || !key) {
-    throw new Error(
-      'Supabase admin configuration missing. Please set SUPABASE_SERVICE_ROLE_KEY environment variable.'
-    );
-  }
-  
-  supabaseAdminClient = createClient(url, key, {
+  return createClient(url, key, {
     auth: {
       autoRefreshToken: false,
       persistSession: false
     }
   });
+}
+
+// Lazy getters - client only created when first accessed
+export function getSupabaseClient(): SupabaseClient {
+  if (!supabaseClient) {
+    supabaseClient = createSupabaseClient();
+  }
+  return supabaseClient;
+}
+
+export function getSupabaseAdmin(): SupabaseClient {
+  if (!supabaseAdminClient) {
+    supabaseAdminClient = createSupabaseAdmin();
+  }
   return supabaseAdminClient;
-})();
+}
+
+// Backward-compatible exports - lazy initialization happens on first use
+// We use a class-based wrapper that delegates all property access to the actual client
+class SupabaseClientWrapper {
+  private client: SupabaseClient | null = null;
+  
+  private getClient(): SupabaseClient {
+    if (!this.client) {
+      this.client = createSupabaseClient();
+    }
+    return this.client;
+  }
+  
+  get auth() {
+    return this.getClient().auth;
+  }
+  
+  get storage() {
+    return this.getClient().storage;
+  }
+  
+  get functions() {
+    return this.getClient().functions;
+  }
+  
+  get realtime() {
+    return this.getClient().realtime;
+  }
+  
+  // Support for any other properties/methods
+  from(table: string) {
+    return this.getClient().from(table);
+  }
+  
+  rpc(fn: string, args?: any) {
+    return this.getClient().rpc(fn, args);
+  }
+}
+
+class SupabaseAdminWrapper {
+  private client: SupabaseClient | null = null;
+  
+  private getClient(): SupabaseClient {
+    if (!this.client) {
+      this.client = createSupabaseAdmin();
+    }
+    return this.client;
+  }
+  
+  get auth() {
+    return this.getClient().auth;
+  }
+  
+  from(table: string) {
+    return this.getClient().from(table);
+  }
+  
+  rpc(fn: string, args?: any) {
+    return this.getClient().rpc(fn, args);
+  }
+}
+
+export const supabase = new SupabaseClientWrapper() as unknown as SupabaseClient;
+export const supabaseAdmin = new SupabaseAdminWrapper() as unknown as SupabaseClient;
