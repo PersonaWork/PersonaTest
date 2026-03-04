@@ -3,7 +3,7 @@ const nextConfig = {
   experimental: {
     serverComponentsExternalPackages: ['@prisma/client'],
   },
-  output: 'standalone',
+  // Removed: output: 'standalone' - causing client reference manifest issues
 };
 
 module.exports = nextConfig;
