@@ -1,15 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { requirePrivyClaims } from '@/lib/auth/privy-server';
+import { getPolygonMaticBalance } from '@/lib/wallet/polygon';
 
 export async function POST(request: NextRequest) {
   try {
+    const { claims } = await requirePrivyClaims(request.headers);
     const body = await request.json();
-    const { userId, characterId, shares } = body;
+    const { characterId, shares } = body;
+    const userId = claims.userId;
 
-    if (!userId || !characterId || !shares || shares <= 0) {
+    if (!characterId || !shares || shares <= 0) {
       return NextResponse.json(
         { error: 'Invalid request parameters' },
         { status: 400 }
+      );
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user?.walletAddress) {
+      return NextResponse.json(
+        { error: 'User wallet not found' },
+        { status: 404 }
+      );
+    }
+
+    const { matic } = await getPolygonMaticBalance(user.walletAddress as `0x${string}`);
+    if (matic < 0.01) {
+      return NextResponse.json(
+        { error: 'Wallet not funded' },
+        { status: 402 }
       );
     }
 

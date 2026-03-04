@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { requirePrivyClaims } from '@/lib/auth/privy-server';
 
 export async function POST(request: NextRequest) {
   try {
+    const { claims } = await requirePrivyClaims(request.headers);
     const body = await request.json();
-    const { userId, characterId, shares } = body;
+    const { characterId, shares } = body;
+    const userId = claims.userId;
 
-    if (!userId || !characterId || !shares || shares <= 0) {
+    if (!characterId || !shares || shares <= 0) {
       return NextResponse.json(
         { error: 'Invalid request parameters' },
         { status: 400 }

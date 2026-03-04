@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { requirePrivyClaims } from '@/lib/auth/privy-server';
 
 export async function GET(
   request: Request,
@@ -7,15 +8,8 @@ export async function GET(
 ) {
   try {
     const { slug } = await params;
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
-
-    if (!userId) {
-      return NextResponse.json(
-        { error: 'User ID required' },
-        { status: 400 }
-      );
-    }
+    const { claims } = await requirePrivyClaims(request.headers);
+    const userId = claims.userId;
 
     // Get character
     const character = await prisma.character.findUnique({

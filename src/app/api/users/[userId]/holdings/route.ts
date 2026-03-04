@@ -1,12 +1,20 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { requirePrivyClaims } from '@/lib/auth/privy-server';
 
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
+    const { claims } = await requirePrivyClaims(request.headers);
     const { userId } = await params;
+    if (userId !== claims.userId) {
+      return NextResponse.json(
+        { error: 'Forbidden' },
+        { status: 403 }
+      );
+    }
 
     const holdings = await prisma.holding.findMany({
       where: { userId },

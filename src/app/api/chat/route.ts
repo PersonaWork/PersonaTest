@@ -1,19 +1,22 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { requirePrivyClaims } from '@/lib/auth/privy-server';
 
 // POST /api/chat - Send a message to a character
 export async function POST(request: Request) {
     try {
+        const { claims } = await requirePrivyClaims(request.headers);
         const body = await request.json();
 
         const {
-            userId,
             characterSlug,
             message
         } = body;
 
+        const userId = claims.userId;
+
         // Validate required fields
-        if (!userId || !characterSlug || !message) {
+        if (!characterSlug || !message) {
             return NextResponse.json(
                 { error: 'Missing required fields: userId, characterSlug, message' },
                 { status: 400 }
@@ -182,12 +185,14 @@ async function generateCharacterResponse(
 // GET /api/chat - Get chat history with a character
 export async function GET(request: Request) {
     try {
+        const { claims } = await requirePrivyClaims(request.headers);
         const { searchParams } = new URL(request.url);
-        const userId = searchParams.get('userId');
         const characterSlug = searchParams.get('characterSlug');
         const limit = parseInt(searchParams.get('limit') || '50');
 
-        if (!userId || !characterSlug) {
+        const userId = claims.userId;
+
+        if (!characterSlug) {
             return NextResponse.json(
                 { error: 'userId and characterSlug are required' },
                 { status: 400 }

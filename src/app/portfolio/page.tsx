@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Button, Card } from '@/components/ui';
+import { usePrivy } from '@privy-io/react-auth';
+import { usePrivyAuthedFetch } from '@/lib/auth/privy-client';
 
 interface Holding {
   id: string;
@@ -29,6 +31,8 @@ interface Transaction {
 }
 
 export default function PortfolioPage() {
+    const { ready, authenticated, user, login } = usePrivy();
+    const privyFetch = usePrivyAuthedFetch();
     const [holdings, setHoldings] = useState<Holding[]>([]);
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [loading, setLoading] = useState(true);
@@ -40,18 +44,18 @@ export default function PortfolioPage() {
     const fetchPortfolio = async () => {
         try {
             setLoading(true);
-            // TODO: Get actual user ID from auth
-            const userId = 'demo-user';
+            const userId = user?.id;
+            if (!userId) return;
             
             // Fetch holdings with character data
-            const holdingsResponse = await fetch(`/api/users/${userId}/holdings`);
+            const holdingsResponse = await privyFetch(`/api/users/${userId}/holdings`);
             if (holdingsResponse.ok) {
                 const holdingsData = await holdingsResponse.json();
                 setHoldings(holdingsData);
             }
 
             // Fetch transactions
-            const transactionsResponse = await fetch(`/api/users/${userId}/transactions`);
+            const transactionsResponse = await privyFetch(`/api/users/${userId}/transactions`);
             if (transactionsResponse.ok) {
                 const transactionsData = await transactionsResponse.json();
                 setTransactions(transactionsData);
@@ -73,6 +77,29 @@ export default function PortfolioPage() {
         return (
             <div className="min-h-screen flex items-center justify-center">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500"></div>
+            </div>
+        );
+    }
+
+    if (!ready) {
+        return (
+            <div className="min-h-screen flex items-center justify-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500"></div>
+            </div>
+        );
+    }
+
+    if (!authenticated) {
+        return (
+            <div className="min-h-screen flex items-center justify-center px-6">
+                <Card className="max-w-md w-full p-8 text-center" hover={false}>
+                    <div className="text-5xl mb-4">🔒</div>
+                    <h1 className="text-2xl font-black text-white mb-2">Portfolio locked</h1>
+                    <p className="text-slate-400 mb-6">Sign in to view your holdings and transactions.</p>
+                    <Button size="lg" className="w-full" onClick={() => login()}>
+                        Sign In
+                    </Button>
+                </Card>
             </div>
         );
     }

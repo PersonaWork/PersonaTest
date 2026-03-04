@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { generateCharacterResponse } from '@/lib/ai/openai';
+import { requirePrivyClaims } from '@/lib/auth/privy-server';
 
 export async function POST(
   request: NextRequest,
@@ -8,10 +9,12 @@ export async function POST(
 ) {
   try {
     const { slug } = await params;
+    const { claims } = await requirePrivyClaims(request.headers);
     const body = await request.json();
-    const { userId, message } = body;
+    const { message } = body;
+    const userId = claims.userId;
 
-    if (!userId || !message) {
+    if (!message) {
       return NextResponse.json(
         { error: 'User ID and message required' },
         { status: 400 }

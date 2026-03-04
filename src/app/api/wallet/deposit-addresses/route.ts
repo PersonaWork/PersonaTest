@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { requirePrivyClaims } from '@/lib/auth/privy-server';
 
 // Mock crypto price data
 const CRYPTO_PRICES = {
@@ -12,15 +13,8 @@ const CRYPTO_PRICES = {
 
 export async function GET(request: Request) {
   try {
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
-
-    if (!userId) {
-      return NextResponse.json(
-        { error: 'User ID required' },
-        { status: 400 }
-      );
-    }
+    const { claims } = await requirePrivyClaims(request.headers);
+    const userId = claims.userId;
 
     // Get user
     const user = await prisma.user.findUnique({
@@ -101,9 +95,11 @@ export async function GET(request: Request) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { userId, cryptoType, amount, txHash, fromAddress } = body;
+    const { claims } = await requirePrivyClaims(request.headers);
+    const { cryptoType, amount, txHash, fromAddress } = body;
+    const userId = claims.userId;
 
-    if (!userId || !cryptoType || !amount || !txHash) {
+    if (!cryptoType || !amount || !txHash) {
       return NextResponse.json(
         { error: 'User ID, crypto type, amount, and transaction hash required' },
         { status: 400 }

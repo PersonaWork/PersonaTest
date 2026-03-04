@@ -5,6 +5,8 @@ import { useParams, useRouter } from 'next/navigation';
 import { Card } from '@/components/ui';
 import Link from 'next/link';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { usePrivy } from '@privy-io/react-auth';
+import { usePrivyAuthedFetch } from '@/lib/auth/privy-client';
 
 interface Character {
   id: string;
@@ -32,6 +34,9 @@ export default function TradePage() {
   const params = useParams();
   const router = useRouter();
   const slug = params.slug as string;
+
+  const { ready, authenticated, login } = usePrivy();
+  const privyFetch = usePrivyAuthedFetch();
   
   const [character, setCharacter] = useState<Character | null>(null);
   const [holding, setHolding] = useState<Holding | null>(null);
@@ -82,17 +87,27 @@ export default function TradePage() {
     setIsProcessing(true);
     try {
       const shares = parseInt(buyShares);
-      const response = await fetch('/api/trading/buy', {
+      if (!authenticated) {
+        await login();
+      }
+
+      const response = await privyFetch('/api/trading/buy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId: 'demo-user', // TODO: Get from auth
           characterId: character.id,
           shares
         })
       });
       
-      if (!response.ok) throw new Error('Trade failed');
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        if (response.status === 402 || data?.error === 'Wallet not funded') {
+          router.push('/fund');
+          return;
+        }
+        throw new Error(data?.error || 'Trade failed');
+      }
       
       await fetchCharacter();
       await fetchTransactions();
@@ -110,17 +125,23 @@ export default function TradePage() {
     setIsProcessing(true);
     try {
       const shares = parseInt(sellShares);
-      const response = await fetch('/api/trading/sell', {
+      if (!authenticated) {
+        await login();
+      }
+
+      const response = await privyFetch('/api/trading/sell', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId: 'demo-user', // TODO: Get from auth
           characterId: character.id,
           shares
         })
       });
       
-      if (!response.ok) throw new Error('Trade failed');
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data?.error || 'Trade failed');
+      }
       
       await fetchCharacter();
       await fetchTransactions();

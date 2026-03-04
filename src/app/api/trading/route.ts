@@ -1,21 +1,24 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { requirePrivyClaims } from '@/lib/auth/privy-server';
 
 // POST /api/trading - Execute a trade (buy or sell shares)
 export async function POST(request: Request) {
     try {
+        const { claims } = await requirePrivyClaims(request.headers);
         const body = await request.json();
 
         const {
-            userId,
             characterId,
             shares,
             type, // 'buy' | 'sell'
             pricePerShare
         } = body;
 
+        const userId = claims.userId;
+
         // Validate required fields
-        if (!userId || !characterId || !shares || !type || !pricePerShare) {
+        if (!characterId || !shares || !type || !pricePerShare) {
             return NextResponse.json(
                 { error: 'Missing required fields: userId, characterId, shares, type, pricePerShare' },
                 { status: 400 }
@@ -227,15 +230,8 @@ export async function POST(request: Request) {
 // GET /api/trading - Get user's portfolio
 export async function GET(request: Request) {
     try {
-        const { searchParams } = new URL(request.url);
-        const userId = searchParams.get('userId');
-
-        if (!userId) {
-            return NextResponse.json(
-                { error: 'userId is required' },
-                { status: 400 }
-            );
-        }
+        const { claims } = await requirePrivyClaims(request.headers);
+        const userId = claims.userId;
 
         const holdings = await prisma.holding.findMany({
             where: { userId },

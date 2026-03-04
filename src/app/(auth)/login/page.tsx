@@ -4,12 +4,13 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button, Input, Card } from '@/components/ui';
-
-// Dynamic import to avoid build-time Privy issues
-const signIn = () => import('@/lib/auth/auth-helpers').then(mod => mod.signIn);
+import { usePrivy } from '@privy-io/react-auth';
+import { usePrivyAuthedFetch } from '@/lib/auth/privy-client';
 
 export default function LoginPage() {
     const router = useRouter();
+    const { login } = usePrivy();
+    const privyFetch = usePrivyAuthedFetch();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -21,8 +22,22 @@ export default function LoginPage() {
         setError(null);
 
         try {
-            const signInFunc = await signIn();
-            await signInFunc(email, password);
+            await login({
+                loginMethods: ['email'],
+                ...(email ? { prefill: { type: 'email', value: email } } : {})
+            } as any);
+
+            const syncRes = await privyFetch('/api/auth/sync', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({})
+            });
+
+            if (!syncRes.ok) {
+                const data = await syncRes.json().catch(() => ({}));
+                throw new Error(data?.error || 'Failed to sync account');
+            }
+
             router.push('/marketplace');
         } catch (err: any) {
             setError(err.message || 'Failed to sign in. Please try again.');
@@ -66,14 +81,9 @@ export default function LoginPage() {
                             required
                         />
 
-                        <Input
-                            label="Password"
-                            type="password"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            placeholder="••••••••"
-                            required
-                        />
+                        <div className="text-xs text-slate-500 leading-relaxed">
+                            You’ll enter your password inside the secure Privy login.
+                        </div>
 
                         {error && (
                             <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20">

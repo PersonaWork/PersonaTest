@@ -4,12 +4,13 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button, Input, Card } from '@/components/ui';
-
-// Dynamic import to avoid build-time Privy issues
-const signUp = () => import('@/lib/auth/auth-helpers').then(mod => mod.signUp);
+import { usePrivy } from '@privy-io/react-auth';
+import { usePrivyAuthedFetch } from '@/lib/auth/privy-client';
 
 export default function SignupPage() {
     const router = useRouter();
+    const { login, authenticated, user } = usePrivy();
+    const privyFetch = usePrivyAuthedFetch();
     const [email, setEmail] = useState('');
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
@@ -21,15 +22,29 @@ export default function SignupPage() {
         setIsLoading(true);
         setError(null);
 
-        if (password.length < 6) {
-            setError('Password must be at least 6 characters');
+        if (!username.trim()) {
+            setError('Username is required');
             setIsLoading(false);
             return;
         }
 
         try {
-            const signUpFunc = await signUp();
-            await signUpFunc(email, password, username);
+            await login({
+                loginMethods: ['email'],
+                ...(email ? { prefill: { type: 'email', value: email } } : {})
+            } as any);
+
+            const syncRes = await privyFetch('/api/auth/sync', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: username.trim() })
+            });
+
+            if (!syncRes.ok) {
+                const data = await syncRes.json().catch(() => ({}));
+                throw new Error(data?.error || 'Failed to finalize account');
+            }
+
             router.push('/marketplace');
         } catch (err: any) {
             setError(err.message || 'Failed to create account. Please try again.');
@@ -108,15 +123,9 @@ export default function SignupPage() {
                             required
                         />
 
-                        <Input
-                            label="Password"
-                            type="password"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            placeholder="••••••••"
-                            required
-                            hint="Must be at least 8 characters"
-                        />
+                        <div className="text-xs text-slate-500 leading-relaxed">
+                            You’ll create your password inside the secure Privy signup.
+                        </div>
 
                         {error && (
                             <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20">

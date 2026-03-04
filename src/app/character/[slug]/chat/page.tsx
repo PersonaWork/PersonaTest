@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Card } from '@/components/ui';
 import Link from 'next/link';
+import { usePrivy } from '@privy-io/react-auth';
+import { usePrivyAuthedFetch } from '@/lib/auth/privy-client';
 
 interface Message {
   id: string;
@@ -23,6 +25,9 @@ export default function ChatPage() {
   const params = useParams();
   const router = useRouter();
   const slug = params.slug as string;
+
+  const { ready, authenticated, login } = usePrivy();
+  const privyFetch = usePrivyAuthedFetch();
   
   const [character, setCharacter] = useState<Character | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -49,10 +54,12 @@ export default function ChatPage() {
   const checkAccess = async () => {
     try {
       setCheckingAccess(true);
-      // TODO: Get actual user ID from auth
-      const userId = 'demo-user';
-      
-      const response = await fetch(`/api/characters/${slug}/check-access?userId=${userId}`);
+      if (!authenticated) {
+        setHasAccess(false);
+        return;
+      }
+
+      const response = await privyFetch(`/api/characters/${slug}/check-access`);
       if (response.ok) {
         const data = await response.json();
         setHasAccess(data.hasAccess);
@@ -109,11 +116,14 @@ export default function ChatPage() {
     setMessages(prev => [...prev, tempUserMessage]);
 
     try {
-      const response = await fetch(`/api/characters/${slug}/chat`, {
+      if (!authenticated) {
+        await login();
+      }
+
+      const response = await privyFetch(`/api/characters/${slug}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId: 'demo-user', // TODO: Get from auth
           message: userMessage
         })
       });

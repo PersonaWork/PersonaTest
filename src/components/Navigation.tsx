@@ -50,16 +50,28 @@ const Navigation = () => {
             >
               Settings
             </Link>
+            <Link
+              href="/fund"
+              className={`text-sm font-semibold transition-colors ${
+                isActive('/fund') ? 'text-white' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Fund
+            </Link>
           </div>
 
           {/* User Actions */}
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="sm">
-              Sign In
-            </Button>
-            <Button size="sm">
-              Sign Up
-            </Button>
+            <Link href="/login">
+              <Button variant="ghost" size="sm">
+                Sign In
+              </Button>
+            </Link>
+            <Link href="/signup">
+              <Button size="sm">
+                Sign Up
+              </Button>
+            </Link>
           </div>
 
           {/* Mobile Menu Button */}
