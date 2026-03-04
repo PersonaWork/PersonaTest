@@ -1,20 +1,35 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { Button, Card, Input } from '@/components/ui';
 import { usePrivy } from '@privy-io/react-auth';
+import { usePrivyAuthedFetch } from '@/lib/auth/privy-client';
 
 export default function SettingsPage() {
-    const { user, logout } = usePrivy();
+    const { user, logout, login, authenticated } = usePrivy();
+    const privyFetch = usePrivyAuthedFetch();
     const [username, setUsername] = useState('');
     const [email, setEmail] = useState(user?.email?.address || '');
     const [isSaving, setIsSaving] = useState(false);
+    const [saveError, setSaveError] = useState<string | null>(null);
 
     const handleSave = async () => {
         setIsSaving(true);
-        // Simulate save
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        setIsSaving(false);
+        setSaveError(null);
+        try {
+            const res = await privyFetch('/api/auth/sync', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: username.trim() })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data?.error || 'Failed to save');
+        } catch (e: any) {
+            setSaveError(e?.message || 'Failed to save');
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     const wallet = user?.wallet;
@@ -58,6 +73,12 @@ export default function SettingsPage() {
                                 Save Changes
                             </Button>
                         </div>
+
+                        {saveError && (
+                            <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20">
+                                <p className="text-xs font-medium text-red-400">{saveError}</p>
+                            </div>
+                        )}
                     </div>
                 </Card>
 
@@ -81,7 +102,7 @@ export default function SettingsPage() {
                         Your wallet is automatically generated when you sign up. It allows you to buy and sell AI character shares without needing to manage crypto yourself.
                     </p>
 
-                    <Button variant="danger" size="sm">
+                    <Button variant="danger" size="sm" onClick={() => logout()}>
                         Disconnect Wallet
                     </Button>
                 </Card>
@@ -108,6 +129,12 @@ export default function SettingsPage() {
                             </div>
                         ))}
                     </div>
+
+                    <div className="mt-6">
+                        <Link href="/settings/notifications">
+                            <Button variant="secondary" size="sm">Manage Notifications</Button>
+                        </Link>
+                    </div>
                 </Card>
 
                 {/* Security */}
@@ -120,7 +147,9 @@ export default function SettingsPage() {
                                 <p className="text-sm font-semibold text-white">Two-Factor Authentication</p>
                                 <p className="text-xs text-slate-500">Add an extra layer of security</p>
                             </div>
-                            <Button variant="secondary" size="sm">Enable</Button>
+                            <Link href="/settings/security">
+                                <Button variant="secondary" size="sm">Open</Button>
+                            </Link>
                         </div>
 
                         <div className="flex items-center justify-between p-4 rounded-xl bg-slate-900/50 border border-slate-800">
@@ -128,7 +157,9 @@ export default function SettingsPage() {
                                 <p className="text-sm font-semibold text-white">Change Password</p>
                                 <p className="text-xs text-slate-500">Update your account password</p>
                             </div>
-                            <Button variant="secondary" size="sm">Change</Button>
+                            <Link href="/settings/security">
+                                <Button variant="secondary" size="sm">Open</Button>
+                            </Link>
                         </div>
                     </div>
                 </Card>
@@ -144,6 +175,12 @@ export default function SettingsPage() {
                         <Button variant="danger" size="sm">
                             Delete Account
                         </Button>
+                    </div>
+
+                    <div className="mt-4">
+                        <Link href="/settings/danger">
+                            <Button variant="secondary" size="sm">Account Actions</Button>
+                        </Link>
                     </div>
                 </Card>
             </div>
