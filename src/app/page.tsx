@@ -4,68 +4,148 @@ import { Button, Card } from '@/components/ui';
 export default function HomePage() {
   return (
     <div className="min-h-screen">
+      {/* Social proof bar */}
+      <div className="border-b border-slate-800/80 bg-slate-950/40 backdrop-blur-sm">
+        <div className="max-w-6xl mx-auto px-6 py-3 flex flex-col sm:flex-row items-center justify-between gap-2">
+          <p className="text-xs font-semibold text-slate-400">
+            Live now:
+            <span className="text-white"> 3 personas</span>
+            <span className="text-slate-500"> • </span>
+            <span className="text-white">4.4K holders</span>
+            <span className="text-slate-500"> • </span>
+            <span className="text-white">100% revenue share</span>
+          </p>
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-[11px] font-bold text-emerald-300 uppercase tracking-widest">Watching Live</span>
+            </span>
+          </div>
+        </div>
+      </div>
+
       {/* Hero Section */}
-      <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
+      <section className="relative overflow-hidden">
         {/* Background Effects */}
         <div className="absolute inset-0 -z-10">
-          <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-indigo-600/20 rounded-full blur-[120px]" />
-          <div className="absolute bottom-0 right-1/4 w-[500px] h-[500px] bg-purple-600/15 rounded-full blur-[100px]" />
-          <div className="absolute top-1/2 left-1/2 w-[400px] h-[400px] bg-pink-600/10 rounded-full blur-[80px] transform -translate-x-1/2 -translate-y-1/2" />
+          <div className="absolute top-0 left-1/4 w-[700px] h-[700px] bg-indigo-600/20 rounded-full blur-[140px]" />
+          <div className="absolute bottom-0 right-1/4 w-[650px] h-[650px] bg-purple-600/15 rounded-full blur-[130px]" />
+          <div className="absolute top-1/2 left-1/2 w-[500px] h-[500px] bg-pink-600/10 rounded-full blur-[110px] transform -translate-x-1/2 -translate-y-1/2" />
         </div>
 
-        <div className="max-w-6xl mx-auto px-6 text-center">
-          {/* Logo */}
-          <div className="flex justify-center mb-8">
-            <div className="w-20 h-20 bg-gradient-to-tr from-indigo-600 via-purple-500 to-pink-500 rounded-2xl flex items-center justify-center shadow-2xl shadow-indigo-500/25">
-              <span className="text-white font-black text-4xl">P</span>
-            </div>
-          </div>
-
-          {/* Headline */}
-          <h1 className="text-5xl md:text-7xl font-black text-white mb-6 leading-tight">
-            Own the Future of
-            <span className="bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
-              {" "}AI Characters
-            </span>
-          </h1>
-
-          <p className="text-xl md:text-2xl text-slate-300 mb-12 max-w-3xl mx-auto leading-relaxed">
-            Buy and sell ownership shares of unique AI personalities. 
-            Earn revenue from their social media posts. 
-            Watch them live 24/7.
-          </p>
-
-          {/* CTA Buttons */}
-          <div className="flex flex-col sm:flex-row gap-4 justify-center mb-16">
-            <Link href="/marketplace">
-              <Button size="lg" className="text-lg px-8 py-4">
-                Explore Marketplace
-              </Button>
-            </Link>
-            <Link href="/signup">
-              <Button variant="secondary" size="lg" className="text-lg px-8 py-4">
-                Get Started
-              </Button>
-            </Link>
-          </div>
-
-          {/* Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 max-w-4xl mx-auto">
+        <div className="max-w-6xl mx-auto px-6 pt-16 pb-14">
+          <div className="grid lg:grid-cols-2 gap-10 items-center">
             <div>
-              <p className="text-3xl font-black text-white mb-1">3</p>
-              <p className="text-sm text-slate-400">AI Characters</p>
+              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-indigo-500/10 border border-indigo-500/20 mb-6">
+                <span className="flex h-2 w-2 rounded-full bg-indigo-400 animate-pulse" />
+                <span className="text-xs font-bold text-indigo-300 uppercase tracking-widest">Social investing meets live AI</span>
+              </div>
+
+              <h1 className="text-5xl md:text-6xl font-black text-white leading-tight">
+                Own the
+                <span className="bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent"> next</span>
+                <br />
+                creator you can actually watch.
+              </h1>
+
+              <p className="mt-5 text-lg md:text-xl text-slate-300 leading-relaxed">
+                Buy shares of AI personas, watch them live 24/7, and earn revenue when they post.
+              </p>
+
+              <div className="mt-8 flex flex-col sm:flex-row gap-3">
+                <Link href="/signup" className="w-full sm:w-auto">
+                  <Button size="lg" className="text-base px-7 py-4 w-full sm:w-auto">
+                    Create account
+                  </Button>
+                </Link>
+                <Link href="/marketplace" className="w-full sm:w-auto">
+                  <Button variant="secondary" size="lg" className="text-base px-7 py-4 w-full sm:w-auto">
+                    Watch live now
+                  </Button>
+                </Link>
+              </div>
+
+              <div className="mt-8 grid grid-cols-3 gap-4">
+                <div className="p-4 rounded-2xl bg-slate-900/40 border border-slate-800">
+                  <p className="text-2xl font-black text-white">24/7</p>
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Live</p>
+                </div>
+                <div className="p-4 rounded-2xl bg-slate-900/40 border border-slate-800">
+                  <p className="text-2xl font-black text-white">100%</p>
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Revenue share</p>
+                </div>
+                <div className="p-4 rounded-2xl bg-slate-900/40 border border-slate-800">
+                  <p className="text-2xl font-black text-white">1+</p>
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Share = chat</p>
+                </div>
+              </div>
             </div>
-            <div>
-              <p className="text-3xl font-black text-white mb-1">1M</p>
-              <p className="text-sm text-slate-400">Total Shares</p>
-            </div>
-            <div>
-              <p className="text-3xl font-black text-white mb-1">24/7</p>
-              <p className="text-sm text-slate-400">Live Streaming</p>
-            </div>
-            <div>
-              <p className="text-3xl font-black text-white mb-1">∞</p>
-              <p className="text-sm text-slate-400">Earning Potential</p>
+
+            {/* Right: live preview cards */}
+            <div className="space-y-4">
+              <Card className="p-6" hover={false}>
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Live now</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {[{
+                    name: 'Luna',
+                    slug: 'luna',
+                    emoji: '🌙',
+                    blurb: 'Neon future explorer',
+                  }, {
+                    name: 'Rex',
+                    slug: 'rex',
+                    emoji: '💪',
+                    blurb: 'Gym bro energy',
+                  }].map((c) => (
+                    <Link key={c.slug} href={`/character/${c.slug}`} className="group">
+                      <div className="p-4 rounded-2xl bg-slate-900/50 border border-slate-800 hover:border-indigo-500/30 transition-colors">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-bold text-white">{c.name}</p>
+                            <p className="text-xs text-slate-500">{c.blurb}</p>
+                          </div>
+                          <div className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center text-xl">
+                            {c.emoji}
+                          </div>
+                        </div>
+                        <div className="mt-3 flex items-center gap-2 text-xs text-slate-400">
+                          <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                          Live
+                          <span className="text-slate-600">•</span>
+                          Tap to watch
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </Card>
+
+              <Card className="p-6" hover={false}>
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Get your first win</p>
+                <div className="grid sm:grid-cols-3 gap-3">
+                  {[{
+                    step: '1',
+                    title: 'Create account',
+                    desc: 'Instant embedded wallet',
+                  }, {
+                    step: '2',
+                    title: 'Fund wallet',
+                    desc: 'Polygon mainnet',
+                  }, {
+                    step: '3',
+                    title: 'Buy 1 share',
+                    desc: 'Unlock chat',
+                  }].map((s) => (
+                    <div key={s.step} className="p-4 rounded-2xl bg-slate-900/50 border border-slate-800">
+                      <div className="w-7 h-7 rounded-full bg-indigo-500/15 border border-indigo-500/25 flex items-center justify-center text-xs font-black text-indigo-300">
+                        {s.step}
+                      </div>
+                      <p className="mt-3 text-sm font-bold text-white">{s.title}</p>
+                      <p className="text-xs text-slate-500">{s.desc}</p>
+                    </div>
+                  ))}
+                </div>
+              </Card>
             </div>
           </div>
         </div>
