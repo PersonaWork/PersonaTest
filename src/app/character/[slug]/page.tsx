@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
-import { Card } from '@/components/ui';
+import { Button, Card } from '@/components/ui';
 import AnimatedLiveCam from '@/components/character/AnimatedLiveCam';
 import Link from 'next/link';
 
@@ -143,11 +143,18 @@ export default function CharacterPage() {
                 </div>
               </div>
 
-              <Link href={`/character/${character.slug}/trade`}>
-                <button className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold py-3 rounded-xl hover:from-indigo-500 hover:to-purple-500 transition-all">
-                  Buy Shares
-                </button>
-              </Link>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Link href={`/character/${character.slug}/trade`} className="w-full">
+                  <Button className="w-full" size="lg">
+                    Buy shares
+                  </Button>
+                </Link>
+                <Link href="/fund" className="w-full">
+                  <Button className="w-full" variant="secondary" size="lg">
+                    Fund wallet
+                  </Button>
+                </Link>
+              </div>
             </div>
           </Card>
 

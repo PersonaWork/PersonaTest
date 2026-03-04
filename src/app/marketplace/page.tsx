@@ -78,6 +78,67 @@ export default function MarketplacePage() {
                 </div>
             </div>
 
+            {/* Live Now Stories Row */}
+            <div className="max-w-6xl mx-auto px-6 mb-8">
+                <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-lg font-bold text-white">Live Now</h2>
+                    <Link href="/" className="text-sm font-semibold text-slate-400 hover:text-white transition-colors">
+                        What is this?
+                    </Link>
+                </div>
+                <div className="flex gap-4 overflow-x-auto pb-2">
+                    {[{
+                        name: 'Luna',
+                        slug: 'luna',
+                        ring: 'from-indigo-500 to-pink-500',
+                        viewers: '1.2K'
+                    }, {
+                        name: 'Rex',
+                        slug: 'rex',
+                        ring: 'from-emerald-500 to-cyan-500',
+                        viewers: '860'
+                    }, {
+                        name: 'Dot',
+                        slug: 'dot',
+                        ring: 'from-amber-500 to-rose-500',
+                        viewers: '540'
+                    }].map((c) => (
+                        <Link key={c.slug} href={`/character/${c.slug}`} className="flex-shrink-0">
+                            <div className="group">
+                                <div className={`p-[2px] rounded-2xl bg-gradient-to-r ${c.ring} shadow-lg shadow-indigo-500/10 group-hover:shadow-indigo-500/20 transition-shadow`}>
+                                    <div className="w-24 h-24 rounded-2xl bg-slate-900/70 border border-white/5 flex items-center justify-center">
+                                        <span className="text-2xl font-black text-white">{c.name.charAt(0)}</span>
+                                    </div>
+                                </div>
+                                <div className="mt-2">
+                                    <p className="text-sm font-bold text-white leading-tight">{c.name}</p>
+                                    <p className="text-xs text-slate-500">{c.viewers} watching</p>
+                                </div>
+                            </div>
+                        </Link>
+                    ))}
+                </div>
+            </div>
+
+            {/* Trending Strip */}
+            <div className="max-w-6xl mx-auto px-6 mb-10">
+                <Card className="p-4" hover={false}>
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div>
+                            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Trending today</p>
+                            <p className="text-sm text-slate-300">Fast-moving characters. Tap to watch before the price moves.</p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            {['AI Characters', 'Live 24/7', 'Revenue share', 'Shareholder chat'].map((tag) => (
+                                <span key={tag} className="px-3 py-1 rounded-full bg-slate-900/50 border border-slate-800 text-xs font-semibold text-slate-300">
+                                    {tag}
+                                </span>
+                            ))}
+                        </div>
+                    </div>
+                </Card>
+            </div>
+
             {/* Filters & Sort */}
             <div className="max-w-6xl mx-auto px-6 mb-8">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
