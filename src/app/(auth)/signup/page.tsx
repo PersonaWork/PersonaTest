@@ -181,10 +181,7 @@ export default function SignupPage() {
                 </Card>
 
                 <p className="mt-6 text-center text-xs text-slate-600">
-                    By signing up, you agree to our{' '}
-                    <a href="#" className="text-slate-500 hover:text-white">Terms of Service</a>
-                    {' '}and{' '}
-                    <a href="#" className="text-slate-500 hover:text-white">Privacy Policy</a>
+                    By signing up, you agree to our Terms of Service and Privacy Policy (coming soon)
                 </p>
             </div>
         </div>

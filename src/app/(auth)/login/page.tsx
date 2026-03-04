@@ -139,10 +139,7 @@ export default function LoginPage() {
                 </Card>
 
                 <p className="mt-6 text-center text-xs text-slate-600">
-                    By signing in, you agree to our{' '}
-                    <a href="#" className="text-slate-500 hover:text-white">Terms of Service</a>
-                    {' '}and{' '}
-                    <a href="#" className="text-slate-500 hover:text-white">Privacy Policy</a>
+                    By signing in, you agree to our Terms of Service and Privacy Policy (coming soon)
                 </p>
             </div>
         </div>

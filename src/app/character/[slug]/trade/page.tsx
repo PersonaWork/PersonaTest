@@ -2,11 +2,17 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Card } from '@/components/ui';
+import { Button, Card } from '@/components/ui';
 import Link from 'next/link';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { usePrivy } from '@privy-io/react-auth';
 import { usePrivyAuthedFetch } from '@/lib/auth/privy-client';
+
+type WalletStatus = {
+  balances: { matic: number };
+  requirements: { minMaticToEnableBuy: number };
+  canBuy: boolean;
+};
 
 interface Character {
   id: string;
@@ -42,6 +48,8 @@ export default function TradePage() {
   const [holding, setHolding] = useState<Holding | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [walletStatus, setWalletStatus] = useState<WalletStatus | null>(null);
+  const [walletStatusLoading, setWalletStatusLoading] = useState(false);
   
   // Trade form states
   const [buyShares, setBuyShares] = useState('');
@@ -54,6 +62,27 @@ export default function TradePage() {
       fetchTransactions();
     }
   }, [slug]);
+
+  useEffect(() => {
+    if (!ready) return;
+    if (!authenticated) {
+      setWalletStatus(null);
+      return;
+    }
+    fetchWalletStatus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, authenticated]);
+
+  const fetchWalletStatus = async () => {
+    setWalletStatusLoading(true);
+    try {
+      const res = await privyFetch('/api/wallet/status');
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) setWalletStatus(data);
+    } finally {
+      setWalletStatusLoading(false);
+    }
+  };
 
   const fetchCharacter = async () => {
     try {
@@ -240,6 +269,44 @@ export default function TradePage() {
 
           {/* Trading Panel */}
           <div className="space-y-6">
+            {/* Funding Gate */}
+            {authenticated && (
+              <Card hover={false}>
+                <div className="p-6">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Wallet status</p>
+                      <p className="text-sm text-slate-300">
+                        {walletStatusLoading
+                          ? 'Checking Polygon balance…'
+                          : walletStatus
+                            ? `MATIC balance: ${walletStatus.balances.matic.toFixed(4)} (min ${walletStatus.requirements.minMaticToEnableBuy.toFixed(4)})`
+                            : 'Unable to read balance right now.'}
+                      </p>
+                    </div>
+                    <div className="flex gap-2 flex-wrap justify-end">
+                      <Link href="/fund">
+                        <Button size="sm" variant={walletStatus?.canBuy ? 'secondary' : 'primary'}>
+                          {walletStatus?.canBuy ? 'View funding' : 'Fund wallet'}
+                        </Button>
+                      </Link>
+                      <Button size="sm" variant="ghost" onClick={fetchWalletStatus} disabled={walletStatusLoading}>
+                        Refresh
+                      </Button>
+                    </div>
+                  </div>
+
+                  {walletStatus && !walletStatus.canBuy && (
+                    <div className="mt-4 p-4 rounded-xl bg-amber-500/10 border border-amber-500/20">
+                      <p className="text-sm font-semibold text-amber-200">
+                        Buying is locked until your embedded wallet is funded on Polygon mainnet.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </Card>
+            )}
+
             {/* Buy Panel */}
             <Card>
               <div className="p-6">
@@ -274,13 +341,15 @@ export default function TradePage() {
                     </div>
                   )}
                   
-                  <button
+                  <Button
                     onClick={handleBuy}
-                    disabled={!buySharesNum || isProcessing}
-                    className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold py-3 rounded-xl hover:from-indigo-500 hover:to-purple-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={!buySharesNum || isProcessing || (walletStatus ? !walletStatus.canBuy : false)}
+                    className="w-full"
+                    size="lg"
+                    variant="primary"
                   >
                     {isProcessing ? 'Processing...' : `Buy ${buySharesNum || 0} shares`}
-                  </button>
+                  </Button>
                 </div>
               </div>
             </Card>
@@ -320,13 +389,15 @@ export default function TradePage() {
                     </div>
                   )}
                   
-                  <button
+                  <Button
                     onClick={handleSell}
                     disabled={!sellSharesNum || !holding || sellSharesNum > holding.shares || isProcessing}
-                    className="w-full bg-gradient-to-r from-red-600 to-pink-600 text-white font-semibold py-3 rounded-xl hover:from-red-500 hover:to-pink-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full"
+                    size="lg"
+                    variant="danger"
                   >
                     {isProcessing ? 'Processing...' : `Sell ${sellSharesNum || 0} shares`}
-                  </button>
+                  </Button>
                 </div>
               </div>
             </Card>

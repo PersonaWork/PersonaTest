@@ -83,40 +83,47 @@ export default function MarketplacePage() {
                 <div className="flex items-center justify-between mb-4">
                     <h2 className="text-lg font-bold text-white">Live Now</h2>
                     <Link href="/" className="text-sm font-semibold text-slate-400 hover:text-white transition-colors">
-                        What is this?
+                        How it works
                     </Link>
                 </div>
                 <div className="flex gap-4 overflow-x-auto pb-2">
-                    {[{
-                        name: 'Luna',
-                        slug: 'luna',
-                        ring: 'from-indigo-500 to-pink-500',
-                        viewers: '1.2K'
-                    }, {
-                        name: 'Rex',
-                        slug: 'rex',
-                        ring: 'from-emerald-500 to-cyan-500',
-                        viewers: '860'
-                    }, {
-                        name: 'Dot',
-                        slug: 'dot',
-                        ring: 'from-amber-500 to-rose-500',
-                        viewers: '540'
-                    }].map((c) => (
-                        <Link key={c.slug} href={`/character/${c.slug}`} className="flex-shrink-0">
-                            <div className="group">
-                                <div className={`p-[2px] rounded-2xl bg-gradient-to-r ${c.ring} shadow-lg shadow-indigo-500/10 group-hover:shadow-indigo-500/20 transition-shadow`}>
-                                    <div className="w-24 h-24 rounded-2xl bg-slate-900/70 border border-white/5 flex items-center justify-center">
-                                        <span className="text-2xl font-black text-white">{c.name.charAt(0)}</span>
+                    {sortedCharacters
+                        .filter(c => c.status === 'LIVE')
+                        .slice(0, 8)
+                        .map((c, idx) => {
+                            const ring = idx % 3 === 0
+                                ? 'from-indigo-500 to-pink-500'
+                                : idx % 3 === 1
+                                    ? 'from-emerald-500 to-cyan-500'
+                                    : 'from-amber-500 to-rose-500';
+
+                            return (
+                                <Link key={c.id} href={`/character/${c.slug}`} className="flex-shrink-0">
+                                    <div className="group">
+                                        <div className={`p-[2px] rounded-2xl bg-gradient-to-r ${ring} shadow-lg shadow-indigo-500/10 group-hover:shadow-indigo-500/20 transition-shadow`}>
+                                            <div className="relative w-24 h-24 rounded-2xl bg-slate-900/70 border border-white/5 overflow-hidden flex items-center justify-center">
+                                                {c.thumbnailUrl ? (
+                                                    <img src={c.thumbnailUrl} alt={c.name} className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <span className="text-2xl font-black text-white">{c.name.charAt(0)}</span>
+                                                )}
+
+                                                <div className="absolute top-2 left-2">
+                                                    <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-red-500/25 border border-red-500/30 backdrop-blur-sm">
+                                                        <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                                                        <span className="text-[10px] font-black text-red-200 uppercase tracking-widest">Live</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="mt-2">
+                                            <p className="text-sm font-bold text-white leading-tight">{c.name}</p>
+                                            <p className="text-xs text-slate-500">Tap to watch</p>
+                                        </div>
                                     </div>
-                                </div>
-                                <div className="mt-2">
-                                    <p className="text-sm font-bold text-white leading-tight">{c.name}</p>
-                                    <p className="text-xs text-slate-500">{c.viewers} watching</p>
-                                </div>
-                            </div>
-                        </Link>
-                    ))}
+                                </Link>
+                            );
+                        })}
                 </div>
             </div>
 
