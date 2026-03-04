@@ -5,10 +5,12 @@ import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import { Button } from '@/components/ui';
 import WalletConnect from '@/components/wallet/WalletConnect';
+import { useAuth } from '@/lib/auth/auth-context';
 
 const Navigation = () => {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { user, signOut } = useAuth();
 
   const isActive = (path: string) => {
     if (path === '/') return pathname === '/';
@@ -69,16 +71,24 @@ const Navigation = () => {
               <WalletConnect compact />
             </div>
             <div className="hidden sm:flex items-center gap-2">
-              <Link href="/login">
-                <Button variant="ghost" size="sm">
-                  Sign In
+              {user ? (
+                <Button variant="ghost" size="sm" onClick={signOut}>
+                  Sign Out
                 </Button>
-              </Link>
-              <Link href="/signup">
-                <Button size="sm">
-                  Sign Up
-                </Button>
-              </Link>
+              ) : (
+                <>
+                  <Link href="/login">
+                    <Button variant="ghost" size="sm">
+                      Sign In
+                    </Button>
+                  </Link>
+                  <Link href="/signup">
+                    <Button size="sm">
+                      Sign Up
+                    </Button>
+                  </Link>
+                </>
+              )}
             </div>
           </div>
 
@@ -113,12 +123,20 @@ const Navigation = () => {
               Settings
             </Link>
             <div className="pt-3 border-t border-slate-800 flex gap-2">
-              <Link onClick={() => setMobileOpen(false)} href="/login" className="flex-1">
-                <Button variant="secondary" className="w-full">Sign In</Button>
-              </Link>
-              <Link onClick={() => setMobileOpen(false)} href="/signup" className="flex-1">
-                <Button className="w-full">Sign Up</Button>
-              </Link>
+              {user ? (
+                <Button variant="secondary" className="w-full" onClick={() => { signOut(); setMobileOpen(false); }}>
+                  Sign Out
+                </Button>
+              ) : (
+                <>
+                  <Link onClick={() => setMobileOpen(false)} href="/login" className="flex-1">
+                    <Button variant="secondary" className="w-full">Sign In</Button>
+                  </Link>
+                  <Link onClick={() => setMobileOpen(false)} href="/signup" className="flex-1">
+                    <Button className="w-full">Sign Up</Button>
+                  </Link>
+                </>
+              )}
             </div>
           </div>
         </div>

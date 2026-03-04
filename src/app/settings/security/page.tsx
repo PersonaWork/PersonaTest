@@ -2,10 +2,10 @@
 
 import Link from 'next/link';
 import { Card, Button } from '@/components/ui';
-import { usePrivy } from '@privy-io/react-auth';
+import { useAuth } from '@/lib/auth/auth-context';
 
 export default function SecuritySettingsPage() {
-  const { authenticated, login, logout } = usePrivy();
+  const { user, signOut } = useAuth();
 
   return (
     <div className="min-h-screen pb-20">
@@ -26,13 +26,15 @@ export default function SecuritySettingsPage() {
       <div className="max-w-3xl mx-auto px-6 space-y-6">
         <Card className="p-6" hover={false}>
           <p className="text-sm text-slate-400">
-            Security is handled by Privy. Use the Privy modal to manage your login methods.
+            Security is handled by Supabase Auth. Your password can be reset from the login page.
           </p>
           <div className="mt-6 flex gap-3 flex-wrap">
-            {!authenticated ? (
-              <Button onClick={() => login()}>Sign In</Button>
+            {user ? (
+              <Button variant="danger" onClick={signOut}>Sign Out</Button>
             ) : (
-              <Button variant="danger" onClick={() => logout()}>Sign Out</Button>
+              <Link href="/login">
+                <Button>Sign In</Button>
+              </Link>
             )}
           </div>
         </Card>

@@ -2,10 +2,25 @@ import { PrivyClient } from '@privy-io/node'
 import { createWalletClient, http } from 'viem'
 import { mainnet, polygon } from 'viem/chains'
 
-const privy = new PrivyClient({
-  appId: process.env.PRIVY_APP_ID!,
-  appSecret: process.env.PRIVY_APP_SECRET!
-})
+// Lazy-initialize Privy client to avoid build-time errors
+let privyClient: PrivyClient | null = null;
+
+function getPrivyClient(): PrivyClient {
+  if (!privyClient) {
+    const appId = process.env.PRIVY_APP_ID;
+    const appSecret = process.env.PRIVY_APP_SECRET;
+    
+    if (!appId || !appSecret) {
+      throw new Error('Privy not configured: PRIVY_APP_ID and PRIVY_APP_SECRET required');
+    }
+    
+    privyClient = new PrivyClient({
+      appId,
+      appSecret
+    });
+  }
+  return privyClient;
+}
 
 export async function createPrivyWallet(userId: string) {
   try {

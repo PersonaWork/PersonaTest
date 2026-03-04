@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { requirePrivyClaims } from '@/lib/auth/privy-server';
+import { supabaseAdmin } from '@/lib/auth/supabase';
 
 // Mock crypto price data
 const CRYPTO_PRICES = {
@@ -11,37 +11,70 @@ const CRYPTO_PRICES = {
   'MATIC': 0.85
 };
 
+async function getUserFromSession(request: Request) {
+  const authHeader = request.headers.get('authorization');
+  const token = authHeader?.replace('Bearer ', '');
+  
+  if (!token) {
+    return null;
+  }
+  
+  const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
+  if (error || !user) {
+    return null;
+  }
+  
+  return user;
+}
+
 export async function GET(request: Request) {
   try {
-    const { claims } = await requirePrivyClaims(request.headers);
-    const userId = claims.userId;
+    const user = await getUserFromSession(request);
+    
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+    
+    const userId = user.id;
 
-    // Get user
-    const user = await prisma.user.findUnique({
+    // Get user from database
+    const dbUser = await prisma.user.findUnique({
       where: { id: userId }
     });
 
-    if (!user) {
+    if (!dbUser) {
       return NextResponse.json(
         { error: 'User not found' },
         { status: 404 }
       );
     }
 
+    // If no wallet address, return error prompting to create wallet first
+    if (!dbUser.walletAddress) {
+      return NextResponse.json(
+        { error: 'No wallet found. Please create a wallet first.' },
+        { status: 400 }
+      );
+    }
+
+    const walletAddress = dbUser.walletAddress;
+
     // Generate deposit addresses for each supported crypto
-    // In production, these would be the user's actual Privy wallet addresses
     const depositAddresses = {
-      'ETH': user.walletAddress,
-      'USDC': user.walletAddress, // Same address for ERC-20 tokens
-      'USDT': user.walletAddress, // Same address for ERC-20 tokens
-      'MATIC': user.walletAddress, // Same address for Polygon tokens
-      'BTC': '1' + user.walletAddress.slice(2, 42) // Mock BTC address (different format)
+      'ETH': walletAddress,
+      'USDC': walletAddress,
+      'USDT': walletAddress,
+      'MATIC': walletAddress,
+      'BTC': '1' + walletAddress.slice(2, 42)
     };
 
     return NextResponse.json({
       success: true,
       userId,
-      walletAddress: user.walletAddress,
+      walletAddress: walletAddress,
       walletType: 'Privy Embedded Wallet',
       depositAddresses: depositAddresses,
       supportedCryptos: Object.keys(CRYPTO_PRICES),
@@ -74,11 +107,10 @@ export async function GET(request: Request) {
         }
       },
       qrCodes: {
-        // In production, you'd generate actual QR codes for each address
         'ETH': `ethereum:${depositAddresses.ETH}`,
         'BTC': `bitcoin:${depositAddresses.BTC}`,
-        'USDC': `ethereum:${depositAddresses.USDC}?contract=0xA0b86a33E6441b8c8c8c8c8c8c8c8c8c8c8c8c8c`,
-        'USDT': `ethereum:${depositAddresses.USDT}?contract=0xdAC17F958D2ee523a2206206994597C13D831ec7`,
+        'USDC': `ethereum:${depositAddresses.USDC}`,
+        'USDT': `ethereum:${depositAddresses.USDT}`,
         'MATIC': `polygon:${depositAddresses.MATIC}`
       }
     });
@@ -95,13 +127,21 @@ export async function GET(request: Request) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { claims } = await requirePrivyClaims(request.headers);
+    const user = await getUserFromSession(request);
+    
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+    
+    const userId = user.id;
     const { cryptoType, amount, txHash, fromAddress } = body;
-    const userId = claims.userId;
 
     if (!cryptoType || !amount || !txHash) {
       return NextResponse.json(
-        { error: 'User ID, crypto type, amount, and transaction hash required' },
+        { error: 'Crypto type, amount, and transaction hash required' },
         { status: 400 }
       );
     }
@@ -115,11 +155,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Get user
-    const user = await prisma.user.findUnique({
+    const dbUser = await prisma.user.findUnique({
       where: { id: userId }
     });
 
-    if (!user) {
+    if (!dbUser) {
       return NextResponse.json(
         { error: 'User not found' },
         { status: 404 }
@@ -133,7 +173,7 @@ export async function POST(request: NextRequest) {
     const cryptoTransaction = await prisma.transaction.create({
       data: {
         buyerId: userId,
-        characterId: '55f58a0a-ef04-4eb1-a3cc-2f100d40bfa5', // Use Luna's character ID
+        characterId: '55f58a0a-ef04-4eb1-a3cc-2f100d40bfa5',
         type: 'crypto-deposit',
         shares: 0,
         pricePerShare: usdValue,
@@ -144,7 +184,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: `Successfully deposited ${amount} ${cryptoType.toUpperCase()} ($${usdValue.toFixed(2)}) to your Privy wallet`,
+      message: `Successfully deposited ${amount} ${cryptoType.toUpperCase()} ($${usdValue.toFixed(2)})`,
       transaction: cryptoTransaction,
       depositDetails: {
         cryptoType: cryptoType.toUpperCase(),
@@ -152,8 +192,8 @@ export async function POST(request: NextRequest) {
         usdValue: usdValue,
         txHash: txHash,
         fromAddress: fromAddress,
-        toAddress: user.walletAddress,
-        walletType: 'Privy Embedded Wallet',
+        toAddress: dbUser.walletAddress,
+        walletType: 'Embedded Wallet',
         confirmed: true,
         status: 'completed'
       }

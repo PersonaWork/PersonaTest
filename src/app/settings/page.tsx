@@ -3,14 +3,13 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { Button, Card, Input } from '@/components/ui';
-import { usePrivy } from '@privy-io/react-auth';
-import { usePrivyAuthedFetch } from '@/lib/auth/privy-client';
+import { useAuth } from '@/lib/auth/auth-context';
+import { supabase } from '@/lib/auth/supabase';
 
 export default function SettingsPage() {
-    const { user, logout, login, authenticated } = usePrivy();
-    const privyFetch = usePrivyAuthedFetch();
+    const { user, signOut } = useAuth();
     const [username, setUsername] = useState('');
-    const [email, setEmail] = useState(user?.email?.address || '');
+    const [email, setEmail] = useState(user?.email || '');
     const [isSaving, setIsSaving] = useState(false);
     const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -18,10 +17,14 @@ export default function SettingsPage() {
         setIsSaving(true);
         setSaveError(null);
         try {
-            const res = await privyFetch('/api/auth/sync', {
+            const res = await fetch('/api/auth/sync', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username: username.trim() })
+                body: JSON.stringify({
+                    userId: user?.id,
+                    email: user?.email,
+                    username: username.trim()
+                })
             });
             const data = await res.json().catch(() => ({}));
             if (!res.ok) throw new Error(data?.error || 'Failed to save');
@@ -32,8 +35,7 @@ export default function SettingsPage() {
         }
     };
 
-    const wallet = user?.wallet;
-    const address = wallet?.address;
+    const walletAddress = null; // Will be fetched from user profile or Privy later
 
     return (
         <div className="min-h-screen pb-20">
@@ -91,7 +93,7 @@ export default function SettingsPage() {
                             <div>
                                 <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Connected Wallet</p>
                                 <p className="text-sm font-mono text-white break-all">
-                                    {address || 'No wallet connected'}
+                                    {walletAddress || 'No wallet connected'}
                                 </p>
                             </div>
                             <div className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse" />
@@ -99,12 +101,14 @@ export default function SettingsPage() {
                     </div>
 
                     <p className="text-sm text-slate-400 mb-4">
-                        Your wallet is automatically generated when you sign up. It allows you to buy and sell AI character shares without needing to manage crypto yourself.
+                        Your wallet can be created from the Fund page. It allows you to buy and sell AI character shares without needing to manage crypto yourself.
                     </p>
 
-                    <Button variant="danger" size="sm" onClick={() => logout()}>
-                        Disconnect Wallet
-                    </Button>
+                    <Link href="/fund">
+                        <Button variant="secondary" size="sm">
+                            Create Wallet
+                        </Button>
+                    </Link>
                 </Card>
 
                 {/* Notifications */}

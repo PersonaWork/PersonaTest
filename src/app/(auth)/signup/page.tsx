@@ -4,13 +4,10 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button, Input, Card } from '@/components/ui';
-import { usePrivy } from '@privy-io/react-auth';
-import { usePrivyAuthedFetch } from '@/lib/auth/privy-client';
+import { supabase } from '@/lib/auth/supabase';
 
 export default function SignupPage() {
     const router = useRouter();
-    const { login, authenticated, user } = usePrivy();
-    const privyFetch = usePrivyAuthedFetch();
     const [email, setEmail] = useState('');
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
@@ -29,15 +26,29 @@ export default function SignupPage() {
         }
 
         try {
-            await login({
-                loginMethods: ['email'],
-                ...(email ? { prefill: { type: 'email', value: email } } : {})
-            } as any);
+            // Sign up with Supabase Auth
+            const { data: authData, error: authError } = await supabase.auth.signUp({
+                email,
+                password,
+                options: {
+                    data: {
+                        username: username.trim()
+                    }
+                }
+            });
 
-            const syncRes = await privyFetch('/api/auth/sync', {
+            if (authError) throw authError;
+            if (!authData.user) throw new Error('Failed to create account');
+
+            // Create user in our database via API
+            const syncRes = await fetch('/api/auth/sync', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username: username.trim() })
+                body: JSON.stringify({
+                    userId: authData.user.id,
+                    email: authData.user.email,
+                    username: username.trim()
+                })
             });
 
             if (!syncRes.ok) {
@@ -123,8 +134,19 @@ export default function SignupPage() {
                             required
                         />
 
+                        <Input
+                            label="Password"
+                            type="password"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            placeholder="••••••••"
+                            required
+                            minLength={6}
+                            hint="Must be at least 6 characters"
+                        />
+
                         <div className="text-xs text-slate-500 leading-relaxed">
-                            You’ll create your password inside the secure Privy signup.
+                            After signing up, you can create your embedded wallet anytime from Settings.
                         </div>
 
                         {error && (

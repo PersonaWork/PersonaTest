@@ -4,13 +4,10 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button, Input, Card } from '@/components/ui';
-import { usePrivy } from '@privy-io/react-auth';
-import { usePrivyAuthedFetch } from '@/lib/auth/privy-client';
+import { supabase } from '@/lib/auth/supabase';
 
 export default function LoginPage() {
     const router = useRouter();
-    const { login } = usePrivy();
-    const privyFetch = usePrivyAuthedFetch();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -22,21 +19,14 @@ export default function LoginPage() {
         setError(null);
 
         try {
-            await login({
-                loginMethods: ['email'],
-                ...(email ? { prefill: { type: 'email', value: email } } : {})
-            } as any);
-
-            const syncRes = await privyFetch('/api/auth/sync', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({})
+            // Sign in with Supabase Auth
+            const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+                email,
+                password
             });
 
-            if (!syncRes.ok) {
-                const data = await syncRes.json().catch(() => ({}));
-                throw new Error(data?.error || 'Failed to sync account');
-            }
+            if (authError) throw authError;
+            if (!authData.user) throw new Error('Failed to sign in');
 
             router.push('/marketplace');
         } catch (err: any) {
@@ -81,9 +71,14 @@ export default function LoginPage() {
                             required
                         />
 
-                        <div className="text-xs text-slate-500 leading-relaxed">
-                            You’ll enter your password inside the secure Privy login.
-                        </div>
+                        <Input
+                            label="Password"
+                            type="password"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            placeholder="••••••••"
+                            required
+                        />
 
                         {error && (
                             <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20">

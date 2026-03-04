@@ -1,26 +1,29 @@
 'use client';
 
 import { PrivyProvider } from '@privy-io/react-auth';
+import { AuthProvider } from '@/lib/auth/auth-context';
 
 export default function Providers({ children }: { children: React.ReactNode }) {
     return (
-        <PrivyProvider
-            appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID!}
-            config={{
-                loginMethods: ['email'],
-                appearance: {
-                    theme: 'dark',
-                    accentColor: '#7c3aed',
-                    logo: '/persona-logo.svg',
-                },
-                embeddedWallets: {
-                    ethereum: {
-                        createOnLogin: 'users-without-wallets',
+        <AuthProvider>
+            <PrivyProvider
+                appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID || 'cl-123'}
+                config={{
+                    loginMethods: ['email'],
+                    appearance: {
+                        theme: 'dark',
+                        accentColor: '#7c3aed',
+                        logo: '/persona-logo.svg',
                     },
-                },
-            }}
-        >
-            {children}
-        </PrivyProvider>
+                    embeddedWallets: {
+                        ethereum: {
+                            createOnLogin: 'off',
+                        },
+                    },
+                }}
+            >
+                {children}
+            </PrivyProvider>
+        </AuthProvider>
     );
 }
