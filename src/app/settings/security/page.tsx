@@ -5,7 +5,7 @@ import { Card, Button } from '@/components/ui';
 import { useAuth } from '@/lib/auth/auth-context';
 
 export default function SecuritySettingsPage() {
-  const { user, signOut } = useAuth();
+  const { user, logout } = useAuth();
 
   return (
     <div className="min-h-screen pb-20">
@@ -30,7 +30,7 @@ export default function SecuritySettingsPage() {
           </p>
           <div className="mt-6 flex gap-3 flex-wrap">
             {user ? (
-              <Button variant="danger" onClick={signOut}>Sign Out</Button>
+              <Button variant="danger" onClick={logout}>Sign Out</Button>
             ) : (
               <Link href="/login">
                 <Button>Sign In</Button>

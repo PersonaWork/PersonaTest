@@ -1,6 +1,8 @@
 'use client';
 
+import { memo } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import Card from '../ui/Card';
 
 interface Character {
@@ -24,7 +26,7 @@ interface CharacterCardProps {
     showStats?: boolean;
 }
 
-export default function CharacterCard({ character, showStats = true }: CharacterCardProps) {
+const CharacterCard = memo(function CharacterCard({ character, showStats = true }: CharacterCardProps) {
     const isPositive = character.change >= 0;
     const progress = character.totalShares
         ? ((character.sharesIssued || 0) / character.totalShares) * 100
@@ -43,12 +45,13 @@ export default function CharacterCard({ character, showStats = true }: Character
                     {/* Character Avatar */}
                     <div className="absolute inset-0 flex items-center justify-center">
                         <div className="relative">
-                            <div className="w-28 h-28 rounded-full bg-slate-800/80 border-4 border-slate-700 overflow-hidden shadow-2xl group-hover:scale-110 group-hover:border-indigo-500/50 transition-all duration-300">
+                            <div className="w-28 h-28 rounded-full bg-slate-800/80 border-4 border-slate-700 overflow-hidden shadow-2xl group-hover:scale-110 group-hover:border-indigo-500/50 transition-all duration-300 relative">
                                 {(character.avatarUrl || character.thumbnailUrl) ? (
-                                    <img
-                                        src={character.avatarUrl || character.thumbnailUrl}
+                                    <Image
+                                        src={character.avatarUrl || character.thumbnailUrl || ''}
                                         alt={character.name}
-                                        className="w-full h-full object-cover"
+                                        fill
+                                        className="object-cover"
                                     />
                                 ) : (
                                     <div className="w-full h-full flex items-center justify-center text-4xl text-white">
@@ -141,4 +144,6 @@ export default function CharacterCard({ character, showStats = true }: Character
             </Card>
         </Link>
     );
-}
+});
+
+export default CharacterCard;

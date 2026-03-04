@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
-import { requirePrivyClaims } from '@/lib/auth/privy-server';
+import { prisma } from '@/lib/prisma';
+import { requireAuth } from '@/lib/auth';
 
 // POST /api/chat - Send a message to a character
 export async function POST(request: Request) {
     try {
-        const { claims } = await requirePrivyClaims(request.headers);
+        const { claims } = await requireAuth(request.headers);
         const body = await request.json();
 
         const {
@@ -116,9 +116,9 @@ export async function POST(request: Request) {
 }
 
 // Build system prompt from character personality
-function buildSystemPrompt(personality: any, characterName: string): string {
-    const traits = personality?.traits?.join(', ') || 'friendly';
-    const catchphrases = personality?.catchphrases?.join(', ') || '';
+function buildSystemPrompt(personality: Record<string, unknown>, characterName: string): string {
+    const traits = (personality?.traits as string[])?.join(', ') || 'friendly';
+    const catchphrases = (personality?.catchphrases as string[])?.join(', ') || '';
     const backstory = personality?.backstory || '';
     const voiceStyle = personality?.voiceStyle || 'casual';
 
@@ -144,7 +144,7 @@ Guidelines:
 // Generate character response (simulated AI)
 async function generateCharacterResponse(
     userMessage: string,
-    messageHistory: any[],
+    messageHistory: Record<string, unknown>[],
     systemPrompt: string,
     characterName: string
 ): Promise<string> {
@@ -185,7 +185,7 @@ async function generateCharacterResponse(
 // GET /api/chat - Get chat history with a character
 export async function GET(request: Request) {
     try {
-        const { claims } = await requirePrivyClaims(request.headers);
+        const { claims } = await requireAuth(request.headers);
         const { searchParams } = new URL(request.url);
         const characterSlug = searchParams.get('characterSlug');
         const limit = parseInt(searchParams.get('limit') || '50');

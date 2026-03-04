@@ -7,7 +7,7 @@ interface TrendingTopic {
 }
 
 interface ApifyResponse {
-  items: any[]
+  items: Record<string, unknown>[]
 }
 
 class ApifyAPI {
@@ -49,10 +49,10 @@ class ApifyAPI {
       })
 
       const runId = response.data.id
-      
+
       // Wait for completion and get results
       const results = await this.waitForRunCompletion(runId)
-      
+
       return this.transformTikTokData(results)
     } catch (error) {
       console.error('Failed to scrape TikTok trends:', error)
@@ -74,10 +74,10 @@ class ApifyAPI {
       })
 
       const runId = response.data.id
-      
+
       // Wait for completion and get results
       const results = await this.waitForRunCompletion(runId)
-      
+
       return this.transformInstagramData(results)
     } catch (error) {
       console.error('Failed to scrape Instagram trends:', error)
@@ -91,7 +91,7 @@ class ApifyAPI {
 
     while (attempts < maxAttempts) {
       const response = await this.makeRequest(`/acts/${runId}`)
-      
+
       if (response.data.status === 'SUCCEEDED') {
         return response.data.output
       } else if (response.data.status === 'FAILED') {
@@ -105,24 +105,24 @@ class ApifyAPI {
     throw new Error('Apify run timed out')
   }
 
-  private transformTikTokData(data: any[]): TrendingTopic[] {
+  private transformTikTokData(data: Record<string, unknown>[]): TrendingTopic[] {
     return data.slice(0, 10).map(item => ({
-      title: item.text || item.description || 'Trending content',
-      description: item.text || item.description || '',
-      engagement: item.stats?.likes || item.stats?.views || 0,
-      growth: Math.random() * 100, // Mock growth percentage
-      hashtags: item.hashtags || []
-    }))
+      title: (item.text as string) || (item.description as string) || 'Trending content',
+      description: (item.description as string) || (item.text as string) || 'A trending topic on TikTok.',
+      engagement: (item.stats as any)?.diggCount || (item.stats as any)?.likes || (item.stats as any)?.views || 0,
+      growth: (item.growth_rate as number) || 0,
+      hashtags: (item.hashtags as string[]) || []
+    }));
   }
 
-  private transformInstagramData(data: any[]): TrendingTopic[] {
+  private transformInstagramData(data: Record<string, unknown>[]): TrendingTopic[] {
     return data.slice(0, 10).map(item => ({
-      title: item.caption || 'Trending post',
-      description: item.caption || '',
-      engagement: item.likesCount || item.commentsCount || 0,
+      title: (item.caption as string) || 'Trending post',
+      description: (item.caption as string) || '',
+      engagement: (item.likesCount as number) || (item.commentsCount as number) || 0,
       growth: Math.random() * 100, // Mock growth percentage
-      hashtags: item.hashtags || []
-    }))
+      hashtags: (item.hashtags as string[]) || []
+    }));
   }
 }
 
@@ -136,11 +136,11 @@ export async function getTrendingTopics(characterTraits: string[] = []): Promise
     ])
 
     const allTrends = [...tiktokTrends, ...instagramTrends]
-    
+
     // Filter trends based on character traits
     if (characterTraits.length > 0) {
-      return allTrends.filter(trend => 
-        characterTraits.some(trait => 
+      return allTrends.filter(trend =>
+        characterTraits.some(trait =>
           trend.title.toLowerCase().includes(trait.toLowerCase()) ||
           trend.hashtags.some(tag => tag.toLowerCase().includes(trait.toLowerCase()))
         )

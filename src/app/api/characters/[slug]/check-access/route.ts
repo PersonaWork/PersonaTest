@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
-import { requirePrivyClaims } from '@/lib/auth/privy-server';
+import { prisma } from '@/lib/prisma';
+import { requireAuth } from '@/lib/auth';
 
 export async function GET(
   request: Request,
@@ -8,7 +8,7 @@ export async function GET(
 ) {
   try {
     const { slug } = await params;
-    const { claims } = await requirePrivyClaims(request.headers);
+    const { claims } = await requireAuth(request.headers);
     const userId = claims.userId;
 
     // Get character

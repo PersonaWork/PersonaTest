@@ -5,25 +5,25 @@ import { AuthProvider } from '@/lib/auth/auth-context';
 
 export default function Providers({ children }: { children: React.ReactNode }) {
     return (
-        <AuthProvider>
-            <PrivyProvider
-                appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID || 'cl-123'}
-                config={{
-                    loginMethods: ['email'],
-                    appearance: {
-                        theme: 'dark',
-                        accentColor: '#7c3aed',
-                        logo: '/persona-logo.svg',
+        <PrivyProvider
+            appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID || ''}
+            config={{
+                loginMethods: ['email', 'wallet', 'google', 'twitter'],
+                appearance: {
+                    theme: 'dark',
+                    accentColor: '#6366f1',
+                    logo: '/persona-logo.svg',
+                },
+                embeddedWallets: {
+                    ethereum: {
+                        createOnLogin: 'users-without-wallets',
                     },
-                    embeddedWallets: {
-                        ethereum: {
-                            createOnLogin: 'off',
-                        },
-                    },
-                }}
-            >
+                },
+            }}
+        >
+            <AuthProvider>
                 {children}
-            </PrivyProvider>
-        </AuthProvider>
+            </AuthProvider>
+        </PrivyProvider>
     );
 }

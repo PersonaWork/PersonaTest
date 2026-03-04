@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { prisma } from '@/lib/prisma';
 import { generateCharacterAnimation, selectAnimationFromMessage, AnimationType } from '@/lib/ai/character-animations';
 
 export async function POST(
@@ -29,7 +29,7 @@ export async function POST(
     if (animationType) {
       selectedAnimationType = animationType as AnimationType;
     } else if (message) {
-      selectedAnimationType = selectAnimationFromMessage(character.name, character.personality, message);
+      selectedAnimationType = selectAnimationFromMessage(character.name, character.personality as Record<string, unknown>, message);
     } else {
       selectedAnimationType = 'idle';
     }
@@ -57,7 +57,7 @@ export async function POST(
       trigger: trigger || 'manual'
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Animation generation failed:', error);
     return NextResponse.json(
       { error: 'Failed to generate animation' },
@@ -108,12 +108,12 @@ export async function GET(
       })),
       availableAnimations: [
         'idle', 'greeting', 'talking', 'excited', 'celebrating',
-        'thinking', 'laughing', 'scheming', 'meditating', 
+        'thinking', 'laughing', 'scheming', 'meditating',
         'teaching', 'hyping', 'dancing'
       ]
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Failed to get animation info:', error);
     return NextResponse.json(
       { error: 'Failed to get animation info' },

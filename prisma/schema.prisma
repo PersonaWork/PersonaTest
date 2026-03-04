@@ -9,6 +9,7 @@ datasource db {
 
 model User {
   id            String    @id @default(cuid())
+  privyId       String?   @unique
   email         String    @unique
   username      String    @unique
   walletAddress String?   @unique
@@ -16,6 +17,9 @@ model User {
   holdings      Holding[]
   messages      Message[]
   payouts       Payout[]
+
+  @@index([privyId])
+  @@index([email])
 }
 
 model Character {
@@ -24,12 +28,9 @@ model Character {
   slug            String           @unique
   description     String
   thumbnailUrl    String?
-  personality     Json             
-  // { traits: string[], catchphrases: string[], backstory: string, voiceStyle: string }
-  actions         Json             
-  // [{ id: string, name: string, clipUrl: string, audioUrl: string, rarity: "common"|"uncommon"|"rare"|"legendary", weight: number }]
-  environment     Json             
-  // { backgroundUrl: string, ambientAudioUrl: string, idleClipUrl: string }
+  personality     Json
+  actions         Json
+  environment     Json
   totalShares     Int              @default(1000000)
   sharesIssued    Int              @default(0)
   currentPrice    Float            @default(0.10)
@@ -38,11 +39,16 @@ model Character {
   isLaunched      Boolean          @default(false)
   tiktokHandle    String?
   instagramHandle String?
+  createdAt       DateTime         @default(now())
   holdings        Holding[]
   posts           Post[]
   messages        Message[]
   events          CharacterEvent[]
   transactions    Transaction[]
+
+  @@index([slug])
+  @@index([isLaunched])
+  @@index([createdAt])
 }
 
 model Holding {
@@ -57,12 +63,14 @@ model Holding {
   character   Character @relation(fields: [characterId], references: [id])
 
   @@unique([userId, characterId])
+  @@index([userId])
+  @@index([characterId])
 }
 
 model Post {
   id          String    @id @default(cuid())
   characterId String
-  platform    String    // "tiktok" | "instagram"
+  platform    String
   videoUrl    String
   caption     String
   revenue     Float     @default(0)
@@ -72,6 +80,9 @@ model Post {
   postedAt    DateTime  @default(now())
   character   Character @relation(fields: [characterId], references: [id])
   payouts     Payout[]
+
+  @@index([characterId])
+  @@index([postedAt])
 }
 
 model Message {
@@ -79,10 +90,14 @@ model Message {
   userId      String
   characterId String
   content     String
-  role        String    // "user" | "assistant"
+  role        String
   createdAt   DateTime  @default(now())
   user        User      @relation(fields: [userId], references: [id])
   character   Character @relation(fields: [characterId], references: [id])
+
+  @@index([userId])
+  @@index([characterId])
+  @@index([createdAt])
 }
 
 model CharacterEvent {
@@ -92,6 +107,9 @@ model CharacterEvent {
   isRare      Boolean   @default(false)
   triggeredAt DateTime  @default(now())
   character   Character @relation(fields: [characterId], references: [id])
+
+  @@index([characterId])
+  @@index([triggeredAt])
 }
 
 model Transaction {
@@ -102,9 +120,14 @@ model Transaction {
   shares        Int
   pricePerShare Float
   total         Float
-  type          String    // "buy" or "sell"
+  type          String
   createdAt     DateTime  @default(now())
   character     Character @relation(fields: [characterId], references: [id])
+
+  @@index([buyerId])
+  @@index([sellerId])
+  @@index([characterId])
+  @@index([createdAt])
 }
 
 model Payout {
@@ -115,5 +138,8 @@ model Payout {
   amount      Float
   paidAt      DateTime  @default(now())
   user        User      @relation(fields: [userId], references: [id])
-  post        Post     @relation(fields: [postId], references: [id])
+  post        Post      @relation(fields: [postId], references: [id])
+
+  @@index([userId])
+  @@index([postId])
 }

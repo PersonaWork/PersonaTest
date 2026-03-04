@@ -1,37 +1,78 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { NextRequest } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import { requireAuth } from '@/lib/auth';
+import { successResponse, errorResponse } from '@/lib/api';
 
 export async function POST(request: NextRequest) {
   try {
+    const { claims } = await requireAuth(request.headers);
     const body = await request.json().catch(() => ({}));
-    const { userId, email, username } = body;
+    const { email, privyId } = body;
 
-    if (!userId) {
-      return NextResponse.json({ error: 'User ID required' }, { status: 400 });
+    const privyUserId = privyId || claims.userId;
+
+    if (!privyUserId) {
+      return errorResponse('Privy user ID required', 400);
     }
 
-    const existing = await prisma.user.findUnique({ where: { id: userId } });
+    // Try to find existing user by privyId
+    let user = await prisma.user.findUnique({
+      where: { privyId: privyUserId },
+    });
 
-    if (!existing && !username) {
-      return NextResponse.json({ error: 'Username required' }, { status: 400 });
+    if (user) {
+      // Update email if provided and different
+      if (email && email !== user.email) {
+        try {
+          user = await prisma.user.update({
+            where: { id: user.id },
+            data: { email },
+          });
+        } catch {
+          // Email might conflict with another user, ignore
+        }
+      }
+      return successResponse({ user });
     }
 
-    const user = await prisma.user.upsert({
-      where: { id: userId },
-      create: {
-        id: userId,
-        email: email || `user-${userId}@example.com`,
-        username: username || `user-${userId.slice(0, 8)}`,
-      },
-      update: {
-        email: email || undefined,
-        username: username || undefined,
+    // Create new user
+    const username = email
+      ? email.split('@')[0]
+      : `user-${privyUserId.slice(0, 8)}`;
+
+    // Ensure unique username
+    let finalUsername = username;
+    let counter = 0;
+    while (true) {
+      const existing = await prisma.user.findUnique({
+        where: { username: finalUsername },
+      });
+      if (!existing) break;
+      counter++;
+      finalUsername = `${username}${counter}`;
+    }
+
+    // Ensure unique email
+    let finalEmail = email || `${privyUserId}@privy.user`;
+    const existingEmail = await prisma.user.findUnique({
+      where: { email: finalEmail },
+    });
+    if (existingEmail) {
+      finalEmail = `${privyUserId}@privy.user`;
+    }
+
+    user = await prisma.user.create({
+      data: {
+        privyId: privyUserId,
+        email: finalEmail,
+        username: finalUsername,
       },
     });
 
-    return NextResponse.json({ success: true, user });
-  } catch (err: any) {
-    const status = typeof err?.statusCode === 'number' ? err.statusCode : 500;
-    return NextResponse.json({ error: err?.message || 'Auth sync failed' }, { status });
+    return successResponse({ user }, 201);
+  } catch (err: unknown) {
+    const error = err as Error & { statusCode?: number };
+    const status = typeof error?.statusCode === 'number' ? error.statusCode : 500;
+    return errorResponse(error?.message || 'Auth sync failed', status);
   }
 }

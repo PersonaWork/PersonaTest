@@ -6,7 +6,7 @@ import { generateCharacterAnimation, selectAnimationFromMessage, AnimationType }
 interface AnimatedLiveCamProps {
     slug: string;
     characterName: string;
-    personality: any;
+    personality: Record<string, unknown>;
     idleClipUrl: string;
     message?: string;
     onAnimationGenerated?: (animationUrl: string) => void;

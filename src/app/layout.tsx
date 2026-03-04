@@ -3,6 +3,7 @@ import { Outfit, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import Providers from "./providers";
 import Navigation from "@/components/Navigation";
+import { ToastProvider } from "@/components/ui";
 
 const outfit = Outfit({
   variable: "--font-display",
@@ -35,6 +36,7 @@ export default function RootLayout({
         <Providers>
           <Navigation />
           {children}
+          <ToastProvider />
         </Providers>
       </body>
     </html>

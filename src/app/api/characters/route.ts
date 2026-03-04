@@ -1,8 +1,11 @@
-import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { NextRequest } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import { successResponse, errorResponse } from '@/lib/api';
+
+export const revalidate = 60;
 
 // GET /api/characters - Get all characters
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
     try {
         const { searchParams } = new URL(request.url);
         const status = searchParams.get('status'); // 'live' | 'launching'
@@ -35,7 +38,7 @@ export async function GET(request: Request) {
             change: 0, // TODO: Calculate from transaction history
             totalShares: char.totalShares,
             sharesIssued: char.sharesIssued,
-            holders: char.holdings.length,
+            holders: new Set(char.holdings.map(h => h.userId)).size,
             status: char.isLaunched ? 'LIVE' : 'LAUNCHING SOON',
             personality: char.personality,
             environment: char.environment,
@@ -44,18 +47,15 @@ export async function GET(request: Request) {
             launchAt: char.launchAt,
         }));
 
-        return NextResponse.json(transformed);
+        return successResponse(transformed);
     } catch (error) {
         console.error('Failed to fetch characters:', error);
-        return NextResponse.json(
-            { error: 'Failed to fetch characters' },
-            { status: 500 }
-        );
+        return errorResponse('Failed to fetch characters', 500);
     }
 }
 
 // Helper function to calculate price change
-function calculatePriceChange(priceHistory: any): number {
+function calculatePriceChange(priceHistory: { price: number }[]): number {
     if (!priceHistory || priceHistory.length < 2) return 0;
 
     const current = priceHistory[priceHistory.length - 1]?.price;
@@ -67,9 +67,9 @@ function calculatePriceChange(priceHistory: any): number {
 }
 
 // POST /api/characters - Create a new character (admin only)
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
     try {
-        const body = await request.json();
+        const body = await request.json().catch(() => ({}));
 
         const {
             name,
@@ -88,10 +88,7 @@ export async function POST(request: Request) {
 
         // Validate required fields
         if (!name || !slug || !description) {
-            return NextResponse.json(
-                { error: 'Name, slug, and description are required' },
-                { status: 400 }
-            );
+            return errorResponse('Name, slug, and description are required', 400);
         }
 
         // Check if slug already exists
@@ -100,10 +97,7 @@ export async function POST(request: Request) {
         });
 
         if (existing) {
-            return NextResponse.json(
-                { error: 'A character with this slug already exists' },
-                { status: 400 }
-            );
+            return errorResponse('A character with this slug already exists', 400);
         }
 
         const character = await prisma.character.create({
@@ -126,12 +120,9 @@ export async function POST(request: Request) {
             }
         });
 
-        return NextResponse.json(character, { status: 201 });
+        return successResponse(character, 201);
     } catch (error) {
         console.error('Failed to create character:', error);
-        return NextResponse.json(
-            { error: 'Failed to create character' },
-            { status: 500 }
-        );
+        return errorResponse('Failed to create character', 500);
     }
 }

@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
-import { requirePrivyClaims } from '@/lib/auth/privy-server';
+import { prisma } from '@/lib/prisma';
+import { requireAuth } from '@/lib/auth';
 import { getPolygonMaticBalance } from '@/lib/wallet/polygon';
 
 const MIN_MATIC_TO_ENABLE_BUY = 0.01;
 
 export async function GET(request: NextRequest) {
   try {
-    const { claims } = await requirePrivyClaims(request.headers);
+    const { claims } = await requireAuth(request.headers);
 
     const user = await prisma.user.findUnique({ where: { id: claims.userId } });
     if (!user?.walletAddress) {
@@ -31,10 +31,11 @@ export async function GET(request: NextRequest) {
       },
       canBuy: matic >= MIN_MATIC_TO_ENABLE_BUY,
     });
-  } catch (err: any) {
-    const status = typeof err?.statusCode === 'number' ? err.statusCode : 500;
+  } catch (err: unknown) {
+    const error = err as { message?: string; statusCode?: number };
+    const status = typeof error?.statusCode === 'number' ? error.statusCode : 500;
     return NextResponse.json(
-      { error: err?.message || 'Failed to get wallet status' },
+      { error: error?.message || 'Failed to get wallet status' },
       { status }
     );
   }

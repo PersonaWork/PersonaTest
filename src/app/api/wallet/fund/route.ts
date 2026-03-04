@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { prisma } from '@/lib/prisma';
 
 export async function POST(request: NextRequest) {
   try {
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
       newBalance: amount // In production, calculate actual balance
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Funding failed:', error);
     return NextResponse.json(
       { error: 'Funding failed' },
@@ -91,7 +91,7 @@ export async function GET(request: Request) {
       walletAddress: '0x1234567890123456789012345678901234567890' // From user record
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Failed to get wallet info:', error);
     return NextResponse.json(
       { error: 'Failed to get wallet info' },

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
-import { supabaseAdmin } from '@/lib/auth/supabase';
-
+import { prisma } from '@/lib/prisma';
+import { getPrivyUser } from '@/lib/auth';
 // Mock crypto price data
 const CRYPTO_PRICES = {
   'ETH': 3500.00,
@@ -12,32 +11,30 @@ const CRYPTO_PRICES = {
 };
 
 async function getUserFromSession(request: Request) {
-  const authHeader = request.headers.get('authorization');
-  const token = authHeader?.replace('Bearer ', '');
-  
-  if (!token) {
+  try {
+    const claims = await getPrivyUser(request.headers);
+    if (!claims || !claims.userId) return null;
+
+    const user = await prisma.user.findUnique({
+      where: { privyId: claims.userId }
+    });
+    return user;
+  } catch (error) {
     return null;
   }
-  
-  const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
-  if (error || !user) {
-    return null;
-  }
-  
-  return user;
 }
 
 export async function GET(request: Request) {
   try {
     const user = await getUserFromSession(request);
-    
+
     if (!user) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
       );
     }
-    
+
     const userId = user.id;
 
     // Get user from database
@@ -115,7 +112,7 @@ export async function GET(request: Request) {
       }
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Failed to get deposit addresses:', error);
     return NextResponse.json(
       { error: 'Failed to get deposit addresses' },
@@ -128,14 +125,14 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const user = await getUserFromSession(request);
-    
+
     if (!user) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
       );
     }
-    
+
     const userId = user.id;
     const { cryptoType, amount, txHash, fromAddress } = body;
 
@@ -199,7 +196,7 @@ export async function POST(request: NextRequest) {
       }
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Crypto deposit failed:', error);
     return NextResponse.json(
       { error: 'Crypto deposit failed' },

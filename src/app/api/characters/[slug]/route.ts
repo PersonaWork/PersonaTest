@@ -1,5 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { NextRequest } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import { successResponse, errorResponse } from '@/lib/api';
+
+export const revalidate = 60;
 
 /**
  * GET /api/characters/[slug]
@@ -30,10 +33,7 @@ export async function GET(
         });
 
         if (!character) {
-            return NextResponse.json(
-                { error: 'Character not found' },
-                { status: 404 }
-            );
+            return errorResponse('Character not found', 404);
         }
 
         // Calculate price change from transactions
@@ -80,14 +80,11 @@ export async function GET(
             recentEvents: character.events
         };
 
-        return NextResponse.json(transformed);
+        return successResponse(transformed);
 
     } catch (error) {
         console.error('Failed to fetch character:', error);
-        return NextResponse.json(
-            { error: 'Failed to fetch character' },
-            { status: 500 }
-        );
+        return errorResponse('Failed to fetch character', 500);
     }
 }
 
@@ -123,10 +120,7 @@ export async function PUT(
         });
 
         if (!existing) {
-            return NextResponse.json(
-                { error: 'Character not found' },
-                { status: 404 }
-            );
+            return errorResponse('Character not found', 404);
         }
 
         // Update character
@@ -147,14 +141,11 @@ export async function PUT(
             }
         });
 
-        return NextResponse.json(character);
+        return successResponse(character);
 
     } catch (error) {
         console.error('Failed to update character:', error);
-        return NextResponse.json(
-            { error: 'Failed to update character' },
-            { status: 500 }
-        );
+        return errorResponse('Failed to update character', 500);
     }
 }
 
@@ -174,10 +165,7 @@ export async function DELETE(
         });
 
         if (!existing) {
-            return NextResponse.json(
-                { error: 'Character not found' },
-                { status: 404 }
-            );
+            return errorResponse('Character not found', 404);
         }
 
         // Check for holdings - don't delete if anyone owns shares
@@ -186,23 +174,17 @@ export async function DELETE(
         });
 
         if (holdings > 0) {
-            return NextResponse.json(
-                { error: 'Cannot delete character with existing holdings' },
-                { status: 400 }
-            );
+            return errorResponse('Cannot delete character with existing holdings', 400);
         }
 
         await prisma.character.delete({
             where: { slug }
         });
 
-        return NextResponse.json({ success: true });
+        return successResponse({ success: true });
 
     } catch (error) {
         console.error('Failed to delete character:', error);
-        return NextResponse.json(
-            { error: 'Failed to delete character' },
-            { status: 500 }
-        );
+        return errorResponse('Failed to delete character', 500);
     }
 }

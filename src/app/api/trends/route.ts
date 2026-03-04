@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { prisma } from '@/lib/prisma';
 
 /**
  * GET /api/trends
@@ -23,9 +23,9 @@ export async function GET(request: NextRequest) {
             });
 
             if (character) {
-                const personality = character.personality as any;
-                personalityContext = `${character.name} is ${personality?.traits?.join(', ') || 'friendly'}. `;
-                personalityContext += `Their catchphrases include: ${personality?.catchphrases?.join(', ') || 'none'}. `;
+                const personality = character.personality as Record<string, any>;
+                personalityContext = `${character.name} is ${(personality?.traits as string[])?.join(', ') || 'friendly'}. `;
+                personalityContext += `Their catchphrases include: ${(personality?.catchphrases as string[])?.join(', ') || 'none'}. `;
                 personalityContext += `Backstory: ${personality?.backstory || 'none'}`;
             }
         }
@@ -134,10 +134,10 @@ async function scrapeTrendingTopics(characterSlug: string | null, limit: number)
 /**
  * Build script generation prompt
  */
-function buildScriptPrompt(personality: any, characterName: string, trend?: string): string {
-    const traits = personality?.traits?.join(', ') || 'friendly';
+function buildScriptPrompt(personality: Record<string, any>, characterName: string, trend?: string): string {
+    const traits = (personality?.traits as string[])?.join(', ') || 'friendly';
     const voiceStyle = personality?.voiceStyle || 'casual';
-    const catchphrases = personality?.catchphrases?.join(' ') || '';
+    const catchphrases = (personality?.catchphrases as string[])?.join(' ') || '';
     const backstory = personality?.backstory || '';
 
     return `
@@ -161,8 +161,8 @@ Requirements:
 /**
  * Generate sample script (simulated AI response)
  */
-function generateSampleScript(characterName: string, personality: any, trend?: string): string {
-    const catchphrase = personality?.catchphrases?.[0] || "Check this out!";
+function generateSampleScript(characterName: string, personality: Record<string, any>, trend?: string): string {
+    const catchphrase = (personality?.catchphrases as string[])?.[0] || "Check this out!";
 
     return `
 [HOOK - 0:00]

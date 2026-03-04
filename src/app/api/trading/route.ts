@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
-import { requirePrivyClaims } from '@/lib/auth/privy-server';
+import { prisma } from '@/lib/prisma';
+import { requireAuth } from '@/lib/auth';
 
 // POST /api/trading - Execute a trade (buy or sell shares)
 export async function POST(request: Request) {
     try {
-        const { claims } = await requirePrivyClaims(request.headers);
+        const { claims } = await requireAuth(request.headers);
         const body = await request.json();
 
         const {
@@ -230,7 +230,7 @@ export async function POST(request: Request) {
 // GET /api/trading - Get user's portfolio
 export async function GET(request: Request) {
     try {
-        const { claims } = await requirePrivyClaims(request.headers);
+        const { claims } = await requireAuth(request.headers);
         const userId = claims.userId;
 
         const holdings = await prisma.holding.findMany({

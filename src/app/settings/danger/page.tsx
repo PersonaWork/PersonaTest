@@ -5,7 +5,7 @@ import { Card, Button } from '@/components/ui';
 import { useAuth } from '@/lib/auth/auth-context';
 
 export default function DangerSettingsPage() {
-  const { signOut } = useAuth();
+  const { logout } = useAuth();
 
   return (
     <div className="min-h-screen pb-20">
@@ -37,7 +37,7 @@ export default function DangerSettingsPage() {
         <Card className="p-6" hover={false}>
           <h2 className="text-xl font-bold text-white mb-3">Sign out</h2>
           <p className="text-sm text-slate-400 mb-6">Sign out of this device.</p>
-          <Button variant="secondary" onClick={signOut}>
+          <Button variant="secondary" onClick={logout}>
             Sign Out
           </Button>
         </Card>

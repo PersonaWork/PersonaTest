@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { prisma } from '@/lib/prisma';
 
 // Mock crypto price data - in production you'd use CoinGecko, CoinMarketCap, etc.
 const CRYPTO_PRICES = {
@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
       }
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Crypto deposit failed:', error);
     return NextResponse.json(
       { error: 'Crypto deposit failed' },
@@ -127,7 +127,7 @@ export async function GET(request: Request) {
       currentPrices: CRYPTO_PRICES
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Failed to get crypto deposit info:', error);
     return NextResponse.json(
       { error: 'Failed to get crypto deposit info' },

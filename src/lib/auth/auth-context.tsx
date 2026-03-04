@@ -1,62 +1,115 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { supabase } from '@/lib/auth/supabase';
-import { Session, User } from '@supabase/supabase-js';
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useCallback,
+  ReactNode,
+} from 'react';
+import { usePrivy } from '@privy-io/react-auth';
+
+interface DbUser {
+  id: string;
+  privyId: string | null;
+  email: string;
+  username: string;
+  walletAddress: string | null;
+}
 
 interface AuthContextType {
-  user: User | null;
-  session: Session | null;
-  loading: boolean;
-  signOut: () => Promise<void>;
-  refreshSession: () => Promise<void>;
+  /** The database user record (null until synced) */
+  user: DbUser | null;
+  /** Whether we are still resolving auth state */
+  isLoading: boolean;
+  /** Whether the user is authenticated via Privy */
+  isAuthenticated: boolean;
+  /** Open Privy login modal */
+  login: () => void;
+  /** Log out and clear state */
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
-  session: null,
-  loading: true,
-  signOut: async () => {},
-  refreshSession: async () => {},
+  isLoading: true,
+  isAuthenticated: false,
+  login: () => { },
+  logout: async () => { },
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
+  const {
+    ready,
+    authenticated,
+    user: privyUser,
+    login,
+    logout: privyLogout,
+    getAccessToken,
+  } = usePrivy();
+
+  const [dbUser, setDbUser] = useState<DbUser | null>(null);
+  const [syncing, setSyncing] = useState(false);
+
+  // Sync Privy user to our database on login
+  const syncUser = useCallback(async () => {
+    if (!authenticated || !privyUser || syncing) return;
+
+    setSyncing(true);
+    try {
+      const token = await getAccessToken();
+      const email = privyUser.email?.address || privyUser.google?.email || '';
+
+      const res = await fetch('/api/auth/sync', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          privyId: privyUser.id,
+          email,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setDbUser(data.data?.user || data.user || null);
+      }
+    } catch (err) {
+      console.error('Failed to sync user:', err);
+    } finally {
+      setSyncing(false);
+    }
+  }, [authenticated, privyUser, getAccessToken, syncing]);
 
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
+    if (ready && authenticated && privyUser && !dbUser) {
+      syncUser();
+    }
+    if (ready && !authenticated) {
+      setDbUser(null);
+    }
+  }, [ready, authenticated, privyUser, dbUser, syncUser]);
 
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
+  const logout = useCallback(async () => {
+    await privyLogout();
+    setDbUser(null);
+  }, [privyLogout]);
 
-    return () => subscription.unsubscribe();
-  }, []);
-
-  const signOut = async () => {
-    await supabase.auth.signOut();
-    setUser(null);
-    setSession(null);
-  };
-
-  const refreshSession = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    setSession(session);
-    setUser(session?.user ?? null);
-  };
+  const isLoading = !ready || (authenticated && !dbUser && !syncing);
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, signOut, refreshSession }}>
+    <AuthContext.Provider
+      value={{
+        user: dbUser,
+        isLoading: !ready || syncing,
+        isAuthenticated: authenticated,
+        login,
+        logout,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

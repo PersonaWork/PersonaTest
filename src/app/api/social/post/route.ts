@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
-import { generateCharacterVideo } from '@/lib/ai/replicate';
+import { prisma } from '@/lib/prisma';
 import { generateCharacterVoice } from '@/lib/ai/elevenlabs';
 import { postCharacterContent } from '@/lib/social/ayrshare';
 import { getTrendingTopics } from '@/lib/social/apify';
@@ -56,12 +55,12 @@ export async function POST(request: NextRequest) {
                 // Get trending topics based on character personality
                 const personality = character.personality as any;
                 const trends = await getTrendingTopics(personality?.traits || []);
-                
+
                 // Generate script using AI based on trends
-                const trendPrompt = trends.length > 0 
+                const trendPrompt = trends.length > 0
                     ? `Create a short social media post (30-60 seconds) about: ${trends[0].title}. Make it engaging and trending.`
                     : 'Create a short, engaging social media post (30-60 seconds).';
-                
+
                 finalScript = await generateCharacterResponse(
                     character.name,
                     personality,
@@ -70,20 +69,15 @@ export async function POST(request: NextRequest) {
                 );
             } catch (error) {
                 console.error('Failed to generate script, using fallback:', error);
-                finalScript = generateSampleScript(character.name, character.personality);
+                finalScript = generateSampleScript(character.name, character.personality as Record<string, any>);
             }
         }
 
         // Step 2: Generate video (if not provided)
         let finalVideoUrl = videoUrl;
         if (!finalVideoUrl) {
-            try {
-                const videoUrls = await generateCharacterVideo(finalScript, character.name);
-                finalVideoUrl = videoUrls[0];
-            } catch (error) {
-                console.error('Failed to generate video, using placeholder:', error);
-                finalVideoUrl = `https://cdn.example.com/videos/${character.name.toLowerCase()}_${Date.now()}.mp4`;
-            }
+            // Placeholder since replicate is deprecated
+            finalVideoUrl = `https://cdn.example.com/videos/${character.name.toLowerCase()}_${Date.now()}.mp4`;
         }
 
         // Step 3: Generate voiceover
@@ -128,12 +122,12 @@ export async function POST(request: NextRequest) {
 
         for (const result of results) {
             // Check if this is a successful post (either Ayrshare format or fallback)
-            const isSuccess = ('status' in result && result.status === 'success') || 
-                              ('success' in result && result.success);
-            
+            const isSuccess = ('status' in result && result.status === 'success') ||
+                ('success' in result && result.success);
+
             if (isSuccess) {
                 const platform = 'platform' in result ? result.platform : platforms[0];
-                
+
                 const post = await prisma.post.create({
                     data: {
                         characterId: character.id,
@@ -169,17 +163,6 @@ export async function POST(request: NextRequest) {
     }
 }
 
-/**
- * Generate video using Replicate (simulated)
- */
-async function generateVideo(script: string, characterName: string): Promise<string> {
-    // In production, call Replicate API:
-    // const replicate = new Replicate({ apiKey: process.env.REPLICATE_API_TOKEN });
-    // const output = await replicate.run("model/version", { input: { prompt: script } });
-
-    // Return placeholder URL
-    return `https://cdn.example.com/videos/${characterName.toLowerCase()}_${Date.now()}.mp4`;
-}
 
 /**
  * Generate voiceover using ElevenLabs (simulated)
@@ -227,8 +210,8 @@ async function postToSocialMedia(
 /**
  * Generate sample script
  */
-function generateSampleScript(characterName: string, personality: any): string {
-    const catchphrase = personality?.catchphrases?.[0] || "Check this out!";
+function generateSampleScript(characterName: string, personality: Record<string, any>): string {
+    const catchphrase = (personality?.catchphrases as string[])?.[0] || "Check this out!";
 
     return `${catchphrase} ${characterName} here! 
 

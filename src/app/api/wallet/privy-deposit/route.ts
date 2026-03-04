@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { prisma } from '@/lib/prisma';
 import { getPrivyWallet } from '@/lib/wallet/privy';
 
 // Mock crypto price data - in production you'd use CoinGecko, CoinMarketCap, etc.
@@ -81,7 +81,7 @@ export async function GET(request: Request) {
       }
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Failed to get deposit info:', error);
     return NextResponse.json(
       { error: 'Failed to get deposit info' },
@@ -160,7 +160,7 @@ export async function POST(request: NextRequest) {
       }
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Crypto deposit failed:', error);
     return NextResponse.json(
       { error: 'Crypto deposit failed' },

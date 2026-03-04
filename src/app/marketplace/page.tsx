@@ -4,20 +4,21 @@ import { useState, useEffect } from 'react';
 import { Button, Card } from '@/components/ui';
 import CharacterCard from '@/components/marketplace/CharacterCard';
 import Link from 'next/link';
+import Image from 'next/image';
 
 interface Character {
-  id: string;
-  name: string;
-  slug: string;
-  description: string;
-  thumbnailUrl?: string;
-  price: number;
-  marketCap: number;
-  change: number;
-  totalShares: number;
-  sharesIssued: number;
-  holders: number;
-  status: string;
+    id: string;
+    name: string;
+    slug: string;
+    description: string;
+    thumbnailUrl?: string;
+    price: number;
+    marketCap: number;
+    change: number;
+    totalShares: number;
+    sharesIssued: number;
+    holders: number;
+    status: string;
 }
 
 type SortOption = 'market_cap' | 'price' | 'change' | 'holders';
@@ -36,15 +37,19 @@ export default function MarketplacePage() {
     const fetchCharacters = async () => {
         try {
             setLoading(true);
-            const url = filter === 'all' 
-                ? '/api/characters' 
+            const url = filter === 'all'
+                ? '/api/characters'
                 : `/api/characters?status=${filter === 'live' ? 'live' : 'launching'}`;
-            
+
             const response = await fetch(url);
             if (!response.ok) throw new Error('Failed to fetch characters');
-            
-            const data = await response.json();
-            setCharacters(data);
+
+            const json = await response.json();
+            if (json.success && json.data) {
+                setCharacters(json.data);
+            } else {
+                setCharacters(json); // fallback if it's the old shape
+            }
         } catch (error) {
             console.error('Failed to fetch characters:', error);
         } finally {
@@ -103,7 +108,7 @@ export default function MarketplacePage() {
                                         <div className={`p-[2px] rounded-2xl bg-gradient-to-r ${ring} shadow-lg shadow-indigo-500/10 group-hover:shadow-indigo-500/20 transition-shadow`}>
                                             <div className="relative w-24 h-24 rounded-2xl bg-slate-900/70 border border-white/5 overflow-hidden flex items-center justify-center">
                                                 {c.thumbnailUrl ? (
-                                                    <img src={c.thumbnailUrl} alt={c.name} className="w-full h-full object-cover" />
+                                                    <Image src={c.thumbnailUrl} alt={c.name} fill className="object-cover" />
                                                 ) : (
                                                     <span className="text-2xl font-black text-white">{c.name.charAt(0)}</span>
                                                 )}
@@ -156,8 +161,8 @@ export default function MarketplacePage() {
                                 key={f}
                                 onClick={() => setFilter(f)}
                                 className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all capitalize ${filter === f
-                                        ? 'bg-indigo-600 text-white'
-                                        : 'text-slate-400 hover:text-white'
+                                    ? 'bg-indigo-600 text-white'
+                                    : 'text-slate-400 hover:text-white'
                                     }`}
                             >
                                 {f === 'all' ? 'All' : f === 'live' ? 'Live Now' : 'Coming Soon'}

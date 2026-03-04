@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { prisma } from '@/lib/prisma';
 
 export async function GET() {
   try {
@@ -9,9 +9,9 @@ export async function GET() {
     });
 
     if (existingUser) {
-      return NextResponse.json({ 
+      return NextResponse.json({
         message: 'Demo user already exists',
-        user: existingUser 
+        user: existingUser
       });
     }
 
@@ -25,14 +25,15 @@ export async function GET() {
       }
     });
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       message: 'Demo user created successfully',
-      user: user 
+      user: user
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error creating demo user:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
     return NextResponse.json(
-      { error: error.message },
+      { error: errorMessage },
       { status: 500 }
     );
   }

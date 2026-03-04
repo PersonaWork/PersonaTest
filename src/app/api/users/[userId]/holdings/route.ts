@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
-import { requirePrivyClaims } from '@/lib/auth/privy-server';
+import { prisma } from '@/lib/prisma';
+import { requireAuth } from '@/lib/auth';
 
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
-    const { claims } = await requirePrivyClaims(request.headers);
+    const { claims } = await requireAuth(request.headers);
     const { userId } = await params;
     if (userId !== claims.userId) {
       return NextResponse.json(

@@ -6,8 +6,8 @@ const openai = new OpenAI({
 
 export async function generateCharacterResponse(
   characterName: string,
-  personality: any,
-  messageHistory: any[],
+  personality: Record<string, unknown>,
+  messageHistory: Record<string, unknown>[],
   userMessage: string
 ) {
   try {
@@ -22,9 +22,9 @@ export async function generateCharacterResponse(
 CHARACTER IDENTITY:
 Name: ${characterName}
 Backstory: ${backstory}
-Personality Traits: ${traits.join(', ')}
+Personality Traits: ${(traits as string[]).join(', ')}
 Voice Style: ${voiceStyle}
-Signature Catchphrases: ${catchphrases.join(', ')}
+Signature Catchphrases: ${(catchphrases as string[]).join(', ')}
 
 BEHAVIORAL GUIDELINES:
 1. Always respond as ${characterName} - never break character or mention you're an AI
@@ -37,14 +37,14 @@ BEHAVIORAL GUIDELINES:
 8. Use emojis and modern chat language that fits your character's vibe
 
 CHARACTER-SPECIFIC EXAMPLES:
-${getCharacterExamples(characterName, traits, catchphrases)}
+${getCharacterExamples(characterName, traits as string[], catchphrases as string[])}
 
 RESPONSE STYLE:
-- ${traits.includes('chaotic') ? 'Unpredictable, energetic, goes on tangents' : ''}
-- ${traits.includes('mysterious') ? 'Intriguing, thoughtful, speaks in riddles' : ''}
-- ${traits.includes('energetic') ? 'High energy, enthusiastic, uses exclamation points' : ''}
-- ${traits.includes('wise') ? 'Calm, insightful, speaks with wisdom' : ''}
-- ${traits.includes('funny') ? 'Humorous, witty, makes jokes' : ''}
+- ${(traits as string[]).includes('chaotic') ? 'Unpredictable, energetic, goes on tangents' : ''}
+- ${(traits as string[]).includes('mysterious') ? 'Intriguing, thoughtful, speaks in riddles' : ''}
+- ${(traits as string[]).includes('energetic') ? 'High energy, enthusiastic, uses exclamation points' : ''}
+- ${(traits as string[]).includes('wise') ? 'Calm, insightful, speaks with wisdom' : ''}
+- ${(traits as string[]).includes('funny') ? 'Humorous, witty, makes jokes' : ''}
 
 Remember: You ARE ${characterName}. This is your real personality, not a role. Be authentic to who you are.`
 
@@ -57,7 +57,7 @@ Remember: You ARE ${characterName}. This is your real personality, not a role. B
     if (messageHistory.length > 0) {
       const recentMessages = messageHistory.slice(-4).map(msg => ({
         role: msg.role as 'user' | 'assistant',
-        content: msg.content
+        content: msg.content as string
       }))
       messages.push(...recentMessages)
     }
@@ -75,7 +75,7 @@ Remember: You ARE ${characterName}. This is your real personality, not a role. B
     return response.choices[0].message.content || ''
   } catch (error) {
     console.error('Failed to generate AI response:', error)
-    
+
     // Fallback to character-specific responses
     return getFallbackResponse(characterName, personality, userMessage)
   }
@@ -108,10 +108,10 @@ Examples:
   return examples[characterName.toLowerCase()] || '';
 }
 
-function getFallbackResponse(characterName: string, personality: any, userMessage: string): string {
+function getFallbackResponse(characterName: string, personality: Record<string, unknown>, userMessage: string): string {
   const traits = personality?.traits || [];
   const catchphrases = personality?.catchphrases || [];
-  
+
   const fallbacks: Record<string, string[]> = {
     'luna': [
       "Hmm, let me think about that... you know, traveling through the digital cosmos has taught me that questions are like stars.",

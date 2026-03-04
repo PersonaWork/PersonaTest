@@ -35,8 +35,8 @@ export default function FundPage() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error || 'Failed to load wallet status');
       setStatus(data);
-    } catch (e: any) {
-      setError(e?.message || 'Failed to load wallet status');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to load wallet status');
     } finally {
       setIsLoading(false);
     }

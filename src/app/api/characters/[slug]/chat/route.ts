@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { prisma } from '@/lib/prisma';
 import { generateCharacterResponse } from '@/lib/ai/openai';
-import { requirePrivyClaims } from '@/lib/auth/privy-server';
+import { requireAuth } from '@/lib/auth';
 
 export async function POST(
   request: NextRequest,
@@ -9,7 +9,7 @@ export async function POST(
 ) {
   try {
     const { slug } = await params;
-    const { claims } = await requirePrivyClaims(request.headers);
+    const { claims } = await requireAuth(request.headers);
     const body = await request.json();
     const { message } = body;
     const userId = claims.userId;
@@ -72,7 +72,7 @@ export async function POST(
     try {
       aiResponse = await generateCharacterResponse(
         character.name,
-        character.personality,
+        character.personality as Record<string, any>,
         messageHistory,
         message
       );

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { prisma } from '@/lib/prisma';
 
 // Store connected clients
 const clients = new Set<ReadableStreamDefaultController>();
@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
 
             // Send initial character state
             const actions = character.actions as any[];
-            const idleAction = actions?.find((a: any) => a.id === 'idle') || actions?.[0];
+            const idleAction = actions?.find((a: Record<string, unknown>) => a.id === 'idle') || actions?.[0];
 
             if (idleAction) {
                 controller.enqueue(encoder.encode(`data: ${JSON.stringify({
@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
 
         // Find the action in the character's actions
         const actions = character.actions as any[];
-        const action = actions?.find((a: any) => a.id === actionId);
+        const action = actions?.find((a: Record<string, unknown>) => a.id === actionId);
 
         if (!action) {
             return NextResponse.json(

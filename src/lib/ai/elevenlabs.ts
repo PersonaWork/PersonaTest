@@ -1,4 +1,4 @@
-import { ElevenLabsClient } from 'elevenlabs'
+import { ElevenLabsClient } from '@elevenlabs/elevenlabs-js'
 
 const elevenlabs = new ElevenLabsClient({
   apiKey: process.env.ELEVENLABS_API_KEY!
@@ -7,7 +7,7 @@ const elevenlabs = new ElevenLabsClient({
 // Character voice mappings
 const CHARACTER_VOICES = {
   'luna': 'zY0NiG61kNwoIJvKtYe1',
-  'rex': 'uUJ3WiXG3FVW4fbdcG2s', 
+  'rex': 'uUJ3WiXG3FVW4fbdcG2s',
   'nova': 'IO6iOM9shwUY9mAN0sMi',
   'dot': 'zY0NiG61kNwoIJvKtYe1', // Using Luna's voice for Dot as fallback
 }
@@ -33,11 +33,10 @@ export async function generateCharacterVoice(
 
     const settings = voiceSettings[characterStyle as keyof typeof voiceSettings] || voiceSettings.neutral
 
-    const audio = await elevenlabs.generate({
-      voice: voiceId,
+    const audio = await elevenlabs.textToSpeech.convert(voiceId, {
       text: text,
-      model_id: 'eleven_multilingual_v2',
-      voice_settings: settings
+      modelId: 'eleven_multilingual_v2',
+      voiceSettings: settings
     })
 
     return audio
@@ -57,6 +56,7 @@ export async function getAvailableVoices() {
   }
 }
 
+/* 
 export async function createCustomVoice(
   name: string,
   description: string,
@@ -82,3 +82,4 @@ export async function createCustomVoice(
     throw error
   }
 }
+*/
