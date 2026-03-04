@@ -1,6 +1,14 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  /* config options here */
+  experimental: {
+    serverComponentsExternalPackages: ['@prisma/client'],
+  },
+  webpack: (config, { isServer }) => {
+    if (isServer) {
+      config.externals.push('_next_client_manifest');
+    }
+    return config;
+  },
 };
 
 module.exports = nextConfig;

@@ -1,9 +1,9 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getTrendingTopics } from '@/lib/social/apify';
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
+    const { searchParams } = new URL(request.url || 'http://localhost');
     const characterTraits = searchParams.get('traits')?.split(',') || [];
 
     const trends = await getTrendingTopics(characterTraits);
