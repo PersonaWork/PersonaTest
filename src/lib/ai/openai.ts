@@ -108,10 +108,7 @@ Examples:
   return examples[characterName.toLowerCase()] || '';
 }
 
-function getFallbackResponse(characterName: string, personality: Record<string, unknown>, userMessage: string): string {
-  const traits = personality?.traits || [];
-  const catchphrases = personality?.catchphrases || [];
-
+function getFallbackResponse(characterName: string, _personality: Record<string, unknown>, _userMessage: string): string {
   const fallbacks: Record<string, string[]> = {
     'luna': [
       "Hmm, let me think about that... you know, traveling through the digital cosmos has taught me that questions are like stars.",

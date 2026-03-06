@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { successResponse, errorResponse } from '@/lib/api';
+import { requireAuth } from '@/lib/auth';
 
 export const revalidate = 60;
 
@@ -54,21 +55,10 @@ export async function GET(request: NextRequest) {
     }
 }
 
-// Helper function to calculate price change
-function calculatePriceChange(priceHistory: { price: number }[]): number {
-    if (!priceHistory || priceHistory.length < 2) return 0;
-
-    const current = priceHistory[priceHistory.length - 1]?.price;
-    const previous = priceHistory[0]?.price;
-
-    if (!current || !previous) return 0;
-
-    return ((current - previous) / previous) * 100;
-}
-
 // POST /api/characters - Create a new character (admin only)
 export async function POST(request: NextRequest) {
     try {
+        await requireAuth(request.headers);
         const body = await request.json().catch(() => ({}));
 
         const {

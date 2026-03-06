@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { successResponse, errorResponse } from '@/lib/api';
+import { requireAuth } from '@/lib/auth';
+import { z } from 'zod';
+
+const EventSchema = z.object({ characterSlug: z.string().min(1), actionId: z.string().min(1), isRare: z.boolean().optional() });
 
 // Store connected clients
 const clients = new Set<ReadableStreamDefaultController>();
@@ -15,10 +20,7 @@ export async function GET(request: NextRequest) {
     const characterSlug = request.nextUrl.searchParams.get('character');
 
     if (!characterSlug) {
-        return NextResponse.json(
-            { error: 'Character slug is required' },
-            { status: 400 }
-        );
+        return errorResponse('Character slug is required', 400);
     }
 
     // Get character and verify they exist
@@ -27,10 +29,7 @@ export async function GET(request: NextRequest) {
     });
 
     if (!character) {
-        return NextResponse.json(
-            { error: 'Character not found' },
-            { status: 404 }
-        );
+        return errorResponse('Character not found', 404);
     }
 
     // Create a readable stream for SSE
@@ -45,7 +44,7 @@ export async function GET(request: NextRequest) {
             clients.add(clientController);
 
             // Send initial character state
-            const actions = character.actions as any[];
+            const actions = character.actions as Record<string, unknown>[];
             const idleAction = actions?.find((a: Record<string, unknown>) => a.id === 'idle') || actions?.[0];
 
             if (idleAction) {
@@ -79,15 +78,13 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
     try {
+        await requireAuth(request.headers);
         const body = await request.json();
-        const { characterSlug, actionId, isRare = false } = body;
-
-        if (!characterSlug || !actionId) {
-            return NextResponse.json(
-                { error: 'characterSlug and actionId are required' },
-                { status: 400 }
-            );
+        const parsed = EventSchema.safeParse(body);
+        if (!parsed.success) {
+            return errorResponse(parsed.error.issues[0].message, 400);
         }
+        const { characterSlug, actionId, isRare = false } = parsed.data;
 
         // Get the character
         const character = await prisma.character.findUnique({
@@ -95,21 +92,15 @@ export async function POST(request: NextRequest) {
         });
 
         if (!character) {
-            return NextResponse.json(
-                { error: 'Character not found' },
-                { status: 404 }
-            );
+            return errorResponse('Character not found', 404);
         }
 
         // Find the action in the character's actions
-        const actions = character.actions as any[];
+        const actions = character.actions as Record<string, unknown>[];
         const action = actions?.find((a: Record<string, unknown>) => a.id === actionId);
 
         if (!action) {
-            return NextResponse.json(
-                { error: 'Action not found' },
-                { status: 404 }
-            );
+            return errorResponse('Action not found', 404);
         }
 
         // Record the event in the database
@@ -121,23 +112,10 @@ export async function POST(request: NextRequest) {
             }
         });
 
-        // Broadcast the event to connected clients
-        const encoder = new TextEncoder();
-        const eventData = JSON.stringify({
-            type: 'action',
-            action: action.name,
-            actionId,
-            character: characterSlug,
-            clipUrl: action.clipUrl,
-            audioUrl: action.audioUrl,
-            isRare
-        });
-
         // In production, you'd only send to clients watching this character
         // For now, we'll broadcast to all (in a real app, use a proper pub/sub)
 
-        return NextResponse.json({
-            success: true,
+        return successResponse({
             message: `Action ${actionId} triggered for ${characterSlug}`,
             event: {
                 character: characterSlug,
@@ -148,9 +126,6 @@ export async function POST(request: NextRequest) {
 
     } catch (error) {
         console.error('Failed to trigger event:', error);
-        return NextResponse.json(
-            { error: 'Failed to trigger event' },
-            { status: 500 }
-        );
+        return errorResponse('Failed to trigger event', 500);
     }
 }

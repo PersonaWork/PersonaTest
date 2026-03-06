@@ -1,7 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { generateCharacterResponse } from '@/lib/ai/openai';
 import { requireAuth } from '@/lib/auth';
+import { successResponse, errorResponse } from '@/lib/api';
+import { z } from 'zod';
+
+const ChatSchema = z.object({ message: z.string().min(1, 'Message is required') });
 
 export async function POST(
   request: NextRequest,
@@ -11,15 +15,12 @@ export async function POST(
     const { slug } = await params;
     const { claims } = await requireAuth(request.headers);
     const body = await request.json();
-    const { message } = body;
-    const userId = claims.userId;
-
-    if (!message) {
-      return NextResponse.json(
-        { error: 'User ID and message required' },
-        { status: 400 }
-      );
+    const parsed = ChatSchema.safeParse(body);
+    if (!parsed.success) {
+      return errorResponse(parsed.error.issues[0].message, 400);
     }
+    const { message } = parsed.data;
+    const userId = claims.userId;
 
     // Get character
     const character = await prisma.character.findUnique({
@@ -27,10 +28,7 @@ export async function POST(
     });
 
     if (!character) {
-      return NextResponse.json(
-        { error: 'Character not found' },
-        { status: 404 }
-      );
+      return errorResponse('Character not found', 404);
     }
 
     // Check user has access (holds shares)
@@ -44,10 +42,7 @@ export async function POST(
     });
 
     if (!holding || holding.shares <= 0) {
-      return NextResponse.json(
-        { error: 'Access denied - no shares held' },
-        { status: 403 }
-      );
+      return errorResponse('Access denied - no shares held', 403);
     }
 
     // Get message history
@@ -72,14 +67,15 @@ export async function POST(
     try {
       aiResponse = await generateCharacterResponse(
         character.name,
-        character.personality as Record<string, any>,
+        character.personality as Record<string, unknown>,
         messageHistory,
         message
       );
     } catch (aiError) {
       console.error('AI generation failed, using fallback:', aiError);
       // Fallback response
-      const traits = (character.personality as any)?.traits || [];
+      const personality = character.personality as Record<string, unknown>;
+      const traits = Array.isArray(personality?.traits) ? personality.traits as string[] : [];
       aiResponse = `That's interesting! As someone who is ${traits[0] || 'unique'}, I see things differently. Tell me more about that!`;
     }
 
@@ -100,7 +96,7 @@ export async function POST(
       take: 50
     });
 
-    return NextResponse.json({
+    return successResponse({
       messages: updatedMessages.reverse(),
       userMessage: userMessageRecord,
       aiMessage: aiMessageRecord
@@ -108,9 +104,6 @@ export async function POST(
 
   } catch (error) {
     console.error('Chat failed:', error);
-    return NextResponse.json(
-      { error: 'Chat failed' },
-      { status: 500 }
-    );
+    return errorResponse('Chat failed', 500);
   }
 }

@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Button, Card } from '@/components/ui';
+import { useState, useEffect, useCallback } from 'react';
+import { Card } from '@/components/ui';
 import CharacterCard from '@/components/marketplace/CharacterCard';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -30,11 +30,7 @@ export default function MarketplacePage() {
     const [sortBy, setSortBy] = useState<SortOption>('market_cap');
     const [filter, setFilter] = useState<FilterOption>('all');
 
-    useEffect(() => {
-        fetchCharacters();
-    }, [filter]);
-
-    const fetchCharacters = async () => {
+    const fetchCharacters = useCallback(async () => {
         try {
             setLoading(true);
             const url = filter === 'all'
@@ -55,7 +51,11 @@ export default function MarketplacePage() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [filter]);
+
+    useEffect(() => {
+        fetchCharacters();
+    }, [fetchCharacters]);
 
     // Sort characters
     const sortedCharacters = [...characters].sort((a, b) => {

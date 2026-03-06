@@ -20,7 +20,7 @@ class AyrshareAPI {
     this.apiKey = apiKey
   }
 
-  private async makeRequest(endpoint: string, options: RequestInit = {}): Promise<any> {
+  private async makeRequest(endpoint: string, options: RequestInit = {}): Promise<unknown> {
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
       headers: {
         'Authorization': `Bearer ${this.apiKey}`,
@@ -44,7 +44,7 @@ class AyrshareAPI {
         body: JSON.stringify(post)
       })
 
-      return response
+      return response as AyrshareResponse
     } catch (error) {
       console.error('Failed to post to social media:', error)
       throw error
@@ -76,7 +76,7 @@ class AyrshareAPI {
     }
   }
 
-  async getPostAnalytics(postIds: string[]): Promise<any> {
+  async getPostAnalytics(postIds: string[]): Promise<unknown> {
     try {
       const response = await this.makeRequest(`/analytics/posts?id=${postIds.join(',')}`)
       return response
@@ -86,7 +86,7 @@ class AyrshareAPI {
     }
   }
 
-  async getHistoricalPosts(platforms?: string[]): Promise<any> {
+  async getHistoricalPosts(platforms?: string[]): Promise<unknown> {
     try {
       const url = platforms 
         ? `/history?platforms=${platforms.join(',')}`

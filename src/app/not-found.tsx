@@ -14,7 +14,7 @@ export default function NotFound() {
 
                 <h1 className="text-2xl font-bold text-white mb-3">Signal Lost</h1>
                 <p className="text-slate-400 mb-8 leading-relaxed">
-                    The page you're looking for has been archived, moved, or never existed on our servers.
+                    The page you&apos;re looking for has been archived, moved, or never existed on our servers.
                 </p>
 
                 <div className="space-y-4">

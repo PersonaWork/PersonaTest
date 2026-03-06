@@ -6,7 +6,7 @@ import { Button, Card, Input } from '@/components/ui';
 import { usePrivy } from '@privy-io/react-auth';
 
 export default function SettingsPage() {
-    const { ready, authenticated, user, logout, linkEmail, linkWallet, linkGoogle, linkTwitter } = usePrivy();
+    const { ready, authenticated, user, logout, linkEmail, linkWallet, linkGoogle } = usePrivy();
     const [isSaving, setIsSaving] = useState(false);
     const [saveSuccess, setSaveSuccess] = useState(false);
 
@@ -96,7 +96,7 @@ export default function SettingsPage() {
                                 Linked Accounts
                             </h2>
                             <p className="text-slate-400 text-sm mb-8">
-                                Connect multiple accounts to ensure you don't lose access to your portfolio. Privy handles all connections securely.
+                                Connect multiple accounts to ensure you don&apos;t lose access to your portfolio. Privy handles all connections securely.
                             </p>
 
                             <div className="space-y-4">

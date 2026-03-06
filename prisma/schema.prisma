@@ -8,15 +8,17 @@ datasource db {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  privyId       String?   @unique
-  email         String    @unique
-  username      String    @unique
-  walletAddress String?   @unique
-  createdAt     DateTime  @default(now())
+  id            String        @id @default(cuid())
+  privyId       String        @unique
+  email         String        @unique
+  username      String        @unique
+  walletAddress String?       @unique
+  createdAt     DateTime      @default(now())
   holdings      Holding[]
   messages      Message[]
   payouts       Payout[]
+  buyerTxns     Transaction[] @relation("BuyerTransactions")
+  sellerTxns    Transaction[] @relation("SellerTransactions")
 
   @@index([privyId])
   @@index([email])
@@ -45,6 +47,8 @@ model Character {
   messages        Message[]
   events          CharacterEvent[]
   transactions    Transaction[]
+  animationClips  AnimationClip[]
+  payouts         Payout[]
 
   @@index([slug])
   @@index([isLaunched])
@@ -123,6 +127,8 @@ model Transaction {
   type          String
   createdAt     DateTime  @default(now())
   character     Character @relation(fields: [characterId], references: [id])
+  buyer         User?     @relation("BuyerTransactions", fields: [buyerId], references: [id])
+  seller        User?     @relation("SellerTransactions", fields: [sellerId], references: [id])
 
   @@index([buyerId])
   @@index([sellerId])
@@ -138,8 +144,21 @@ model Payout {
   amount      Float
   paidAt      DateTime  @default(now())
   user        User      @relation(fields: [userId], references: [id])
+  character   Character @relation(fields: [characterId], references: [id])
   post        Post      @relation(fields: [postId], references: [id])
 
   @@index([userId])
   @@index([postId])
+}
+
+model AnimationClip {
+  id          String    @id @default(cuid())
+  characterId String
+  type        String
+  videoUrl    String
+  duration    Float     @default(5.0)
+  createdAt   DateTime  @default(now())
+  character   Character @relation(fields: [characterId], references: [id])
+
+  @@index([characterId, type])
 }

@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import { Button, Card, Skeleton } from '@/components/ui';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { useParams } from 'next/navigation';
+import { Button, Card } from '@/components/ui';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePrivy } from '@privy-io/react-auth';
@@ -40,21 +40,7 @@ export default function ChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  useEffect(() => {
-    if (slug) {
-      if (ready) {
-        checkAccess();
-      }
-      fetchCharacter();
-      fetchMessages();
-    }
-  }, [slug, ready, authenticated]);
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages, isLoading]);
-
-  const checkAccess = async () => {
+  const checkAccess = useCallback(async () => {
     try {
       setCheckingAccess(true);
       if (!authenticated) {
@@ -72,9 +58,9 @@ export default function ChatPage() {
     } finally {
       setCheckingAccess(false);
     }
-  };
+  }, [authenticated, privyFetch, slug]);
 
-  const fetchCharacter = async () => {
+  const fetchCharacter = useCallback(async () => {
     try {
       const response = await fetch(`/api/characters/${slug}`);
       if (!response.ok) throw new Error('Failed to fetch character');
@@ -88,9 +74,9 @@ export default function ChatPage() {
     } catch (error) {
       console.error('Failed to fetch character:', error);
     }
-  };
+  }, [slug]);
 
-  const fetchMessages = async () => {
+  const fetchMessages = useCallback(async () => {
     try {
       const response = await fetch(`/api/characters/${slug}/messages`);
       if (!response.ok) return;
@@ -104,7 +90,21 @@ export default function ChatPage() {
     } catch (error) {
       console.error('Failed to fetch messages:', error);
     }
-  };
+  }, [slug]);
+
+  useEffect(() => {
+    if (slug) {
+      if (ready) {
+        checkAccess();
+      }
+      fetchCharacter();
+      fetchMessages();
+    }
+  }, [slug, ready, authenticated, checkAccess, fetchCharacter, fetchMessages]);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, isLoading]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { Button, Card, Skeleton } from '@/components/ui';
 import AnimatedLiveCam from '@/components/character/AnimatedLiveCam';
@@ -41,14 +41,7 @@ export default function CharacterPage() {
   const [events, setEvents] = useState<CharacterEvent[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (slug) {
-      fetchCharacter();
-      fetchEvents();
-    }
-  }, [slug]);
-
-  const fetchCharacter = async () => {
+  const fetchCharacter = useCallback(async () => {
     try {
       const response = await fetch(`/api/characters/${slug}`);
       if (!response.ok) throw new Error('Failed to fetch character');
@@ -64,9 +57,9 @@ export default function CharacterPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [slug]);
 
-  const fetchEvents = async () => {
+  const fetchEvents = useCallback(async () => {
     try {
       const response = await fetch(`/api/characters/${slug}/events`);
       if (!response.ok) return;
@@ -80,7 +73,14 @@ export default function CharacterPage() {
     } catch (error) {
       console.error('Failed to fetch events:', error);
     }
-  };
+  }, [slug]);
+
+  useEffect(() => {
+    if (slug) {
+      fetchCharacter();
+      fetchEvents();
+    }
+  }, [slug, fetchCharacter, fetchEvents]);
 
   if (loading) {
     return (
@@ -104,7 +104,7 @@ export default function CharacterPage() {
         <Card className="text-center py-16 px-12 animate-in zoom-in-95 duration-500" hover={false}>
           <div className="text-6xl mb-4">🔍</div>
           <h1 className="text-2xl font-bold text-white mb-2">Character not found</h1>
-          <p className="text-slate-400 mb-6">They might have been removed or haven't launched yet.</p>
+          <p className="text-slate-400 mb-6">They might have been removed or haven&apos;t launched yet.</p>
           <Link href="/marketplace">
             <Button>Explore Marketplace</Button>
           </Link>

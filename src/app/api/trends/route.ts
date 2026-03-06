@@ -1,5 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { successResponse, errorResponse } from '@/lib/api';
+import { requireAuth } from '@/lib/auth';
+import { z } from 'zod';
 
 /**
  * GET /api/trends
@@ -14,27 +17,11 @@ export async function GET(request: NextRequest) {
         const characterSlug = request.nextUrl.searchParams.get('characterSlug');
         const limit = parseInt(request.nextUrl.searchParams.get('limit') || '10');
 
-        let personalityContext = '';
-
-        // If characterSlug is provided, get character personality for relevance scoring
-        if (characterSlug) {
-            const character = await prisma.character.findUnique({
-                where: { slug: characterSlug }
-            });
-
-            if (character) {
-                const personality = character.personality as Record<string, any>;
-                personalityContext = `${character.name} is ${(personality?.traits as string[])?.join(', ') || 'friendly'}. `;
-                personalityContext += `Their catchphrases include: ${(personality?.catchphrases as string[])?.join(', ') || 'none'}. `;
-                personalityContext += `Backstory: ${personality?.backstory || 'none'}`;
-            }
-        }
-
         // In production, this would call Apify API to scrape TikTok trends
         // For now, return sample trending topics
         const trends = await scrapeTrendingTopics(characterSlug, limit);
 
-        return NextResponse.json({
+        return successResponse({
             trends,
             character: characterSlug || null,
             fetchedAt: new Date().toISOString()
@@ -42,10 +29,7 @@ export async function GET(request: NextRequest) {
 
     } catch (error) {
         console.error('Failed to fetch trends:', error);
-        return NextResponse.json(
-            { error: 'Failed to fetch trends' },
-            { status: 500 }
-        );
+        return errorResponse('Failed to fetch trends', 500);
     }
 }
 
@@ -55,30 +39,29 @@ export async function GET(request: NextRequest) {
  * 
  * Body: { characterSlug: string, trend?: string }
  */
+const TrendSchema = z.object({ characterSlug: z.string().min(1), trend: z.string().optional() });
+
 export async function POST(request: NextRequest) {
     try {
+        await requireAuth(request.headers);
         const body = await request.json();
-        const { characterSlug, trend } = body;
+        const parsed = TrendSchema.safeParse(body);
 
-        if (!characterSlug) {
-            return NextResponse.json(
-                { error: 'characterSlug is required' },
-                { status: 400 }
-            );
+        if (!parsed.success) {
+            return errorResponse('characterSlug is required', 400);
         }
+
+        const { characterSlug, trend } = parsed.data;
 
         const character = await prisma.character.findUnique({
             where: { slug: characterSlug }
         });
 
         if (!character) {
-            return NextResponse.json(
-                { error: 'Character not found' },
-                { status: 404 }
-            );
+            return errorResponse('Character not found', 404);
         }
 
-        const personality = character.personality as any;
+        const personality = character.personality as Record<string, unknown>;
 
         // Build prompt for script generation
         const prompt = buildScriptPrompt(personality, character.name, trend);
@@ -87,7 +70,7 @@ export async function POST(request: NextRequest) {
         // For now, return a sample script
         const script = generateSampleScript(character.name, personality, trend);
 
-        return NextResponse.json({
+        return successResponse({
             script,
             character: character.name,
             trend: trend || 'general',
@@ -97,10 +80,7 @@ export async function POST(request: NextRequest) {
 
     } catch (error) {
         console.error('Failed to generate script:', error);
-        return NextResponse.json(
-            { error: 'Failed to generate script' },
-            { status: 500 }
-        );
+        return errorResponse('Failed to generate script', 500);
     }
 }
 
@@ -134,7 +114,7 @@ async function scrapeTrendingTopics(characterSlug: string | null, limit: number)
 /**
  * Build script generation prompt
  */
-function buildScriptPrompt(personality: Record<string, any>, characterName: string, trend?: string): string {
+function buildScriptPrompt(personality: Record<string, unknown>, characterName: string, trend?: string): string {
     const traits = (personality?.traits as string[])?.join(', ') || 'friendly';
     const voiceStyle = personality?.voiceStyle || 'casual';
     const catchphrases = (personality?.catchphrases as string[])?.join(' ') || '';
@@ -161,7 +141,7 @@ Requirements:
 /**
  * Generate sample script (simulated AI response)
  */
-function generateSampleScript(characterName: string, personality: Record<string, any>, trend?: string): string {
+function generateSampleScript(characterName: string, personality: Record<string, unknown>, trend?: string): string {
     const catchphrase = (personality?.catchphrases as string[])?.[0] || "Check this out!";
 
     return `
@@ -173,7 +153,7 @@ ${trend ? `So you saw that ${trend} trend going around, right?` : "You know what
 I was just thinking about this the other day...
 
 [VALUE - 0:20]
-Here's the thing - ${personality?.backstory?.slice(0, 100) || "life is full of surprises"}
+Here's the thing - ${typeof personality?.backstory === 'string' ? personality.backstory.slice(0, 100) : "life is full of surprises"}
 
 [CTA - 0:50]
 If you vibe with me, hit that follow button! ${catchphrase}

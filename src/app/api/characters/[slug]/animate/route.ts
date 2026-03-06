@@ -1,6 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { generateCharacterAnimation, selectAnimationFromMessage, AnimationType } from '@/lib/ai/character-animations';
+import { selectAnimationFromMessage, AnimationType } from '@/lib/ai/character-animations';
+import { successResponse, errorResponse } from '@/lib/api';
+import { z } from 'zod';
+
+const AnimateSchema = z.object({ animationType: z.string().optional(), message: z.string().optional(), trigger: z.string().optional() });
 
 export async function POST(
   request: NextRequest,
@@ -9,7 +13,11 @@ export async function POST(
   try {
     const { slug } = await params;
     const body = await request.json();
-    const { animationType, message, trigger } = body;
+    const parsed = AnimateSchema.safeParse(body);
+    if (!parsed.success) {
+      return errorResponse(parsed.error.issues[0].message, 400);
+    }
+    const { animationType, message, trigger } = parsed.data;
 
     // Get character data
     const character = await prisma.character.findUnique({
@@ -17,10 +25,7 @@ export async function POST(
     });
 
     if (!character) {
-      return NextResponse.json(
-        { error: 'Character not found' },
-        { status: 404 }
-      );
+      return errorResponse('Character not found', 404);
     }
 
     let selectedAnimationType: AnimationType;
@@ -34,8 +39,11 @@ export async function POST(
       selectedAnimationType = 'idle';
     }
 
-    // Generate animation
-    const animationUrls = await generateCharacterAnimation(character.name, selectedAnimationType, 3);
+    // Look up pre-generated animation clips from the database
+    const clips = await prisma.animationClip.findMany({
+      where: { characterId: character.id, type: selectedAnimationType },
+    });
+    const animationUrls = clips.map((c) => c.videoUrl);
 
     // Record animation event
     if (trigger) {
@@ -49,8 +57,7 @@ export async function POST(
       });
     }
 
-    return NextResponse.json({
-      success: true,
+    return successResponse({
       animationUrls,
       animationType: selectedAnimationType,
       characterName: character.name,
@@ -59,10 +66,7 @@ export async function POST(
 
   } catch (error: unknown) {
     console.error('Animation generation failed:', error);
-    return NextResponse.json(
-      { error: 'Failed to generate animation' },
-      { status: 500 }
-    );
+    return errorResponse('Failed to generate animation', 500);
   }
 }
 
@@ -72,8 +76,6 @@ export async function GET(
 ) {
   try {
     const { slug } = await params;
-    const { searchParams } = new URL(request.url);
-    const trigger = searchParams.get('trigger');
 
     // Get character data
     const character = await prisma.character.findUnique({
@@ -81,10 +83,7 @@ export async function GET(
     });
 
     if (!character) {
-      return NextResponse.json(
-        { error: 'Character not found' },
-        { status: 404 }
-      );
+      return errorResponse('Character not found', 404);
     }
 
     // Get recent animation events
@@ -99,7 +98,7 @@ export async function GET(
       take: 10
     });
 
-    return NextResponse.json({
+    return successResponse({
       characterName: character.name,
       recentAnimations: recentEvents.map(event => ({
         type: event.actionId.replace('animation_', ''),
@@ -115,9 +114,6 @@ export async function GET(
 
   } catch (error: unknown) {
     console.error('Failed to get animation info:', error);
-    return NextResponse.json(
-      { error: 'Failed to get animation info' },
-      { status: 500 }
-    );
+    return errorResponse('Failed to get animation info', 500);
   }
 }

@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
 import { getPolygonMaticBalance } from '@/lib/wallet/polygon';
+import { successResponse, errorResponse } from '@/lib/api';
 
 const MIN_MATIC_TO_ENABLE_BUY = 0.01;
 
@@ -11,15 +12,12 @@ export async function GET(request: NextRequest) {
 
     const user = await prisma.user.findUnique({ where: { id: claims.userId } });
     if (!user?.walletAddress) {
-      return NextResponse.json(
-        { error: 'Wallet not found for user' },
-        { status: 404 }
-      );
+      return errorResponse('Wallet not found for user', 404);
     }
 
     const { matic } = await getPolygonMaticBalance(user.walletAddress as `0x${string}`);
 
-    return NextResponse.json({
+    return successResponse({
       userId: user.id,
       walletAddress: user.walletAddress,
       chain: 'polygon',
@@ -34,9 +32,6 @@ export async function GET(request: NextRequest) {
   } catch (err: unknown) {
     const error = err as { message?: string; statusCode?: number };
     const status = typeof error?.statusCode === 'number' ? error.statusCode : 500;
-    return NextResponse.json(
-      { error: error?.message || 'Failed to get wallet status' },
-      { status }
-    );
+    return errorResponse(error?.message || 'Failed to get wallet status', status);
   }
 }

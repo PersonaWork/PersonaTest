@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getPrivyUser } from '@/lib/auth';
+import { successResponse, errorResponse } from '@/lib/api';
 // Mock crypto price data
 const CRYPTO_PRICES = {
   'ETH': 3500.00,
@@ -19,7 +20,7 @@ async function getUserFromSession(request: Request) {
       where: { privyId: claims.userId }
     });
     return user;
-  } catch (error) {
+  } catch (_error) {
     return null;
   }
 }
@@ -29,10 +30,7 @@ export async function GET(request: Request) {
     const user = await getUserFromSession(request);
 
     if (!user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+      return errorResponse('Unauthorized', 401);
     }
 
     const userId = user.id;
@@ -43,18 +41,12 @@ export async function GET(request: Request) {
     });
 
     if (!dbUser) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      );
+      return errorResponse('User not found', 404);
     }
 
     // If no wallet address, return error prompting to create wallet first
     if (!dbUser.walletAddress) {
-      return NextResponse.json(
-        { error: 'No wallet found. Please create a wallet first.' },
-        { status: 400 }
-      );
+      return errorResponse('No wallet found. Please create a wallet first.', 400);
     }
 
     const walletAddress = dbUser.walletAddress;
@@ -68,8 +60,7 @@ export async function GET(request: Request) {
       'BTC': '1' + walletAddress.slice(2, 42)
     };
 
-    return NextResponse.json({
-      success: true,
+    return successResponse({
       userId,
       walletAddress: walletAddress,
       walletType: 'Privy Embedded Wallet',
@@ -114,10 +105,7 @@ export async function GET(request: Request) {
 
   } catch (error: unknown) {
     console.error('Failed to get deposit addresses:', error);
-    return NextResponse.json(
-      { error: 'Failed to get deposit addresses' },
-      { status: 500 }
-    );
+    return errorResponse('Failed to get deposit addresses', 500);
   }
 }
 
@@ -127,28 +115,19 @@ export async function POST(request: NextRequest) {
     const user = await getUserFromSession(request);
 
     if (!user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+      return errorResponse('Unauthorized', 401);
     }
 
     const userId = user.id;
     const { cryptoType, amount, txHash, fromAddress } = body;
 
     if (!cryptoType || !amount || !txHash) {
-      return NextResponse.json(
-        { error: 'Crypto type, amount, and transaction hash required' },
-        { status: 400 }
-      );
+      return errorResponse('Crypto type, amount, and transaction hash required', 400);
     }
 
     // Validate crypto type
     if (!CRYPTO_PRICES[cryptoType.toUpperCase() as keyof typeof CRYPTO_PRICES]) {
-      return NextResponse.json(
-        { error: 'Unsupported cryptocurrency' },
-        { status: 400 }
-      );
+      return errorResponse('Unsupported cryptocurrency', 400);
     }
 
     // Get user
@@ -157,10 +136,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (!dbUser) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      );
+      return errorResponse('User not found', 404);
     }
 
     // Calculate USD value
@@ -179,8 +155,7 @@ export async function POST(request: NextRequest) {
       }
     });
 
-    return NextResponse.json({
-      success: true,
+    return successResponse({
       message: `Successfully deposited ${amount} ${cryptoType.toUpperCase()} ($${usdValue.toFixed(2)})`,
       transaction: cryptoTransaction,
       depositDetails: {
@@ -198,9 +173,6 @@ export async function POST(request: NextRequest) {
 
   } catch (error: unknown) {
     console.error('Crypto deposit failed:', error);
-    return NextResponse.json(
-      { error: 'Crypto deposit failed' },
-      { status: 500 }
-    );
+    return errorResponse('Crypto deposit failed', 500);
   }
 }

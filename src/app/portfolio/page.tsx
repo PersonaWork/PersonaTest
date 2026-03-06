@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Button, Card, Skeleton } from '@/components/ui';
@@ -38,15 +38,7 @@ export default function PortfolioPage() {
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        if (ready && authenticated && user?.id) {
-            fetchPortfolio();
-        } else if (ready && !authenticated) {
-            setLoading(false);
-        }
-    }, [ready, authenticated, user?.id]);
-
-    const fetchPortfolio = async () => {
+    const fetchPortfolio = useCallback(async () => {
         try {
             setLoading(true);
             const userId = user?.id;
@@ -68,7 +60,15 @@ export default function PortfolioPage() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [user?.id, privyFetch]);
+
+    useEffect(() => {
+        if (ready && authenticated && user?.id) {
+            fetchPortfolio();
+        } else if (ready && !authenticated) {
+            setLoading(false);
+        }
+    }, [ready, authenticated, user?.id, fetchPortfolio]);
 
     if (!ready || loading) {
         return (
@@ -202,9 +202,9 @@ export default function PortfolioPage() {
                                             {/* Holding Header */}
                                             <div className="flex justify-between items-start mb-6">
                                                 <div className="flex items-center gap-4">
-                                                    <div className="w-14 h-14 rounded-xl bg-slate-800 flex-shrink-0 border border-slate-700 shadow-xl overflow-hidden">
+                                                    <div className="w-14 h-14 rounded-xl bg-slate-800 flex-shrink-0 border border-slate-700 shadow-xl overflow-hidden relative">
                                                         {holding.characterThumbnail ? (
-                                                            <img src={holding.characterThumbnail} alt={holding.characterName} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                                                            <Image src={holding.characterThumbnail} alt={holding.characterName} fill className="object-cover group-hover:scale-110 transition-transform duration-500" />
                                                         ) : (
                                                             <div className="w-full h-full flex items-center justify-center text-white text-xl font-bold">
                                                                 {holding.characterName.charAt(0)}

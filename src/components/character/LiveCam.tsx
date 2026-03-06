@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import Image from 'next/image';
 import { CharacterStateMachine } from '@/lib/character-engine/stateMachine';
 import { CamState } from '@/lib/types';
 
@@ -74,8 +75,8 @@ export default function LiveCam({ slug, idleClipUrl }: LiveCamProps) {
                 <div className="flex justify-between items-end">
                     <div className="flex -space-x-2">
                         {[1, 2, 3, 4].map((i) => (
-                            <div key={i} className="w-8 h-8 rounded-full border-2 border-indigo-600 bg-slate-200 overflow-hidden shadow-lg">
-                                <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=watcher${i}`} alt="watcher" />
+                            <div key={i} className="w-8 h-8 rounded-full border-2 border-indigo-600 bg-slate-200 overflow-hidden shadow-lg relative">
+                                <Image src={`https://api.dicebear.com/7.x/avataaars/svg?seed=watcher${i}`} alt="watcher" fill className="object-cover" />
                             </div>
                         ))}
                         <div className="h-8 px-3 rounded-full bg-indigo-600 flex items-center justify-center text-[10px] font-black text-white shadow-lg border-2 border-indigo-600">

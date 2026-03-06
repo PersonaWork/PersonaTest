@@ -1,5 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { successResponse, errorResponse } from '@/lib/api';
+import { requireAuth } from '@/lib/auth';
+import { z } from 'zod';
+
+const PayoutSchema = z.object({ postId: z.string().min(1), userId: z.string().min(1), characterId: z.string().min(1), amount: z.number().positive() });
 
 /**
  * GET /api/payouts
@@ -9,17 +14,12 @@ import { prisma } from '@/lib/prisma';
  */
 export async function GET(request: NextRequest) {
     try {
-        const userId = request.nextUrl.searchParams.get('userId');
-
-        if (!userId) {
-            return NextResponse.json(
-                { error: 'userId is required' },
-                { status: 400 }
-            );
-        }
+        const { claims } = await requireAuth(request.headers);
+        const user = await prisma.user.findUnique({ where: { privyId: claims.userId } });
+        if (!user) return errorResponse('User not found', 404);
 
         const payouts = await prisma.payout.findMany({
-            where: { userId },
+            where: { userId: user.id },
             include: {
                 post: {
                     include: {
@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
 
         const totalPayouts = payouts.reduce((sum, p) => sum + p.amount, 0);
 
-        return NextResponse.json({
+        return successResponse({
             payouts,
             summary: {
                 totalPayouts,
@@ -42,10 +42,7 @@ export async function GET(request: NextRequest) {
 
     } catch (error) {
         console.error('Failed to fetch payouts:', error);
-        return NextResponse.json(
-            { error: 'Failed to fetch payouts' },
-            { status: 500 }
-        );
+        return errorResponse('Failed to fetch payouts', 500);
     }
 }
 
@@ -57,15 +54,13 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
     try {
+        await requireAuth(request.headers);
         const body = await request.json();
-        const { postId, userId, characterId, amount } = body;
-
-        if (!postId || !userId || !characterId || !amount) {
-            return NextResponse.json(
-                { error: 'postId, userId, characterId, and amount are required' },
-                { status: 400 }
-            );
+        const parsed = PayoutSchema.safeParse(body);
+        if (!parsed.success) {
+            return errorResponse(parsed.error.issues[0].message, 400);
         }
+        const { postId, userId, characterId, amount } = parsed.data;
 
         // Verify the post exists
         const post = await prisma.post.findUnique({
@@ -73,10 +68,7 @@ export async function POST(request: NextRequest) {
         });
 
         if (!post) {
-            return NextResponse.json(
-                { error: 'Post not found' },
-                { status: 404 }
-            );
+            return errorResponse('Post not found', 404);
         }
 
         // Create the payout record
@@ -89,13 +81,10 @@ export async function POST(request: NextRequest) {
             }
         });
 
-        return NextResponse.json(payout, { status: 201 });
+        return successResponse(payout, 201);
 
     } catch (error) {
         console.error('Failed to create payout:', error);
-        return NextResponse.json(
-            { error: 'Failed to create payout' },
-            { status: 500 }
-        );
+        return errorResponse('Failed to create payout', 500);
     }
 }

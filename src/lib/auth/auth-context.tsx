@@ -98,8 +98,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setDbUser(null);
   }, [privyLogout]);
 
-  const isLoading = !ready || (authenticated && !dbUser && !syncing);
-
   return (
     <AuthContext.Provider
       value={{

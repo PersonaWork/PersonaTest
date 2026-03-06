@@ -1,6 +1,6 @@
-import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
+import { successResponse, errorResponse } from '@/lib/api';
 
 export async function GET(
   request: Request,
@@ -9,11 +9,9 @@ export async function GET(
   try {
     const { claims } = await requireAuth(request.headers);
     const { userId } = await params;
-    if (userId !== claims.userId) {
-      return NextResponse.json(
-        { error: 'Forbidden' },
-        { status: 403 }
-      );
+    const authUser = await prisma.user.findUnique({ where: { privyId: claims.userId } });
+    if (!authUser || authUser.id !== userId) {
+      return errorResponse('Forbidden', 403);
     }
 
     const holdings = await prisma.holding.findMany({
@@ -46,12 +44,9 @@ export async function GET(
       };
     });
 
-    return NextResponse.json(transformedHoldings);
+    return successResponse(transformedHoldings);
   } catch (error) {
     console.error('Failed to fetch holdings:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch holdings' },
-      { status: 500 }
-    );
+    return errorResponse('Failed to fetch holdings', 500);
   }
 }

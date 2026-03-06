@@ -1,5 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { successResponse, errorResponse } from '@/lib/api';
+import { requireAuth } from '@/lib/auth';
+import { z } from 'zod';
+
+const CalculateSchema = z.object({ postId: z.string().min(1) });
 
 /**
  * POST /api/payouts/calculate
@@ -17,15 +22,13 @@ import { prisma } from '@/lib/prisma';
  */
 export async function POST(request: NextRequest) {
     try {
+        await requireAuth(request.headers);
         const body = await request.json();
-        const { postId } = body;
-
-        if (!postId) {
-            return NextResponse.json(
-                { error: 'postId is required' },
-                { status: 400 }
-            );
+        const parsed = CalculateSchema.safeParse(body);
+        if (!parsed.success) {
+            return errorResponse(parsed.error.issues[0].message, 400);
         }
+        const { postId } = parsed.data;
 
         // Get the post with its character
         const post = await prisma.post.findUnique({
@@ -36,17 +39,11 @@ export async function POST(request: NextRequest) {
         });
 
         if (!post) {
-            return NextResponse.json(
-                { error: 'Post not found' },
-                { status: 404 }
-            );
+            return errorResponse('Post not found', 404);
         }
 
         if (post.revenue <= 0) {
-            return NextResponse.json(
-                { error: 'Post has no revenue to distribute' },
-                { status: 400 }
-            );
+            return errorResponse('Post has no revenue to distribute', 400);
         }
 
         // Get all holdings for this character with shares > 0
@@ -58,10 +55,7 @@ export async function POST(request: NextRequest) {
         });
 
         if (holdings.length === 0) {
-            return NextResponse.json(
-                { error: 'No shareholders to pay out' },
-                { status: 400 }
-            );
+            return errorResponse('No shareholders to pay out', 400);
         }
 
         const totalShares = post.character.totalShares;
@@ -98,8 +92,7 @@ export async function POST(request: NextRequest) {
             data: { paidOut: true }
         });
 
-        return NextResponse.json({
-            success: true,
+        return successResponse({
             postId,
             totalRevenue,
             totalShareholders: holdings.length,
@@ -108,9 +101,6 @@ export async function POST(request: NextRequest) {
 
     } catch (error) {
         console.error('Failed to calculate payouts:', error);
-        return NextResponse.json(
-            { error: 'Failed to calculate payouts' },
-            { status: 500 }
-        );
+        return errorResponse('Failed to calculate payouts', 500);
     }
 }

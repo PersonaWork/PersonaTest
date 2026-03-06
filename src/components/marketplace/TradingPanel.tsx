@@ -194,7 +194,7 @@ export default function TradingPanel({
             {/* Warning for new users */}
             {userShares === 0 && tradeType === 'sell' && (
                 <p className="mt-4 text-xs text-center text-slate-500">
-                    You don't own any shares of {characterName} yet.
+                    You don&apos;t own any shares of {characterName} yet.
                 </p>
             )}
         </Card>

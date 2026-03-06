@@ -1,6 +1,6 @@
-import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
+import { successResponse, errorResponse } from '@/lib/api';
 
 export async function GET(
   request: Request,
@@ -9,11 +9,9 @@ export async function GET(
   try {
     const { claims } = await requireAuth(request.headers);
     const { userId } = await params;
-    if (userId !== claims.userId) {
-      return NextResponse.json(
-        { error: 'Forbidden' },
-        { status: 403 }
-      );
+    const authUser = await prisma.user.findUnique({ where: { privyId: claims.userId } });
+    if (!authUser || authUser.id !== userId) {
+      return errorResponse('Forbidden', 403);
     }
 
     const transactions = await prisma.transaction.findMany({
@@ -41,12 +39,9 @@ export async function GET(
       createdAt: transaction.createdAt.toISOString()
     }));
 
-    return NextResponse.json(transformedTransactions);
+    return successResponse(transformedTransactions);
   } catch (error) {
     console.error('Failed to fetch transactions:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch transactions' },
-      { status: 500 }
-    );
+    return errorResponse('Failed to fetch transactions', 500);
   }
 }

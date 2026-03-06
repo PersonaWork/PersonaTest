@@ -15,16 +15,15 @@ interface WalletConnectProps {
 }
 
 export default function WalletConnect({
-    onConnect,
+    onConnect: _onConnect,
     onDisconnect,
-    showBalance = false,
+    showBalance: _showBalance = false,
     compact = false
 }: WalletConnectProps) {
     const { user: authUser } = useAuth();
     const {
         ready,
         user: privyUser,
-        login,
         logout
     } = usePrivy();
 

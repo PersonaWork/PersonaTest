@@ -6,10 +6,6 @@ interface TrendingTopic {
   hashtags: string[]
 }
 
-interface ApifyResponse {
-  items: Record<string, unknown>[]
-}
-
 class ApifyAPI {
   private token: string
   private baseUrl = 'https://api.apify.com/v2'
@@ -18,7 +14,7 @@ class ApifyAPI {
     this.token = token
   }
 
-  private async makeRequest(endpoint: string, options: RequestInit = {}): Promise<any> {
+  private async makeRequest(endpoint: string, options: RequestInit = {}): Promise<Record<string, unknown>> {
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
       headers: {
         'Authorization': `Bearer ${this.token}`,
@@ -48,12 +44,13 @@ class ApifyAPI {
         body: JSON.stringify(runInput)
       })
 
-      const runId = response.data.id
+      const data = response.data as Record<string, unknown>
+      const runId = data.id as string
 
       // Wait for completion and get results
       const results = await this.waitForRunCompletion(runId)
 
-      return this.transformTikTokData(results)
+      return this.transformTikTokData(results as Record<string, unknown>[])
     } catch (error) {
       console.error('Failed to scrape TikTok trends:', error)
       return []
@@ -73,28 +70,30 @@ class ApifyAPI {
         body: JSON.stringify(runInput)
       })
 
-      const runId = response.data.id
+      const data = response.data as Record<string, unknown>
+      const runId = data.id as string
 
       // Wait for completion and get results
       const results = await this.waitForRunCompletion(runId)
 
-      return this.transformInstagramData(results)
+      return this.transformInstagramData(results as Record<string, unknown>[])
     } catch (error) {
       console.error('Failed to scrape Instagram trends:', error)
       return []
     }
   }
 
-  private async waitForRunCompletion(runId: string): Promise<any> {
+  private async waitForRunCompletion(runId: string): Promise<unknown> {
     let attempts = 0
     const maxAttempts = 30
 
     while (attempts < maxAttempts) {
       const response = await this.makeRequest(`/acts/${runId}`)
+      const data = response.data as Record<string, unknown>
 
-      if (response.data.status === 'SUCCEEDED') {
-        return response.data.output
-      } else if (response.data.status === 'FAILED') {
+      if (data.status === 'SUCCEEDED') {
+        return data.output
+      } else if (data.status === 'FAILED') {
         throw new Error('Apify run failed')
       }
 
@@ -109,7 +108,7 @@ class ApifyAPI {
     return data.slice(0, 10).map(item => ({
       title: (item.text as string) || (item.description as string) || 'Trending content',
       description: (item.description as string) || (item.text as string) || 'A trending topic on TikTok.',
-      engagement: (item.stats as any)?.diggCount || (item.stats as any)?.likes || (item.stats as any)?.views || 0,
+      engagement: (item.stats as Record<string, unknown>)?.diggCount as number || (item.stats as Record<string, unknown>)?.likes as number || (item.stats as Record<string, unknown>)?.views as number || 0,
       growth: (item.growth_rate as number) || 0,
       hashtags: (item.hashtags as string[]) || []
     }));

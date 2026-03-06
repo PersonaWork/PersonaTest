@@ -56,7 +56,7 @@ function LoginContent() {
                         </Button>
 
                         <p className="text-center text-sm text-slate-500">
-                            Sign in with email, wallet, Google, or Twitter
+                            We&apos;ll send a verification code to your email
                         </p>
                     </div>
 

@@ -1,9 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { generateCharacterVoice } from '@/lib/ai/elevenlabs';
 import { postCharacterContent } from '@/lib/social/ayrshare';
 import { getTrendingTopics } from '@/lib/social/apify';
 import { generateCharacterResponse } from '@/lib/ai/openai';
+import { successResponse, errorResponse } from '@/lib/api';
+import { requireAuth } from '@/lib/auth';
 
 /**
  * POST /api/social/post
@@ -26,14 +28,12 @@ import { generateCharacterResponse } from '@/lib/ai/openai';
  */
 export async function POST(request: NextRequest) {
     try {
+        await requireAuth(request.headers);
         const body = await request.json();
         const { characterSlug, platforms = ['tiktok'], script, videoUrl, caption } = body;
 
         if (!characterSlug) {
-            return NextResponse.json(
-                { error: 'characterSlug is required' },
-                { status: 400 }
-            );
+            return errorResponse('characterSlug is required', 400);
         }
 
         // Get character
@@ -42,10 +42,7 @@ export async function POST(request: NextRequest) {
         });
 
         if (!character) {
-            return NextResponse.json(
-                { error: 'Character not found' },
-                { status: 404 }
-            );
+            return errorResponse('Character not found', 404);
         }
 
         // Step 1: Generate script if not provided
@@ -53,8 +50,8 @@ export async function POST(request: NextRequest) {
         if (!finalScript) {
             try {
                 // Get trending topics based on character personality
-                const personality = character.personality as any;
-                const trends = await getTrendingTopics(personality?.traits || []);
+                const personality = character.personality as Record<string, unknown>;
+                const trends = await getTrendingTopics((personality?.traits as string[]) || []);
 
                 // Generate script using AI based on trends
                 const trendPrompt = trends.length > 0
@@ -69,7 +66,7 @@ export async function POST(request: NextRequest) {
                 );
             } catch (error) {
                 console.error('Failed to generate script, using fallback:', error);
-                finalScript = generateSampleScript(character.name, character.personality as Record<string, any>);
+                finalScript = generateSampleScript(character.name, character.personality as Record<string, unknown>);
             }
         }
 
@@ -83,9 +80,9 @@ export async function POST(request: NextRequest) {
         // Step 3: Generate voiceover
         let voiceUrl: string;
         try {
-            const personality = character.personality as any;
-            const voiceStyle = personality?.voiceStyle || 'neutral';
-            const audio = await generateCharacterVoice(finalScript, 'rachel', voiceStyle);
+            const personality = character.personality as Record<string, unknown>;
+            const voiceStyle = (personality?.voiceStyle as string) || 'neutral';
+            await generateCharacterVoice(finalScript, 'rachel', voiceStyle);
             voiceUrl = `https://cdn.example.com/audio/${character.name.toLowerCase()}_${Date.now()}.mp3`;
             // In production, you'd upload the audio buffer to storage
         } catch (error) {
@@ -144,8 +141,7 @@ export async function POST(request: NextRequest) {
             }
         }
 
-        return NextResponse.json({
-            success: true,
+        return successResponse({
             character: character.name,
             script: finalScript,
             videoUrl: finalVideoUrl,
@@ -156,25 +152,10 @@ export async function POST(request: NextRequest) {
 
     } catch (error) {
         console.error('Failed to post to social:', error);
-        return NextResponse.json(
-            { error: 'Failed to post to social media' },
-            { status: 500 }
-        );
+        return errorResponse('Failed to post to social media', 500);
     }
 }
 
-
-/**
- * Generate voiceover using ElevenLabs (simulated)
- */
-async function generateVoiceover(script: string, characterName: string): Promise<string> {
-    // In production, call ElevenLabs API:
-    // const elevenLabs = new ElevenLabs({ apiKey: process.env.ELEVENLABS_API_KEY });
-    // const audio = await elevenLabs.textToSpeech.convert({ text: script, voice_id: "..." });
-
-    // Return placeholder URL
-    return `https://cdn.example.com/audio/${characterName.toLowerCase()}_${Date.now()}.mp3`;
-}
 
 /**
  * Post to social media using Ayrshare (simulated)
@@ -183,8 +164,8 @@ async function postToSocialMedia(
     videoUrl: string,
     caption: string,
     platforms: string[],
-    tiktokHandle?: string | null,
-    instagramHandle?: string | null
+    _tiktokHandle?: string | null,
+    _instagramHandle?: string | null
 ): Promise<{ platform: string; success: boolean; postId?: string; error?: string }[]> {
     // In production, call Ayrshare API:
     // const ayrshare = new Ayrshare({ apiKey: process.env.AYRSHARE_API_KEY });
@@ -210,7 +191,7 @@ async function postToSocialMedia(
 /**
  * Generate sample script
  */
-function generateSampleScript(characterName: string, personality: Record<string, any>): string {
+function generateSampleScript(characterName: string, personality: Record<string, unknown>): string {
     const catchphrase = (personality?.catchphrases as string[])?.[0] || "Check this out!";
 
     return `${catchphrase} ${characterName} here! 

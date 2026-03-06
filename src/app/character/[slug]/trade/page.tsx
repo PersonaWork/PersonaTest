@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button, Card } from '@/components/ui';
 import Link from 'next/link';
@@ -61,45 +61,7 @@ export default function TradePage() {
   const [sellShares, setSellShares] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
 
-  useEffect(() => {
-    if (slug) {
-      fetchCharacter();
-      fetchTransactions();
-    }
-  }, [slug]);
-
-  useEffect(() => {
-    if (!ready) return;
-    if (!authenticated) {
-      setWalletStatus(null);
-      setHolding(null);
-      return;
-    }
-    fetchWalletStatus();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, authenticated]);
-
-  useEffect(() => {
-    if (character && authenticated && user?.id) {
-      fetchHolding();
-    }
-  }, [character, authenticated, user?.id]);
-
-  const fetchHolding = async () => {
-    try {
-      if (!user?.id || !character?.id) return;
-      const response = await privyFetch(`/api/users/${user.id}/holdings`);
-      if (response.ok) {
-        const data = await response.json();
-        const charHolding = data.find((h: any) => h.characterId === character.id);
-        setHolding(charHolding || null);
-      }
-    } catch (error) {
-      console.error('Failed to fetch holding:', error);
-    }
-  };
-
-  const fetchWalletStatus = async () => {
+  const fetchWalletStatus = useCallback(async () => {
     setWalletStatusLoading(true);
     try {
       const res = await privyFetch('/api/wallet/status');
@@ -108,9 +70,9 @@ export default function TradePage() {
     } finally {
       setWalletStatusLoading(false);
     }
-  };
+  }, [privyFetch]);
 
-  const fetchCharacter = async () => {
+  const fetchCharacter = useCallback(async () => {
     try {
       const response = await fetch(`/api/characters/${slug}`);
       if (!response.ok) throw new Error('Failed to fetch character');
@@ -122,9 +84,9 @@ export default function TradePage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [slug]);
 
-  const fetchTransactions = async () => {
+  const fetchTransactions = useCallback(async () => {
     try {
       const response = await fetch(`/api/characters/${slug}/transactions`);
       if (!response.ok) return;
@@ -134,7 +96,44 @@ export default function TradePage() {
     } catch (error) {
       console.error('Failed to fetch transactions:', error);
     }
-  };
+  }, [slug]);
+
+  const fetchHolding = useCallback(async () => {
+    try {
+      if (!user?.id || !character?.id) return;
+      const response = await privyFetch(`/api/users/${user.id}/holdings`);
+      if (response.ok) {
+        const data = await response.json();
+        const charHolding = data.find((h: { characterId: string }) => h.characterId === character.id);
+        setHolding(charHolding || null);
+      }
+    } catch (error) {
+      console.error('Failed to fetch holding:', error);
+    }
+  }, [user?.id, character?.id, privyFetch]);
+
+  useEffect(() => {
+    if (slug) {
+      fetchCharacter();
+      fetchTransactions();
+    }
+  }, [slug, fetchCharacter, fetchTransactions]);
+
+  useEffect(() => {
+    if (!ready) return;
+    if (!authenticated) {
+      setWalletStatus(null);
+      setHolding(null);
+      return;
+    }
+    fetchWalletStatus();
+  }, [ready, authenticated, fetchWalletStatus]);
+
+  useEffect(() => {
+    if (character && authenticated && user?.id) {
+      fetchHolding();
+    }
+  }, [character, authenticated, user?.id, fetchHolding]);
 
   const handleBuy = async () => {
     if (!buyShares || !character) return;

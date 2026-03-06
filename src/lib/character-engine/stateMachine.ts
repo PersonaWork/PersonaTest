@@ -1,4 +1,4 @@
-import type { CamState, CamEvent, CharacterAction } from '../types';
+import type { CamState, CamEvent } from '../types';
 
 export interface StateMachineConfig {
     characterSlug: string;

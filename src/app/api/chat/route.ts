@@ -1,6 +1,6 @@
-import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
+import { successResponse, errorResponse } from '@/lib/api';
 
 // POST /api/chat - Send a message to a character
 export async function POST(request: Request) {
@@ -17,10 +17,7 @@ export async function POST(request: Request) {
 
         // Validate required fields
         if (!characterSlug || !message) {
-            return NextResponse.json(
-                { error: 'Missing required fields: userId, characterSlug, message' },
-                { status: 400 }
-            );
+            return errorResponse('Missing required fields: userId, characterSlug, message', 400);
         }
 
         // Get the character
@@ -29,10 +26,7 @@ export async function POST(request: Request) {
         });
 
         if (!character) {
-            return NextResponse.json(
-                { error: 'Character not found' },
-                { status: 404 }
-            );
+            return errorResponse('Character not found', 404);
         }
 
         // Check if user owns shares of this character
@@ -46,10 +40,7 @@ export async function POST(request: Request) {
         });
 
         if (!holding) {
-            return NextResponse.json(
-                { error: 'You must own shares of this character to chat with them' },
-                { status: 403 }
-            );
+            return errorResponse('You must own shares of this character to chat with them', 403);
         }
 
         // Get recent message history for context (last 10 messages)
@@ -66,7 +57,7 @@ export async function POST(request: Request) {
         const messageHistory = recentMessages.reverse();
 
         // Build the system prompt with character personality
-        const personality = character.personality as any;
+        const personality = character.personality as Record<string, unknown>;
         const systemPrompt = buildSystemPrompt(personality, character.name);
 
         // In production, this would call an AI service like OpenAI
@@ -98,7 +89,7 @@ export async function POST(request: Request) {
             }
         });
 
-        return NextResponse.json({
+        return successResponse({
             content: aiResponse,
             character: {
                 name: character.name,
@@ -108,10 +99,7 @@ export async function POST(request: Request) {
 
     } catch (error) {
         console.error('Chat error:', error);
-        return NextResponse.json(
-            { error: 'Failed to send message' },
-            { status: 500 }
-        );
+        return errorResponse('Failed to send message', 500);
     }
 }
 
@@ -144,9 +132,9 @@ Guidelines:
 // Generate character response (simulated AI)
 async function generateCharacterResponse(
     userMessage: string,
-    messageHistory: Record<string, unknown>[],
-    systemPrompt: string,
-    characterName: string
+    _messageHistory: Record<string, unknown>[],
+    _systemPrompt: string,
+    _characterName: string
 ): Promise<string> {
     // In production, this would call OpenAI API or similar
     // For now, return a simple character-themed response
@@ -193,10 +181,7 @@ export async function GET(request: Request) {
         const userId = claims.userId;
 
         if (!characterSlug) {
-            return NextResponse.json(
-                { error: 'userId and characterSlug are required' },
-                { status: 400 }
-            );
+            return errorResponse('userId and characterSlug are required', 400);
         }
 
         const character = await prisma.character.findUnique({
@@ -204,10 +189,7 @@ export async function GET(request: Request) {
         });
 
         if (!character) {
-            return NextResponse.json(
-                { error: 'Character not found' },
-                { status: 404 }
-            );
+            return errorResponse('Character not found', 404);
         }
 
         const messages = await prisma.message.findMany({
@@ -219,7 +201,7 @@ export async function GET(request: Request) {
             take: limit
         });
 
-        return NextResponse.json({
+        return successResponse({
             messages: messages.reverse(),
             character: {
                 name: character.name,
@@ -229,9 +211,6 @@ export async function GET(request: Request) {
 
     } catch (error) {
         console.error('Failed to fetch chat history:', error);
-        return NextResponse.json(
-            { error: 'Failed to fetch chat history' },
-            { status: 500 }
-        );
+        return errorResponse('Failed to fetch chat history', 500);
     }
 }

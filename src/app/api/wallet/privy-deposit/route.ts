@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getPrivyWallet } from '@/lib/wallet/privy';
+import { successResponse, errorResponse } from '@/lib/api';
 
 // Mock crypto price data - in production you'd use CoinGecko, CoinMarketCap, etc.
 const CRYPTO_PRICES = {
@@ -17,10 +18,7 @@ export async function GET(request: Request) {
     const userId = searchParams.get('userId');
 
     if (!userId) {
-      return NextResponse.json(
-        { error: 'User ID required' },
-        { status: 400 }
-      );
+      return errorResponse('User ID required', 400);
     }
 
     // Get user
@@ -29,17 +27,14 @@ export async function GET(request: Request) {
     });
 
     if (!user) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      );
+      return errorResponse('User not found', 404);
     }
 
     // Get Privy wallet info
     let privyWallet = null;
     try {
       privyWallet = await getPrivyWallet(userId);
-    } catch (error) {
+    } catch (_error) {
       console.log('Privy wallet not found, using fallback');
     }
 
@@ -55,7 +50,7 @@ export async function GET(request: Request) {
       'BTC': '1' + walletAddress.slice(2, 42)
     };
 
-    return NextResponse.json({
+    return successResponse({
       userId,
       walletAddress: user.walletAddress,
       privyWallet: privyWallet ? {
@@ -74,7 +69,7 @@ export async function GET(request: Request) {
       },
       networkInfo: {
         'ETH': 'Ethereum Mainnet',
-        'BTC': 'Bitcoin Mainnet', 
+        'BTC': 'Bitcoin Mainnet',
         'USDC': 'Ethereum Mainnet (ERC-20)',
         'USDT': 'Ethereum Mainnet (ERC-20)',
         'MATIC': 'Polygon Mainnet'
@@ -83,10 +78,7 @@ export async function GET(request: Request) {
 
   } catch (error: unknown) {
     console.error('Failed to get deposit info:', error);
-    return NextResponse.json(
-      { error: 'Failed to get deposit info' },
-      { status: 500 }
-    );
+    return errorResponse('Failed to get deposit info', 500);
   }
 }
 
@@ -96,18 +88,12 @@ export async function POST(request: NextRequest) {
     const { userId, cryptoType, amount, txHash, fromAddress } = body;
 
     if (!userId || !cryptoType || !amount || !txHash) {
-      return NextResponse.json(
-        { error: 'User ID, crypto type, amount, and transaction hash required' },
-        { status: 400 }
-      );
+      return errorResponse('User ID, crypto type, amount, and transaction hash required', 400);
     }
 
     // Validate crypto type
     if (!CRYPTO_PRICES[cryptoType.toUpperCase() as keyof typeof CRYPTO_PRICES]) {
-      return NextResponse.json(
-        { error: 'Unsupported cryptocurrency' },
-        { status: 400 }
-      );
+      return errorResponse('Unsupported cryptocurrency', 400);
     }
 
     // Get user
@@ -116,10 +102,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (!user) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      );
+      return errorResponse('User not found', 404);
     }
 
     // Calculate USD value
@@ -144,8 +127,7 @@ export async function POST(request: NextRequest) {
     // 3. Wait for blockchain confirmations
     // 4. Update the user's wallet balance in Privy
 
-    return NextResponse.json({
-      success: true,
+    return successResponse({
       message: `Successfully deposited ${amount} ${cryptoType.toUpperCase()} ($${usdValue.toFixed(2)}) to your Privy wallet`,
       transaction: cryptoTransaction,
       depositDetails: {
@@ -162,9 +144,6 @@ export async function POST(request: NextRequest) {
 
   } catch (error: unknown) {
     console.error('Crypto deposit failed:', error);
-    return NextResponse.json(
-      { error: 'Crypto deposit failed' },
-      { status: 500 }
-    );
+    return errorResponse('Crypto deposit failed', 500);
   }
 }

@@ -48,8 +48,8 @@ export default function SignupPage() {
                             <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-900/50 border border-slate-800">
                                 <div className="w-8 h-8 rounded-lg bg-indigo-500/15 flex items-center justify-center text-sm font-black text-indigo-300">1</div>
                                 <div>
-                                    <p className="text-sm font-semibold text-white">Create account</p>
-                                    <p className="text-xs text-slate-500">Email, wallet, or social login</p>
+                                    <p className="text-sm font-semibold text-white">Enter your email</p>
+                                    <p className="text-xs text-slate-500">We&apos;ll send you a verification code</p>
                                 </div>
                             </div>
                             <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-900/50 border border-slate-800">
