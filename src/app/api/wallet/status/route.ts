@@ -1,33 +1,36 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
-import { getPolygonMaticBalance } from '@/lib/wallet/polygon';
+import { getUsdcBalance } from '@/lib/wallet/base';
 import { successResponse, errorResponse } from '@/lib/api';
-
-const MIN_MATIC_TO_ENABLE_BUY = 0.01;
 
 export async function GET(request: NextRequest) {
   try {
     const { claims } = await requireAuth(request.headers);
 
-    const user = await prisma.user.findUnique({ where: { id: claims.userId } });
-    if (!user?.walletAddress) {
-      return errorResponse('Wallet not found for user', 404);
+    const user = await prisma.user.findUnique({ where: { privyId: claims.userId } });
+    if (!user) {
+      return errorResponse('User not found', 404);
     }
 
-    const { matic } = await getPolygonMaticBalance(user.walletAddress as `0x${string}`);
+    // Get on-chain USDC balance if wallet exists
+    let walletBalance = 0;
+    if (user.walletAddress) {
+      try {
+        walletBalance = await getUsdcBalance(user.walletAddress as `0x${string}`);
+      } catch {
+        // If chain read fails, just show 0
+        walletBalance = 0;
+      }
+    }
 
     return successResponse({
       userId: user.id,
       walletAddress: user.walletAddress,
-      chain: 'polygon',
-      balances: {
-        matic,
-      },
-      requirements: {
-        minMaticToEnableBuy: MIN_MATIC_TO_ENABLE_BUY,
-      },
-      canBuy: matic >= MIN_MATIC_TO_ENABLE_BUY,
+      chain: 'base',
+      platformBalance: user.usdcBalance,   // DB balance — what you can trade with
+      walletBalance,                         // On-chain USDC — what you can deposit
+      canBuy: user.usdcBalance > 0,
     });
   } catch (err: unknown) {
     const error = err as { message?: string; statusCode?: number };

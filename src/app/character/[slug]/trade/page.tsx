@@ -14,8 +14,8 @@ import { usePrivy } from '@privy-io/react-auth';
 import { usePrivyAuthedFetch } from '@/lib/auth/privy-client';
 
 type WalletStatus = {
-  balances: { matic: number };
-  requirements: { minMaticToEnableBuy: number };
+  platformBalance: number;
+  walletBalance: number;
   canBuy: boolean;
 };
 
@@ -66,7 +66,7 @@ export default function TradePage() {
     try {
       const res = await privyFetch('/api/wallet/status');
       const data = await res.json().catch(() => ({}));
-      if (res.ok) setWalletStatus(data);
+      if (res.ok) setWalletStatus(data.data || data);
     } finally {
       setWalletStatusLoading(false);
     }
@@ -156,7 +156,7 @@ export default function TradePage() {
 
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
-        if (response.status === 402 || data?.error === 'Wallet not funded') {
+        if (data?.error?.includes('Insufficient USDC')) {
           router.push('/fund');
           return;
         }
@@ -320,13 +320,13 @@ export default function TradePage() {
                     <div>
                       <div className="flex items-center gap-2 mb-1">
                         <div className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse"></div>
-                        <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-0.5">Purchasing Power</p>
+                        <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-0.5">USDC Balance</p>
                       </div>
                       <p className="text-sm font-semibold text-slate-300">
                         {walletStatusLoading
                           ? 'Checking balance...'
                           : walletStatus
-                            ? `${walletStatus.balances.matic.toFixed(4)} MATIC`
+                            ? `$${walletStatus.platformBalance.toFixed(2)} USDC`
                             : 'Unable to read balance.'}
                       </p>
                     </div>
@@ -336,7 +336,7 @@ export default function TradePage() {
                       </Button>
                       <Link href="/fund">
                         <Button size="sm" variant={walletStatus?.canBuy ? 'secondary' : 'primary'} className="shadow-lg shadow-indigo-500/10">
-                          {walletStatus?.canBuy ? 'View Wallet' : 'Deposit'}
+                          {walletStatus?.canBuy ? 'Manage Funds' : 'Deposit USDC'}
                         </Button>
                       </Link>
                     </div>
@@ -346,7 +346,7 @@ export default function TradePage() {
                     <div className="mt-4 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 flex gap-3 items-start">
                       <div className="text-amber-500 mt-0.5">⚠️</div>
                       <p className="text-xs font-semibold text-amber-200/80 leading-relaxed">
-                        Purchases are locked until your wallet has sufficient Polygon MATIC.
+                        Deposit USDC to your platform balance to start buying shares.
                       </p>
                     </div>
                   )}
@@ -377,7 +377,7 @@ export default function TradePage() {
                     <div className="p-4 bg-slate-900/50 rounded-lg">
                       <div className="flex justify-between text-sm mb-2">
                         <span className="text-slate-400">Estimated cost:</span>
-                        <span className="text-white font-semibold">${estimatedBuyCost.toFixed(2)}</span>
+                        <span className="text-white font-semibold">${estimatedBuyCost.toFixed(2)} USDC</span>
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-slate-400">New ownership:</span>
@@ -425,7 +425,7 @@ export default function TradePage() {
                     <div className="p-4 bg-slate-900/50 rounded-lg">
                       <div className="flex justify-between text-sm mb-2">
                         <span className="text-slate-400">Estimated proceeds:</span>
-                        <span className="text-white font-semibold">${estimatedSellProceeds.toFixed(2)}</span>
+                        <span className="text-white font-semibold">${estimatedSellProceeds.toFixed(2)} USDC</span>
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-slate-400">Remaining shares:</span>

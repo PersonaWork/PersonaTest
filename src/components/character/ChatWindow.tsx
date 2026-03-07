@@ -33,19 +33,16 @@ export default function ChatWindow({ slug, characterName }: ChatWindowProps) {
         setIsLoading(true);
 
         try {
-            const response = await fetch('/api/chat', {
+            const response = await fetch(`/api/characters/${slug}/chat`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    slug,
-                    messages: [...messages, userMsg].slice(-10) // Keep last 10 messages for context
-                }),
+                body: JSON.stringify({ message: input }),
             });
 
             const data = await response.json();
-            if (data.error) throw new Error(data.error);
+            if (!data.success) throw new Error(data.error || 'Chat failed');
 
-            setMessages(prev => [...prev, { role: 'assistant', content: data.content }]);
+            setMessages(prev => [...prev, { role: 'assistant', content: data.data.aiMessage.content }]);
         } catch (error) {
             console.error('Chat error:', error);
             setMessages(prev => [...prev, { role: 'assistant', content: "Sorry, I'm having trouble connecting right now." }]);

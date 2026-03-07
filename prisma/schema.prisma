@@ -12,7 +12,10 @@ model User {
   privyId       String        @unique
   email         String        @unique
   username      String        @unique
+  displayName   String?
   walletAddress String?       @unique
+  usdcBalance   Float         @default(0)
+  preferences   Json?
   createdAt     DateTime      @default(now())
   holdings      Holding[]
   messages      Message[]

@@ -44,10 +44,22 @@ export async function POST(request: NextRequest) {
         where: { userId_characterId: { userId: user.id, characterId } }
       });
 
-      // Calculate price with algorithm
+      // Calculate price with bonding curve
       const currentPrice = character.currentPrice;
       const pricePerShare = currentPrice * (1 + (shares / character.totalShares) * 0.05);
       const totalCost = shares * pricePerShare;
+
+      // Check USDC balance
+      const buyer = await tx.user.findUnique({ where: { id: user.id } });
+      if (!buyer || buyer.usdcBalance < totalCost) {
+        throw new Error(`Insufficient USDC balance. Need ${totalCost.toFixed(2)} USDC but have ${(buyer?.usdcBalance ?? 0).toFixed(2)} USDC`);
+      }
+
+      // Deduct USDC balance
+      await tx.user.update({
+        where: { id: user.id },
+        data: { usdcBalance: { decrement: totalCost } },
+      });
 
       // Update character price and market cap
       const newPrice = currentPrice * (1 + (shares / character.totalShares) * 0.05);
@@ -116,6 +128,9 @@ export async function POST(request: NextRequest) {
     console.error('Buy failed:', error);
     if (error.message === 'Character not found') {
       return errorResponse(error.message, 404);
+    }
+    if (error.message.startsWith('Insufficient USDC balance')) {
+      return errorResponse(error.message, 400);
     }
     const status = typeof error?.statusCode === 'number' ? error.statusCode : 500;
     return errorResponse(error?.message || 'Transaction failed', status);

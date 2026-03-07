@@ -2,14 +2,16 @@ import { z } from 'zod';
 
 /* ── Server-only variables (never exposed to the browser) ── */
 const serverSchema = z.object({
-  DATABASE_URL:         z.string().min(1, 'DATABASE_URL is required'),
-  PRIVY_APP_ID:         z.string().min(1, 'PRIVY_APP_ID is required'),
-  PRIVY_APP_SECRET:     z.string().min(1, 'PRIVY_APP_SECRET is required'),
-  OPENAI_API_KEY:       z.string().optional(),
-  REPLICATE_API_TOKEN:  z.string().optional(),
-  ELEVENLABS_API_KEY:   z.string().optional(),
-  AYRSHARE_API_KEY:     z.string().optional(),
-  APIFY_API_TOKEN:      z.string().optional(),
+  DATABASE_URL:                z.string().min(1, 'DATABASE_URL is required'),
+  PRIVY_APP_ID:                z.string().min(1, 'PRIVY_APP_ID is required'),
+  PRIVY_APP_SECRET:            z.string().min(1, 'PRIVY_APP_SECRET is required'),
+  PLATFORM_TREASURY_ADDRESS:   z.string().optional(),
+  TREASURY_PRIVATE_KEY:        z.string().optional(),
+  OPENAI_API_KEY:              z.string().optional(),
+  REPLICATE_API_TOKEN:         z.string().optional(),
+  ELEVENLABS_API_KEY:          z.string().optional(),
+  AYRSHARE_API_KEY:            z.string().optional(),
+  APIFY_API_TOKEN:             z.string().optional(),
 });
 
 /* ── Client-safe variables (prefixed with NEXT_PUBLIC_) ── */

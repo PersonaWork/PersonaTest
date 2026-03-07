@@ -48,13 +48,19 @@ export async function POST(request: NextRequest) {
         throw new Error('Insufficient shares to sell');
       }
 
-      // Calculate price with algorithm
+      // Calculate price with bonding curve (with price floor)
       const currentPrice = character.currentPrice;
-      const pricePerShare = currentPrice * (1 - (shares / character.totalShares) * 0.05);
+      const pricePerShare = Math.max(0.01, currentPrice * (1 - (shares / character.totalShares) * 0.05));
       const totalProceeds = shares * pricePerShare;
 
+      // Credit USDC balance to seller
+      await tx.user.update({
+        where: { id: user.id },
+        data: { usdcBalance: { increment: totalProceeds } },
+      });
+
       // Update character price and market cap
-      const newPrice = currentPrice * (1 - (shares / character.totalShares) * 0.05);
+      const newPrice = Math.max(0.01, currentPrice * (1 - (shares / character.totalShares) * 0.05));
       const newSharesIssued = character.sharesIssued - shares;
       const newMarketCap = newPrice * newSharesIssued;
 

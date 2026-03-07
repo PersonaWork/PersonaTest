@@ -1,7 +1,40 @@
 import Link from 'next/link';
 import { Button, Card } from '@/components/ui';
+import { prisma } from '@/lib/prisma';
 
-export default function HomePage() {
+export const revalidate = 60; // Revalidate every 60 seconds
+
+async function getHomeData() {
+  const [characters, characterCount, holderCount] = await Promise.all([
+    prisma.character.findMany({
+      take: 6,
+      orderBy: { marketCap: 'desc' },
+      select: {
+        name: true,
+        slug: true,
+        description: true,
+        currentPrice: true,
+        marketCap: true,
+        totalShares: true,
+        sharesIssued: true,
+        thumbnailUrl: true,
+      },
+    }),
+    prisma.character.count(),
+    prisma.holding.groupBy({ by: ['userId'] }).then((r) => r.length),
+  ]);
+
+  return { characters, characterCount, holderCount };
+}
+
+export default async function HomePage() {
+  const { characters, characterCount, holderCount } = await getHomeData();
+
+  // Take top 2 for "live now" preview
+  const liveCharacters = characters.slice(0, 2);
+  // Take top 3 for "meet the characters" section
+  const featuredCharacters = characters.slice(0, 3);
+
   return (
     <div className="min-h-screen">
       {/* Social proof bar */}
@@ -9,10 +42,10 @@ export default function HomePage() {
         <div className="max-w-6xl mx-auto px-6 py-3 flex flex-col sm:flex-row items-center justify-between gap-2">
           <p className="text-xs font-semibold text-slate-400">
             Live now:
-            <span className="text-white"> 3 personas</span>
-            <span className="text-slate-500"> • </span>
-            <span className="text-white">4.4K holders</span>
-            <span className="text-slate-500"> • </span>
+            <span className="text-white"> {characterCount} persona{characterCount !== 1 ? 's' : ''}</span>
+            <span className="text-slate-500"> &bull; </span>
+            <span className="text-white">{holderCount.toLocaleString()} holder{holderCount !== 1 ? 's' : ''}</span>
+            <span className="text-slate-500"> &bull; </span>
             <span className="text-white">100% revenue share</span>
           </p>
           <div className="flex items-center gap-2">
@@ -26,7 +59,6 @@ export default function HomePage() {
 
       {/* Hero Section */}
       <section className="relative overflow-hidden">
-        {/* Background Effects */}
         <div className="absolute inset-0 -z-10">
           <div className="absolute top-0 left-1/4 w-[700px] h-[700px] bg-indigo-600/20 rounded-full blur-[140px]" />
           <div className="absolute bottom-0 right-1/4 w-[650px] h-[650px] bg-purple-600/15 rounded-full blur-[130px]" />
@@ -86,32 +118,22 @@ export default function HomePage() {
               <Card className="p-6" hover={false}>
                 <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Live now</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {[{
-                    name: 'Luna',
-                    slug: 'luna',
-                    emoji: '🌙',
-                    blurb: 'Neon future explorer',
-                  }, {
-                    name: 'Rex',
-                    slug: 'rex',
-                    emoji: '💪',
-                    blurb: 'Gym bro energy',
-                  }].map((c) => (
+                  {liveCharacters.map((c) => (
                     <Link key={c.slug} href={`/character/${c.slug}`} className="group">
                       <div className="p-4 rounded-2xl bg-slate-900/50 border border-slate-800 hover:border-indigo-500/30 transition-colors">
                         <div className="flex items-center justify-between">
                           <div>
                             <p className="text-sm font-bold text-white">{c.name}</p>
-                            <p className="text-xs text-slate-500">{c.blurb}</p>
+                            <p className="text-xs text-slate-500">${c.currentPrice.toFixed(2)} USDC</p>
                           </div>
                           <div className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center text-xl">
-                            {c.emoji}
+                            {c.name[0]}
                           </div>
                         </div>
                         <div className="mt-3 flex items-center gap-2 text-xs text-slate-400">
                           <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
                           Live
-                          <span className="text-slate-600">•</span>
+                          <span className="text-slate-600">&bull;</span>
                           Tap to watch
                         </div>
                       </div>
@@ -129,8 +151,8 @@ export default function HomePage() {
                     desc: 'Instant embedded wallet',
                   }, {
                     step: '2',
-                    title: 'Fund wallet',
-                    desc: 'Polygon mainnet',
+                    title: 'Deposit USDC',
+                    desc: 'Base network',
                   }, {
                     step: '3',
                     title: 'Buy 1 share',
@@ -170,7 +192,7 @@ export default function HomePage() {
               </div>
               <h3 className="text-xl font-bold text-white mb-4">Unique AI Personalities</h3>
               <p className="text-slate-400">
-                Each character has their own personality, backstory, and behavior patterns. 
+                Each character has their own personality, backstory, and behavior patterns.
                 From cosmic mystics to gym bros, find characters that match your vibe.
               </p>
             </Card>
@@ -181,7 +203,7 @@ export default function HomePage() {
               </div>
               <h3 className="text-xl font-bold text-white mb-4">Real Revenue Sharing</h3>
               <p className="text-slate-400">
-                Characters create content on TikTok and Instagram. 
+                Characters create content on TikTok and Instagram.
                 As a shareholder, you earn proportional revenue from every post.
               </p>
             </Card>
@@ -192,7 +214,7 @@ export default function HomePage() {
               </div>
               <h3 className="text-xl font-bold text-white mb-4">24/7 Live Entertainment</h3>
               <p className="text-slate-400">
-                Watch your characters live in their environments. 
+                Watch your characters live in their environments.
                 They perform actions, interact, and evolve based on community engagement.
               </p>
             </Card>
@@ -213,44 +235,23 @@ export default function HomePage() {
           </div>
 
           <div className="grid md:grid-cols-3 gap-8 mb-12">
-            <Card className="p-6 text-center" hover>
-              <div className="w-20 h-20 bg-slate-800 rounded-full mx-auto mb-4 flex items-center justify-center text-3xl">
-                🌙
-              </div>
-              <h3 className="text-xl font-bold text-white mb-2">Luna</h3>
-              <p className="text-slate-400 mb-4">
-                A mysterious cosmic wanderer who speaks in riddles and communes with the stars
-              </p>
-              <Link href="/character/luna">
-                <Button variant="secondary" size="sm">View Character</Button>
-              </Link>
-            </Card>
-
-            <Card className="p-6 text-center" hover>
-              <div className="w-20 h-20 bg-slate-800 rounded-full mx-auto mb-4 flex items-center justify-center text-3xl">
-                💪
-              </div>
-              <h3 className="text-xl font-bold text-white mb-2">Rex</h3>
-              <p className="text-slate-400 mb-4">
-                A hyper-confident gym bro who believes everything in life is a metaphor for gains
-              </p>
-              <Link href="/character/rex">
-                <Button variant="secondary" size="sm">View Character</Button>
-              </Link>
-            </Card>
-
-            <Card className="p-6 text-center" hover>
-              <div className="w-20 h-20 bg-slate-800 rounded-full mx-auto mb-4 flex items-center justify-center text-3xl">
-                😈
-              </div>
-              <h3 className="text-xl font-bold text-white mb-2">Dot</h3>
-              <p className="text-slate-400 mb-4">
-                Pure chaotic gremlin energy. Unpredictable. Finds everything hilarious.
-              </p>
-              <Link href="/character/dot">
-                <Button variant="secondary" size="sm">View Character</Button>
-              </Link>
-            </Card>
+            {featuredCharacters.map((c) => (
+              <Card key={c.slug} className="p-6 text-center" hover>
+                <div className="w-20 h-20 bg-slate-800 rounded-full mx-auto mb-4 flex items-center justify-center text-3xl">
+                  {c.name[0]}
+                </div>
+                <h3 className="text-xl font-bold text-white mb-2">{c.name}</h3>
+                <p className="text-slate-400 mb-2 line-clamp-2">
+                  {c.description}
+                </p>
+                <p className="text-sm font-semibold text-indigo-400 mb-4">
+                  ${c.currentPrice.toFixed(2)} USDC &bull; {c.sharesIssued.toLocaleString()} shares issued
+                </p>
+                <Link href={`/character/${c.slug}`}>
+                  <Button variant="secondary" size="sm">View Character</Button>
+                </Link>
+              </Card>
+            ))}
           </div>
 
           <div className="text-center">
@@ -268,7 +269,7 @@ export default function HomePage() {
             Ready to Own Your First AI Character?
           </h2>
           <p className="text-xl text-slate-400 mb-8">
-            Join thousands of investors who are already earning from the AI entertainment revolution
+            Join the investors who are already earning from the AI entertainment revolution
           </p>
           <Link href="/marketplace">
             <Button size="lg" className="text-lg px-8 py-4">

@@ -1,23 +1,54 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { Button, Card, Input } from '@/components/ui';
 import { usePrivy } from '@privy-io/react-auth';
+import { usePrivyAuthedFetch } from '@/lib/auth/privy-client';
 
 export default function SettingsPage() {
     const { ready, authenticated, user, logout, linkEmail, linkWallet, linkGoogle } = usePrivy();
+    const privyFetch = usePrivyAuthedFetch();
     const [isSaving, setIsSaving] = useState(false);
     const [saveSuccess, setSaveSuccess] = useState(false);
+    const [displayName, setDisplayName] = useState('');
+
+    const loadProfile = useCallback(async () => {
+        try {
+            const res = await privyFetch('/api/users/me');
+            const data = await res.json();
+            if (res.ok && data.data?.displayName) {
+                setDisplayName(data.data.displayName);
+            }
+        } catch {
+            // ignore
+        }
+    }, [privyFetch]);
+
+    useEffect(() => {
+        if (ready && authenticated) {
+            loadProfile();
+        }
+    }, [ready, authenticated, loadProfile]);
 
     const handleSave = async () => {
         setIsSaving(true);
         setSaveSuccess(false);
-        // Simulate save
-        await new Promise(resolve => setTimeout(resolve, 800));
-        setIsSaving(false);
-        setSaveSuccess(true);
-        setTimeout(() => setSaveSuccess(false), 3000);
+        try {
+            const res = await privyFetch('/api/users/me', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ displayName }),
+            });
+            if (res.ok) {
+                setSaveSuccess(true);
+                setTimeout(() => setSaveSuccess(false), 3000);
+            }
+        } catch {
+            // ignore
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     if (!ready) {
@@ -176,6 +207,8 @@ export default function SettingsPage() {
                                     <Input
                                         placeholder="Anonymous Investor"
                                         className="bg-slate-950/50"
+                                        value={displayName}
+                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDisplayName(e.target.value)}
                                     />
                                 </div>
                                 <div className="pt-2 flex items-center gap-4">
