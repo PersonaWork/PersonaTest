@@ -59,20 +59,20 @@ const CharacterCard = memo(function CharacterCard({ character, showStats = true 
                                     </div>
                                 )}
                             </div>
-                            {/* Glow effect */}
-                            <div className="absolute inset-0 rounded-full bg-indigo-500/20 blur-xl group-hover:bg-indigo-400/40 transition-all duration-300" />
+                            {/* Subtle glow on hover */}
+                            <div className="absolute inset-0 rounded-full bg-indigo-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                         </div>
                     </div>
 
                     {/* Status Badge */}
                     <div className="absolute top-4 right-4">
                         {character.status === 'LIVE' ? (
-                            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-red-500/20 border border-red-500/30 backdrop-blur-sm">
-                                <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-red-500/20 border border-red-500/30">
+                                <span className="w-2 h-2 rounded-full bg-red-500" />
                                 <span className="text-xs font-bold text-red-400 uppercase tracking-wider">Live</span>
                             </div>
                         ) : (
-                            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/20 border border-amber-500/30 backdrop-blur-sm">
+                            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/20 border border-amber-500/30">
                                 <span className="w-2 h-2 rounded-full bg-amber-500" />
                                 <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">{character.status}</span>
                             </div>

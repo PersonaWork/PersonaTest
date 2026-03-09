@@ -114,8 +114,8 @@ export default function MarketplacePage() {
                                                 )}
 
                                                 <div className="absolute top-2 left-2">
-                                                    <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-red-500/25 border border-red-500/30 backdrop-blur-sm">
-                                                        <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                                                    <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-red-500/30 border border-red-500/30">
+                                                        <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
                                                         <span className="text-[10px] font-black text-red-200 uppercase tracking-widest">Live</span>
                                                     </div>
                                                 </div>
