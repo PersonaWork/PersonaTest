@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { Button, Card, Skeleton } from '@/components/ui';
 import AnimatedLiveCam from '@/components/character/AnimatedLiveCam';
+import PriceChart from '@/components/character/PriceChart';
 import Link from 'next/link';
 import Image from 'next/image';
 
@@ -246,6 +247,9 @@ export default function CharacterPage() {
                 </div>
               </div>
             </Card>
+
+            {/* Share Price Chart */}
+            <PriceChart slug={character.slug} />
 
             {/* Personality Traits */}
             {personality?.traits && personality.traits.length > 0 && (

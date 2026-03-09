@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { usePrivy, useWallets } from '@privy-io/react-auth';
 import { usePrivyAuthedFetch } from '@/lib/auth/privy-client';
@@ -21,8 +21,9 @@ type WalletStatus = {
 
 export default function FundPage() {
   const { ready, authenticated, login } = usePrivy();
-  const { wallets } = useWallets();
+  const { ready: walletsReady, wallets } = useWallets();
   const privyFetch = usePrivyAuthedFetch();
+  const hasFetched = useRef(false);
 
   const [status, setStatus] = useState<WalletStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -54,7 +55,11 @@ export default function FundPage() {
       setIsLoading(false);
       return;
     }
-    fetchStatus();
+    // Only fetch once on mount (prevent re-fetching on every render)
+    if (!hasFetched.current) {
+      hasFetched.current = true;
+      fetchStatus();
+    }
   }, [ready, authenticated, fetchStatus]);
 
   const handleDeposit = async () => {
@@ -65,6 +70,9 @@ export default function FundPage() {
     setTxMessage(null);
 
     try {
+      // Wait for wallets to be ready
+      if (!walletsReady) throw new Error('Wallet is still initializing. Please wait a moment and try again.');
+
       // Find the embedded wallet
       const embeddedWallet = wallets.find((w) => w.walletClientType === 'privy');
       if (!embeddedWallet) throw new Error('No embedded wallet found. Please log out and back in.');
@@ -152,7 +160,7 @@ export default function FundPage() {
     }
   };
 
-  if (!ready) {
+  if (!ready || (authenticated && !walletsReady)) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500"></div>
