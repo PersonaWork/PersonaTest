@@ -5,26 +5,32 @@ import { prisma } from '@/lib/prisma';
 export const revalidate = 60; // Revalidate every 60 seconds
 
 async function getHomeData() {
-  const [characters, characterCount, holderCount] = await Promise.all([
-    prisma.character.findMany({
-      take: 6,
-      orderBy: { marketCap: 'desc' },
-      select: {
-        name: true,
-        slug: true,
-        description: true,
-        currentPrice: true,
-        marketCap: true,
-        totalShares: true,
-        sharesIssued: true,
-        thumbnailUrl: true,
-      },
-    }),
-    prisma.character.count(),
-    prisma.holding.groupBy({ by: ['userId'] }).then((r) => r.length),
-  ]);
+  try {
+    const [characters, characterCount, holderCount] = await Promise.all([
+      prisma.character.findMany({
+        take: 6,
+        orderBy: { marketCap: 'desc' },
+        select: {
+          name: true,
+          slug: true,
+          description: true,
+          currentPrice: true,
+          marketCap: true,
+          totalShares: true,
+          sharesIssued: true,
+          thumbnailUrl: true,
+        },
+      }),
+      prisma.character.count(),
+      prisma.holding.groupBy({ by: ['userId'] }).then((r) => r.length),
+    ]);
 
-  return { characters, characterCount, holderCount };
+    return { characters, characterCount, holderCount };
+  } catch (error) {
+    console.error('prisma:error', error instanceof Error ? error.message : error);
+    // Return empty data so the build doesn't crash
+    return { characters: [], characterCount: 0, holderCount: 0 };
+  }
 }
 
 export default async function HomePage() {
