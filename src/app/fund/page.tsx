@@ -5,10 +5,6 @@ import Link from 'next/link';
 import { usePrivy, useWallets } from '@privy-io/react-auth';
 import { usePrivyAuthedFetch } from '@/lib/auth/privy-client';
 import { Button, Card } from '@/components/ui';
-import { encodeFunctionData, parseUnits } from 'viem';
-
-// USDC on Base mainnet
-const USDC_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
 
 type WalletStatus = {
   userId: string;
@@ -55,13 +51,13 @@ export default function FundPage() {
       setIsLoading(false);
       return;
     }
-    // Only fetch once on mount (prevent re-fetching on every render)
     if (!hasFetched.current) {
       hasFetched.current = true;
       fetchStatus();
     }
   }, [ready, authenticated, fetchStatus]);
 
+  // Simplified deposit: send amount to API, backend verifies on-chain balance
   const handleDeposit = async () => {
     const amount = parseFloat(depositAmount);
     if (!amount || amount <= 0) return;
@@ -70,53 +66,18 @@ export default function FundPage() {
     setTxMessage(null);
 
     try {
-      // Wait for wallets to be ready
-      if (!walletsReady) throw new Error('Wallet is still initializing. Please wait a moment and try again.');
-
-      // Find the embedded wallet
-      const embeddedWallet = wallets.find((w) => w.walletClientType === 'privy');
-      if (!embeddedWallet) throw new Error('No embedded wallet found. Please log out and back in.');
-
-      // Get the treasury address
-      const infoRes = await privyFetch('/api/wallet/fund');
-      const infoData = await infoRes.json();
-      const treasuryAddress = infoData?.data?.instructions?.treasuryAddress;
-      if (!treasuryAddress) throw new Error('Treasury address not configured');
-
-      // Switch to Base chain (chainId 8453)
-      await embeddedWallet.switchChain(8453);
-
-      // Get provider and send USDC transfer
-      const provider = await embeddedWallet.getEthereumProvider();
-
-      // Encode ERC-20 transfer call
-      const transferData = encodeFunctionData({
-        abi: [{ name: 'transfer', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'to', type: 'address' }, { name: 'amount', type: 'uint256' }], outputs: [{ name: '', type: 'bool' }] }],
-        functionName: 'transfer',
-        args: [treasuryAddress as `0x${string}`, parseUnits(amount.toString(), 6)],
-      });
-
-      const txHash = await provider.request({
-        method: 'eth_sendTransaction',
-        params: [{
-          from: embeddedWallet.address,
-          to: USDC_ADDRESS,
-          data: transferData,
-        }],
-      });
-
-      // Verify the deposit with the backend
-      const verifyRes = await privyFetch('/api/wallet/fund', {
+      const res = await privyFetch('/api/wallet/fund', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ txHash }),
+        body: JSON.stringify({ amount }),
       });
 
-      const verifyData = await verifyRes.json();
-      if (!verifyRes.ok) throw new Error(verifyData?.error || 'Deposit verification failed');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Deposit failed');
 
-      setTxMessage({ type: 'success', text: `Deposited ${amount} USDC. New balance: ${verifyData.data.newBalance.toFixed(2)} USDC` });
+      setTxMessage({ type: 'success', text: data.data?.message || `Deposited ${amount} USDC` });
       setDepositAmount('');
+      hasFetched.current = false;
       await fetchStatus();
     } catch (e: unknown) {
       setTxMessage({ type: 'error', text: e instanceof Error ? e.message : 'Deposit failed' });
@@ -142,8 +103,9 @@ export default function FundPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || 'Withdrawal failed');
 
-      setTxMessage({ type: 'success', text: `Withdrew ${amount} USDC. Tx: ${data.data.txHash?.slice(0, 10)}...` });
+      setTxMessage({ type: 'success', text: `Withdrew ${amount} USDC` });
       setWithdrawAmount('');
+      hasFetched.current = false;
       await fetchStatus();
     } catch (e: unknown) {
       setTxMessage({ type: 'error', text: e instanceof Error ? e.message : 'Withdrawal failed' });
@@ -159,6 +121,10 @@ export default function FundPage() {
       // ignore
     }
   };
+
+  // Get embedded wallet address from Privy (may differ from DB until sync)
+  const embeddedWallet = wallets.find((w) => w.walletClientType === 'privy');
+  const displayAddress = status?.walletAddress || embeddedWallet?.address || '';
 
   if (!ready || (authenticated && !walletsReady)) {
     return (
@@ -214,10 +180,38 @@ export default function FundPage() {
         ) : error ? (
           <Card className="p-8" hover={false}>
             <p className="text-red-400 font-medium mb-4">{error}</p>
-            <Button onClick={fetchStatus}>Retry</Button>
+            <Button onClick={() => { hasFetched.current = false; fetchStatus(); }}>Retry</Button>
           </Card>
         ) : status ? (
           <>
+            {/* Your Wallet Address — show first so users know where to send USDC */}
+            <Card className="p-8" hover={false}>
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Your Wallet Address (Base)</p>
+              {displayAddress ? (
+                <>
+                  <div className="flex items-start justify-between gap-4">
+                    <p className="text-sm font-mono text-white break-all">{displayAddress}</p>
+                    <Button variant="secondary" size="sm" onClick={() => copy(displayAddress)}>
+                      Copy
+                    </Button>
+                  </div>
+                  <div className="mt-4 space-y-2 text-sm text-slate-400">
+                    <p>Send <span className="text-white font-semibold">USDC on Base network</span> to this address from any exchange (Coinbase, Binance, etc).</p>
+                    <p>After sending, click <strong className="text-white">Refresh</strong> to see your updated balance, then deposit to your trading balance.</p>
+                  </div>
+                </>
+              ) : (
+                <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20">
+                  <p className="text-amber-200 font-medium text-sm">
+                    Your wallet is being created. Please try logging out and back in, or wait a moment and refresh.
+                  </p>
+                </div>
+              )}
+              <div className="mt-4">
+                <Button variant="secondary" onClick={() => { hasFetched.current = false; fetchStatus(); }}>Refresh Balances</Button>
+              </div>
+            </Card>
+
             {/* Balances */}
             <Card className="p-8" hover={false}>
               <div className="grid sm:grid-cols-2 gap-4">
@@ -253,9 +247,9 @@ export default function FundPage() {
               </div>
             )}
 
-            {/* Deposit */}
+            {/* Deposit to Platform */}
             <Card className="p-8" hover={false}>
-              <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">Deposit USDC</p>
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">Deposit to Trading Balance</p>
               <div className="flex gap-3">
                 <input
                   type="number"
@@ -271,13 +265,13 @@ export default function FundPage() {
                 </Button>
               </div>
               <p className="text-xs text-slate-500 mt-3">
-                Transfers USDC from your embedded wallet to the platform. Your wallet must have USDC on Base network.
+                Moves USDC from your wallet to your platform trading balance. Your wallet must have USDC on Base network.
               </p>
             </Card>
 
-            {/* Withdraw */}
+            {/* Withdraw from Platform */}
             <Card className="p-8" hover={false}>
-              <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">Withdraw USDC</p>
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">Withdraw to Wallet</p>
               <div className="flex gap-3">
                 <input
                   type="number"
@@ -297,28 +291,8 @@ export default function FundPage() {
                 </Button>
               </div>
               <p className="text-xs text-slate-500 mt-3">
-                Sends USDC from the platform to your embedded wallet on Base.
+                Moves USDC from your trading balance back to your embedded wallet on Base.
               </p>
-            </Card>
-
-            {/* Wallet Address & Manual Deposit */}
-            <Card className="p-8" hover={false}>
-              <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Your Wallet Address (Base)</p>
-              <div className="flex items-start justify-between gap-4">
-                <p className="text-sm font-mono text-white break-all">{status.walletAddress || 'No wallet address yet'}</p>
-                {status.walletAddress && (
-                  <Button variant="secondary" size="sm" onClick={() => copy(status.walletAddress)}>
-                    Copy
-                  </Button>
-                )}
-              </div>
-              <div className="mt-4 space-y-2 text-sm text-slate-400">
-                <p>You can also send <span className="text-white font-semibold">USDC on Base network</span> directly to this address from any exchange (Coinbase, Binance, etc).</p>
-                <p>After sending, click <strong className="text-white">Refresh</strong> to check your wallet balance, then deposit to your platform balance.</p>
-              </div>
-              <div className="mt-4">
-                <Button variant="secondary" onClick={fetchStatus}>Refresh Balances</Button>
-              </div>
             </Card>
           </>
         ) : null}

@@ -9,7 +9,7 @@ import {
   useRef,
   ReactNode,
 } from 'react';
-import { usePrivy } from '@privy-io/react-auth';
+import { usePrivy, useWallets } from '@privy-io/react-auth';
 
 interface DbUser {
   id: string;
@@ -49,6 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     logout: privyLogout,
     getAccessToken,
   } = usePrivy();
+  const { wallets } = useWallets();
 
   const [dbUser, setDbUser] = useState<DbUser | null>(null);
   const [syncing, setSyncing] = useState(false);
@@ -64,6 +65,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const token = await getAccessToken();
       const email = privyUser.email?.address || privyUser.google?.email || '';
 
+      // Get the embedded wallet address from Privy
+      const embeddedWallet = wallets.find((w) => w.walletClientType === 'privy');
+      const walletAddress = embeddedWallet?.address || privyUser.wallet?.address || '';
+
       const res = await fetch('/api/auth/sync', {
         method: 'POST',
         headers: {
@@ -73,6 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         body: JSON.stringify({
           privyId: privyUser.id,
           email,
+          walletAddress,
         }),
       });
 
@@ -86,7 +92,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       syncingRef.current = false;
       setSyncing(false);
     }
-  }, [authenticated, privyUser, getAccessToken]);
+  }, [authenticated, privyUser, getAccessToken, wallets]);
 
   useEffect(() => {
     if (ready && authenticated && privyUser && !dbUser && !syncingRef.current) {

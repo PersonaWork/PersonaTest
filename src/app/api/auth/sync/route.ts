@@ -7,7 +7,7 @@ export async function POST(request: NextRequest) {
   try {
     const { claims } = await requireAuth(request.headers);
     const body = await request.json().catch(() => ({}));
-    const { email, privyId } = body;
+    const { email, privyId, walletAddress } = body;
 
     const privyUserId = privyId || claims.userId;
 
@@ -21,15 +21,19 @@ export async function POST(request: NextRequest) {
     });
 
     if (user) {
-      // Update email if provided and different
-      if (email && email !== user.email) {
+      // Update email and wallet address if provided and different
+      const updates: Record<string, string> = {};
+      if (email && email !== user.email) updates.email = email;
+      if (walletAddress && walletAddress !== user.walletAddress) updates.walletAddress = walletAddress;
+
+      if (Object.keys(updates).length > 0) {
         try {
           user = await prisma.user.update({
             where: { id: user.id },
-            data: { email },
+            data: updates,
           });
         } catch {
-          // Email might conflict with another user, ignore
+          // Email or wallet might conflict with another user, ignore
         }
       }
       return successResponse({ user });
@@ -66,6 +70,7 @@ export async function POST(request: NextRequest) {
         privyId: privyUserId,
         email: finalEmail,
         username: finalUsername,
+        ...(walletAddress ? { walletAddress } : {}),
       },
     });
 
