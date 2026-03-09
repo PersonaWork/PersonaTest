@@ -4,7 +4,7 @@ let privyClient: PrivyClient | null = null;
 
 function getPrivyClient() {
   if (privyClient) return privyClient;
-  const appId = process.env.PRIVY_APP_ID;
+  const appId = process.env.PRIVY_APP_ID || process.env.NEXT_PUBLIC_PRIVY_APP_ID;
   const appSecret = process.env.PRIVY_APP_SECRET;
   if (!appId || !appSecret) {
     const err = new Error('Missing PRIVY_APP_ID or PRIVY_APP_SECRET');

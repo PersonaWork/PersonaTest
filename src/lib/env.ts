@@ -21,7 +21,12 @@ const clientSchema = z.object({
 
 /* ── Validate server env (call from API routes / server components) ── */
 export function getServerEnv() {
-  const parsed = serverSchema.safeParse(process.env);
+  // Allow PRIVY_APP_ID to fall back to NEXT_PUBLIC_PRIVY_APP_ID
+  const env = {
+    ...process.env,
+    PRIVY_APP_ID: process.env.PRIVY_APP_ID || process.env.NEXT_PUBLIC_PRIVY_APP_ID,
+  };
+  const parsed = serverSchema.safeParse(env);
   if (!parsed.success) {
     const formatted = parsed.error.issues
       .map((i) => `  • ${i.path.join('.')}: ${i.message}`)
