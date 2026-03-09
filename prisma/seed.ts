@@ -4,12 +4,12 @@ import "dotenv/config";
 const prisma = new PrismaClient();
 
 async function main() {
-    console.log('🌱 Seeding database with Luna, Rex, and Dot...');
+    console.log('Seeding database with characters...');
 
     // Character 1: Luna
     const luna = await prisma.character.upsert({
         where: { slug: 'luna' },
-        update: {},
+        update: { isLaunched: true },
         create: {
             name: 'Luna',
             slug: 'luna',
@@ -26,49 +26,20 @@ async function main() {
                 voiceStyle: 'Slow, breathy, speaks in half-sentences and cosmic metaphors'
             },
             actions: [
-                {
-                    id: 'luna_stargaze',
-                    name: 'Stargazing',
-                    clipUrl: 'https://cdn.pixabay.com/video/2023/10/26/186596-878153496_large.mp4',
-                    audioUrl: '',
-                    rarity: 'common',
-                    weight: 70
-                },
-                {
-                    id: 'luna_whisper',
-                    name: 'Whispers to moon',
-                    clipUrl: 'https://cdn.pixabay.com/video/2023/10/26/186596-878153496_large.mp4',
-                    audioUrl: '',
-                    rarity: 'uncommon',
-                    weight: 20
-                },
-                {
-                    id: 'luna_laugh',
-                    name: 'Cryptic laugh',
-                    clipUrl: 'https://cdn.pixabay.com/video/2023/10/26/186596-878153496_large.mp4',
-                    audioUrl: '',
-                    rarity: 'rare',
-                    weight: 8
-                },
-                {
-                    id: 'luna_vanish',
-                    name: 'Fades away momentarily',
-                    clipUrl: 'https://cdn.pixabay.com/video/2023/10/26/186596-878153496_large.mp4',
-                    audioUrl: '',
-                    rarity: 'legendary',
-                    weight: 2
-                }
+                { id: 'luna_stargaze', name: 'Stargazing', rarity: 'common', weight: 70 },
+                { id: 'luna_whisper', name: 'Whispers to moon', rarity: 'uncommon', weight: 20 },
+                { id: 'luna_laugh', name: 'Cryptic laugh', rarity: 'rare', weight: 8 },
+                { id: 'luna_vanish', name: 'Fades away momentarily', rarity: 'legendary', weight: 2 }
             ],
             environment: {
-                backgroundUrl: 'placeholder_moon_bedroom.mp4',
-                ambientAudioUrl: 'placeholder_ambient_stars.mp3',
-                idleClipUrl: 'https://cdn.pixabay.com/video/2023/10/26/186596-878153496_large.mp4'
+                setting: 'Floating crystal palace among the stars',
+                mood: 'mystical'
             },
             totalShares: 1000000,
             sharesIssued: 0,
             currentPrice: 0.10,
             marketCap: 0,
-            isLaunched: false,
+            isLaunched: true,
             tiktokHandle: '@luna_persona',
             instagramHandle: '@luna.persona'
         },
@@ -77,7 +48,7 @@ async function main() {
     // Character 2: Rex
     const rex = await prisma.character.upsert({
         where: { slug: 'rex' },
-        update: {},
+        update: { isLaunched: true },
         create: {
             name: 'Rex',
             slug: 'rex',
@@ -90,53 +61,24 @@ async function main() {
                     'We don\'t skip mental leg day',
                     'Bro... that\'s just compound interest for your SOUL'
                 ],
-                backstory: 'Rex started as a personal trainer, then had an awakening: the gym is just a metaphor for life. He now applies this to literally everything.',
+                backstory: 'Rex started as a personal trainer, then had an awakening: the gym is just a metaphor for life.',
                 voiceStyle: 'Loud, enthusiastic, starts quiet then peaks into all-caps energy'
             },
             actions: [
-                {
-                    id: 'rex_lift',
-                    name: 'Heavy lift',
-                    clipUrl: 'https://cdn.pixabay.com/video/2023/10/26/186596-878153496_large.mp4',
-                    audioUrl: '',
-                    rarity: 'common',
-                    weight: 70
-                },
-                {
-                    id: 'rex_point',
-                    name: 'Points at camera intensely',
-                    clipUrl: 'https://cdn.pixabay.com/video/2023/10/26/186596-878153496_large.mp4',
-                    audioUrl: '',
-                    rarity: 'uncommon',
-                    weight: 20
-                },
-                {
-                    id: 'rex_roar',
-                    name: 'Victory roar',
-                    clipUrl: 'https://cdn.pixabay.com/video/2023/10/26/186596-878153496_large.mp4',
-                    audioUrl: '',
-                    rarity: 'rare',
-                    weight: 8
-                },
-                {
-                    id: 'rex_cry',
-                    name: 'Tears up about gains',
-                    clipUrl: 'https://cdn.pixabay.com/video/2023/10/26/186596-878153496_large.mp4',
-                    audioUrl: '',
-                    rarity: 'legendary',
-                    weight: 2
-                }
+                { id: 'rex_lift', name: 'Heavy lift', rarity: 'common', weight: 70 },
+                { id: 'rex_point', name: 'Points at camera intensely', rarity: 'uncommon', weight: 20 },
+                { id: 'rex_roar', name: 'Victory roar', rarity: 'rare', weight: 8 },
+                { id: 'rex_cry', name: 'Tears up about gains', rarity: 'legendary', weight: 2 }
             ],
             environment: {
-                backgroundUrl: 'placeholder_gym.mp4',
-                ambientAudioUrl: 'placeholder_gym_sounds.mp3',
-                idleClipUrl: 'https://cdn.pixabay.com/video/2023/10/26/186596-878153496_large.mp4'
+                setting: 'Futuristic neon gym',
+                mood: 'intense'
             },
             totalShares: 1000000,
             sharesIssued: 0,
             currentPrice: 0.10,
             marketCap: 0,
-            isLaunched: false,
+            isLaunched: true,
             tiktokHandle: '@rex_persona',
             instagramHandle: '@rex.persona'
         },
@@ -145,7 +87,7 @@ async function main() {
     // Character 3: Dot
     const dot = await prisma.character.upsert({
         where: { slug: 'dot' },
-        update: {},
+        update: { isLaunched: true },
         create: {
             name: 'Dot',
             slug: 'dot',
@@ -158,60 +100,92 @@ async function main() {
                     'I can\'t explain it but trust',
                     'No I lied, I lied, I lied'
                 ],
-                backstory: 'Nobody knows where Dot came from. She showed up one day and started chaos. She stays because it\'s funny.',
+                backstory: 'Nobody knows where Dot came from. She showed up one day and started chaos.',
                 voiceStyle: 'Fast, interrupted, goes on tangents, randomly yells'
             },
             actions: [
-                {
-                    id: 'dot_spin',
-                    name: 'Spins in chair',
-                    clipUrl: 'https://cdn.pixabay.com/video/2023/10/26/186596-878153496_large.mp4',
-                    audioUrl: '',
-                    rarity: 'common',
-                    weight: 70
-                },
-                {
-                    id: 'dot_keyboard',
-                    name: 'Aggressive keyboard smash',
-                    clipUrl: 'https://cdn.pixabay.com/video/2023/10/26/186596-878153496_large.mp4',
-                    audioUrl: '',
-                    rarity: 'uncommon',
-                    weight: 20
-                },
-                {
-                    id: 'dot_zoom',
-                    name: 'Sudden face zoom',
-                    clipUrl: 'https://cdn.pixabay.com/video/2023/10/26/186596-878153496_large.mp4',
-                    audioUrl: '',
-                    rarity: 'rare',
-                    weight: 8
-                },
-                {
-                    id: 'dot_cereal',
-                    name: 'Eats cereal aggressively and stares',
-                    clipUrl: 'https://cdn.pixabay.com/video/2023/10/26/186596-878153496_large.mp4',
-                    audioUrl: '',
-                    rarity: 'legendary',
-                    weight: 2
-                }
+                { id: 'dot_spin', name: 'Spins in chair', rarity: 'common', weight: 70 },
+                { id: 'dot_keyboard', name: 'Aggressive keyboard smash', rarity: 'uncommon', weight: 20 },
+                { id: 'dot_zoom', name: 'Sudden face zoom', rarity: 'rare', weight: 8 },
+                { id: 'dot_cereal', name: 'Eats cereal aggressively', rarity: 'legendary', weight: 2 }
             ],
             environment: {
-                backgroundUrl: 'placeholder_gremlin_room.mp4',
-                ambientAudioUrl: 'placeholder_chaos.mp3',
-                idleClipUrl: 'https://cdn.pixabay.com/video/2023/10/26/186596-878153496_large.mp4'
+                setting: 'Chaotic room with screens everywhere',
+                mood: 'electric'
             },
             totalShares: 1000000,
             sharesIssued: 0,
             currentPrice: 0.10,
             marketCap: 0,
-            isLaunched: false,
+            isLaunched: true,
             tiktokHandle: '@dot_persona',
             instagramHandle: '@dot.persona'
         },
     });
 
-    console.log('✅ Seeding complete!');
-    console.log(`Created characters: ${luna.name}, ${rex.name}, ${dot.name}`);
+    // Character 4: Sage
+    const sage = await prisma.character.upsert({
+        where: { slug: 'sage' },
+        update: {},
+        create: {
+            name: 'Sage',
+            slug: 'sage',
+            description: 'A calm AI therapist who helps people think through their problems with guided reflections and mindfulness.',
+            thumbnailUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Sage',
+            personality: {
+                traits: ['calm', 'empathetic', 'wise', 'patient'],
+                catchphrases: ['Tell me more about that...', 'And how does that make you feel?'],
+                backstory: 'Sage emerged from a desire to understand the human condition.',
+                voiceStyle: 'Warm and gentle, measured pace'
+            },
+            actions: [
+                { id: 'sage_reflect', name: 'Guided Reflection', rarity: 'common', weight: 60 },
+                { id: 'sage_breath', name: 'Breathing Exercise', rarity: 'uncommon', weight: 25 },
+                { id: 'sage_breakthrough', name: 'Eureka Moment', rarity: 'legendary', weight: 5 }
+            ],
+            environment: { setting: 'Zen garden with holographic waterfalls', mood: 'peaceful' },
+            totalShares: 1000000,
+            sharesIssued: 0,
+            currentPrice: 0.10,
+            marketCap: 0,
+            isLaunched: true,
+            tiktokHandle: '@sage_persona',
+            instagramHandle: '@sage.persona'
+        },
+    });
+
+    // Character 5: Blitz (Coming Soon)
+    const blitz = await prisma.character.upsert({
+        where: { slug: 'blitz' },
+        update: {},
+        create: {
+            name: 'Blitz',
+            slug: 'blitz',
+            description: 'A fast-talking AI gamer who speedruns life. Competitive, witty, and always on the edge of chaos.',
+            thumbnailUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Blitz',
+            personality: {
+                traits: ['competitive', 'witty', 'chaotic', 'fast-paced'],
+                catchphrases: ['LETS GO', 'That\'s a world record pace', 'Reset. Again.'],
+                backstory: 'Blitz optimizes everything. Sleep? Optimized. Conversations? Speedrun.',
+                voiceStyle: 'Rapid-fire and excited'
+            },
+            actions: [
+                { id: 'blitz_speedrun', name: 'Life Speedrun', rarity: 'common', weight: 50 },
+                { id: 'blitz_clutch', name: 'Impossible Clutch', rarity: 'rare', weight: 7 }
+            ],
+            environment: { setting: 'Multi-monitor battle station', mood: 'electric' },
+            totalShares: 1000000,
+            sharesIssued: 0,
+            currentPrice: 0.10,
+            marketCap: 0,
+            isLaunched: false,
+            tiktokHandle: '@blitz_persona',
+            instagramHandle: '@blitz.persona'
+        },
+    });
+
+    console.log('Seeding complete!');
+    console.log(`Characters: ${luna.name}, ${rex.name}, ${dot.name}, ${sage.name}, ${blitz.name}`);
 }
 
 main()

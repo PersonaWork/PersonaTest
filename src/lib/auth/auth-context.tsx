@@ -6,6 +6,7 @@ import {
   useEffect,
   useState,
   useCallback,
+  useRef,
   ReactNode,
 } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
@@ -51,11 +52,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const [dbUser, setDbUser] = useState<DbUser | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const syncingRef = useRef(false);
 
   // Sync Privy user to our database on login
   const syncUser = useCallback(async () => {
-    if (!authenticated || !privyUser || syncing) return;
+    if (!authenticated || !privyUser || syncingRef.current) return;
 
+    syncingRef.current = true;
     setSyncing(true);
     try {
       const token = await getAccessToken();
@@ -80,12 +83,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (err) {
       console.error('Failed to sync user:', err);
     } finally {
+      syncingRef.current = false;
       setSyncing(false);
     }
-  }, [authenticated, privyUser, getAccessToken, syncing]);
+  }, [authenticated, privyUser, getAccessToken]);
 
   useEffect(() => {
-    if (ready && authenticated && privyUser && !dbUser) {
+    if (ready && authenticated && privyUser && !dbUser && !syncingRef.current) {
       syncUser();
     }
     if (ready && !authenticated) {
