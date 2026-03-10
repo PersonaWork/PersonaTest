@@ -7,6 +7,8 @@
  * to trigger another order, that one executes too (up to maxCascadeDepth).
  */
 
+import { PLATFORM_FEE_RATE } from '@/lib/wallet/base';
+
 // Use Prisma's transaction client type
 type TxClient = Parameters<Parameters<import('@prisma/client').PrismaClient['$transaction']>[0]>[0];
 
@@ -98,15 +100,17 @@ async function executeLimitBuy(
   // Calculate actual cost at current bonding curve price
   const pricePerShare = character.currentPrice * (1 + (order.shares / character.totalShares) * 0.05);
   const totalCost = order.shares * pricePerShare;
+  const fee = totalCost * PLATFORM_FEE_RATE;
+  const totalWithFee = totalCost + fee;
 
-  // Check if locked amount covers the actual cost
+  // Check if locked amount covers the actual cost + fee
   // If price moved unfavorably, locked funds may be insufficient — skip (don't cancel)
-  if (totalCost > order.lockedAmount) {
+  if (totalWithFee > order.lockedAmount) {
     return false;
   }
 
-  // Funds were already deducted at order creation. Refund any excess.
-  const refund = order.lockedAmount - totalCost;
+  // Funds were already deducted at order creation. Refund any excess after cost + fee.
+  const refund = order.lockedAmount - totalWithFee;
   if (refund > 0) {
     await tx.user.update({
       where: { id: order.userId },
@@ -136,6 +140,7 @@ async function executeLimitBuy(
       shares: order.shares,
       pricePerShare,
       total: totalCost,
+      platformFee: fee,
       type: 'buy',
     },
   });
@@ -182,11 +187,13 @@ async function executeLimitSell(
   // Calculate proceeds at current bonding curve price
   const pricePerShare = Math.max(0.01, character.currentPrice * (1 - (order.shares / character.totalShares) * 0.05));
   const totalProceeds = order.shares * pricePerShare;
+  const fee = totalProceeds * PLATFORM_FEE_RATE;
+  const proceedsAfterFee = totalProceeds - fee;
 
-  // Shares were already deducted from holding at order creation. Credit USDC.
+  // Shares were already deducted from holding at order creation. Credit USDC minus fee.
   await tx.user.update({
     where: { id: order.userId },
-    data: { usdcBalance: { increment: totalProceeds } },
+    data: { usdcBalance: { increment: proceedsAfterFee } },
   });
 
   // Update character price
@@ -211,6 +218,7 @@ async function executeLimitSell(
       shares: order.shares,
       pricePerShare,
       total: totalProceeds,
+      platformFee: fee,
       type: 'sell',
     },
   });

@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
 import { successResponse, errorResponse } from '@/lib/api';
 import { matchLimitOrders } from '@/lib/trading/order-matcher';
+import { PLATFORM_FEE_RATE } from '@/lib/wallet/base';
 import { z } from 'zod';
 
 const BuySchema = z.object({
@@ -50,16 +51,18 @@ export async function POST(request: NextRequest) {
       const currentPrice = character.currentPrice;
       const pricePerShare = currentPrice * (1 + (shares / character.totalShares) * 0.05);
       const totalCost = shares * pricePerShare;
+      const fee = totalCost * PLATFORM_FEE_RATE;
+      const totalWithFee = totalCost + fee;
 
       // Check USDC balance (user already fetched with transaction isolation)
-      if (user.usdcBalance < totalCost) {
-        throw new Error(`Insufficient USDC balance. Need ${totalCost.toFixed(2)} USDC but have ${user.usdcBalance.toFixed(2)} USDC`);
+      if (user.usdcBalance < totalWithFee) {
+        throw new Error(`Insufficient USDC balance. Need ${totalWithFee.toFixed(2)} USDC (incl. 0.5% fee) but have ${user.usdcBalance.toFixed(2)} USDC`);
       }
 
-      // Deduct USDC balance
+      // Deduct USDC balance (cost + fee)
       await tx.user.update({
         where: { id: user.id },
-        data: { usdcBalance: { decrement: totalCost } },
+        data: { usdcBalance: { decrement: totalWithFee } },
       });
 
       // Update character price and market cap
@@ -67,7 +70,7 @@ export async function POST(request: NextRequest) {
       const newSharesIssued = character.sharesIssued + shares;
       const newMarketCap = newPrice * newSharesIssued;
 
-      // Create transaction record
+      // Create transaction record (total includes fee for full audit trail)
       const transactionRecord = await tx.transaction.create({
         data: {
           buyerId: user.id,
@@ -75,6 +78,7 @@ export async function POST(request: NextRequest) {
           shares,
           pricePerShare,
           total: totalCost,
+          platformFee: fee,
           type: 'buy'
         }
       });
@@ -123,6 +127,8 @@ export async function POST(request: NextRequest) {
         holding,
         newPrice,
         totalCost,
+        fee,
+        totalCharged: totalWithFee,
         filledLimitOrders: filledOrderIds.length,
       };
     }, { timeout: 30000 });

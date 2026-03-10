@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
 import { successResponse, errorResponse } from '@/lib/api';
 import { matchLimitOrders } from '@/lib/trading/order-matcher';
+import { PLATFORM_FEE_RATE } from '@/lib/wallet/base';
 import { z } from 'zod';
 
 const SellSchema = z.object({
@@ -54,11 +55,13 @@ export async function POST(request: NextRequest) {
       const currentPrice = character.currentPrice;
       const pricePerShare = Math.max(0.01, currentPrice * (1 - (shares / character.totalShares) * 0.05));
       const totalProceeds = shares * pricePerShare;
+      const fee = totalProceeds * PLATFORM_FEE_RATE;
+      const proceedsAfterFee = totalProceeds - fee;
 
-      // Credit USDC balance to seller
+      // Credit USDC balance to seller (proceeds minus fee)
       await tx.user.update({
         where: { id: user.id },
-        data: { usdcBalance: { increment: totalProceeds } },
+        data: { usdcBalance: { increment: proceedsAfterFee } },
       });
 
       // Update character price and market cap
@@ -74,6 +77,7 @@ export async function POST(request: NextRequest) {
           shares,
           pricePerShare,
           total: totalProceeds,
+          platformFee: fee,
           type: 'sell'
         }
       });
@@ -112,6 +116,8 @@ export async function POST(request: NextRequest) {
         holding,
         newPrice,
         totalProceeds,
+        fee,
+        proceedsAfterFee,
         filledLimitOrders: filledOrderIds.length,
       };
     }, { timeout: 30000 });

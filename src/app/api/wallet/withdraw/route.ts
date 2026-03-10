@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { successResponse, errorResponse } from '@/lib/api';
 import { requireAuth } from '@/lib/auth';
-import { sendUsdcFromTreasury } from '@/lib/wallet/base';
+import { sendUsdcFromTreasury, WITHDRAWAL_FEE } from '@/lib/wallet/base';
 import { z } from 'zod';
 
 const WithdrawSchema = z.object({
@@ -32,38 +32,41 @@ export async function POST(request: NextRequest) {
     }
 
     const { amount } = parsed.data;
+    const fee = WITHDRAWAL_FEE; // $1 flat fee
+    const totalDeduction = amount + fee;
+    const sendAmount = amount; // User receives exactly what they requested
 
-    // Check sufficient balance
-    if (user.usdcBalance < amount) {
+    // Minimum withdrawal (must be at least $2 to cover fee + meaningful amount)
+    if (amount < 2) {
+      return errorResponse('Minimum withdrawal is 2 USDC (includes $1 fee)', 400);
+    }
+
+    // Check sufficient balance (amount + fee)
+    if (user.usdcBalance < totalDeduction) {
       return errorResponse(
-        `Insufficient balance. You have ${user.usdcBalance.toFixed(2)} USDC but requested ${amount.toFixed(2)} USDC`,
+        `Insufficient balance. You need ${totalDeduction.toFixed(2)} USDC (${amount.toFixed(2)} + $${fee} fee) but have ${user.usdcBalance.toFixed(2)} USDC`,
         400
       );
     }
 
-    // Minimum withdrawal
-    if (amount < 1) {
-      return errorResponse('Minimum withdrawal is 1 USDC', 400);
-    }
-
-    // Deduct balance first (optimistic — prevents double-spend)
+    // Deduct balance first (amount + fee — prevents double-spend)
     const updatedUser = await prisma.user.update({
       where: { id: user.id },
-      data: { usdcBalance: { decrement: amount } },
+      data: { usdcBalance: { decrement: totalDeduction } },
     });
 
-    // Send USDC on-chain
+    // Send USDC on-chain (user receives full requested amount; fee stays in treasury)
     let txHash: string;
     try {
       txHash = await sendUsdcFromTreasury(
         user.walletAddress as `0x${string}`,
-        amount,
+        sendAmount,
       );
     } catch (error) {
-      // Refund balance if on-chain transfer fails
+      // Refund full deduction if on-chain transfer fails
       await prisma.user.update({
         where: { id: user.id },
-        data: { usdcBalance: { increment: amount } },
+        data: { usdcBalance: { increment: totalDeduction } },
       });
       console.error('On-chain withdrawal failed:', error);
       return errorResponse('Withdrawal failed — your balance has been restored', 500);
@@ -78,13 +81,15 @@ export async function POST(request: NextRequest) {
         shares: 0,
         pricePerShare: 1,
         total: amount,
+        platformFee: fee,
         buyerId: null,
       },
     });
 
     return successResponse({
-      message: `Successfully withdrew ${amount} USDC`,
+      message: `Successfully withdrew ${amount} USDC ($${fee} fee applied)`,
       txHash,
+      fee,
       newBalance: updatedUser.usdcBalance,
     });
   } catch (error: unknown) {

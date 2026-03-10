@@ -1,4 +1,4 @@
-import { createPublicClient, createWalletClient, http, parseAbi, parseUnits } from 'viem';
+import { createPublicClient, createWalletClient, http, parseAbi, parseUnits, parseEther } from 'viem';
 import { base } from 'viem/chains';
 import { privateKeyToAccount } from 'viem/accounts';
 
@@ -8,6 +8,14 @@ export const USDC_DECIMALS = 6;
 
 // Platform treasury address on Base — receives deposits, funds withdrawals
 export const TREASURY_ADDRESS = '0x797C0D912A65BCcCC2F52d9328f763DbC067b883' as const;
+
+// ── Platform fees ──────────────────────────────────────────────────
+export const PLATFORM_FEE_RATE = 0.005;   // 0.5% on every buy/sell trade
+export const WITHDRAWAL_FEE = 1.0;         // $1 USDC flat fee on withdrawals
+
+// ── Gas sponsoring ─────────────────────────────────────────────────
+export const GAS_MIN_THRESHOLD = 0.0002;   // Fund user if ETH below this
+export const GAS_TOPUP_AMOUNT = 0.0005;    // Send this much ETH per top-up
 
 const ERC20_ABI = parseAbi([
   'function balanceOf(address account) view returns (uint256)',
@@ -123,4 +131,64 @@ export async function sendUsdcFromTreasury(
   }
 
   return txHash;
+}
+
+// ── Gas Station ──────────────────────────────────────────────────────
+
+/**
+ * Send ETH from the gas station wallet to a user's address for gas sponsoring.
+ * Requires GAS_STATION_PRIVATE_KEY env var.
+ */
+export async function sendEthFromGasStation(
+  toAddress: `0x${string}`,
+  amountEth: number = GAS_TOPUP_AMOUNT,
+): Promise<`0x${string}`> {
+  const privateKey = process.env.GAS_STATION_PRIVATE_KEY;
+  if (!privateKey) {
+    throw new Error('GAS_STATION_PRIVATE_KEY not configured');
+  }
+
+  const account = privateKeyToAccount(privateKey as `0x${string}`);
+  const walletClient = createWalletClient({
+    account,
+    chain: base,
+    transport: http(),
+  });
+
+  const txHash = await walletClient.sendTransaction({
+    to: toAddress,
+    value: parseEther(amountEth.toString()),
+  });
+
+  const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
+  if (receipt.status !== 'success') {
+    throw new Error('Gas station ETH transfer failed on-chain');
+  }
+
+  return txHash;
+}
+
+/**
+ * Get the ETH balance of the gas station wallet
+ */
+export async function getGasStationBalance(): Promise<number> {
+  const privateKey = process.env.GAS_STATION_PRIVATE_KEY;
+  if (!privateKey) return 0;
+
+  const account = privateKeyToAccount(privateKey as `0x${string}`);
+  return getEthBalance(account.address);
+}
+
+/**
+ * Get treasury balances (USDC + ETH)
+ */
+export async function getTreasuryBalances(): Promise<{
+  usdcBalance: number;
+  ethBalance: number;
+}> {
+  const [usdcBalance, ethBalance] = await Promise.all([
+    getUsdcBalance(TREASURY_ADDRESS),
+    getEthBalance(TREASURY_ADDRESS),
+  ]);
+  return { usdcBalance, ethBalance };
 }

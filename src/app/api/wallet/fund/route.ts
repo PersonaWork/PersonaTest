@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { successResponse, errorResponse } from '@/lib/api';
 import { requireAuth } from '@/lib/auth';
-import { getUsdcBalance, verifyUsdcTransfer, USDC_ADDRESS, TREASURY_ADDRESS } from '@/lib/wallet/base';
+import { verifyUsdcTransfer, USDC_ADDRESS, TREASURY_ADDRESS } from '@/lib/wallet/base';
 import { z } from 'zod';
 
 const DepositSchema = z.object({
@@ -35,19 +35,8 @@ export async function POST(request: NextRequest) {
 
     const { txHash } = parsed.data;
 
-    // Prevent double-crediting: check if this tx was already processed
-    const existingTx = await prisma.transaction.findFirst({
-      where: { type: 'deposit', buyerId: user.id },
-      orderBy: { createdAt: 'desc' },
-      take: 100,
-    });
-    // We store txHash in a workaround field — check all recent deposits
-    const existingDeposits = await prisma.transaction.findMany({
-      where: { type: 'deposit', buyerId: user.id },
-      select: { id: true, total: true, createdAt: true },
-    });
-    // Simple duplicate check: see if a deposit with the exact same tx hash string was created
-    // We'll store the txHash in the transaction's characterId field as 'deposit:{txHash}'
+    // Prevent double-crediting: check if this tx hash was already processed
+    // We store txHash in the transaction's characterId field as 'deposit:{txHash}'
     const duplicateCheck = await prisma.transaction.findFirst({
       where: { type: 'deposit', characterId: `deposit:${txHash}` },
     });

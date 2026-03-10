@@ -91,7 +91,20 @@ export default function FundPage() {
     setTxMessage(null);
 
     try {
-      // Step 1: Ensure wallet is on Base chain
+      // Step 1: Auto-fund gas if needed (we cover ETH fees for users)
+      setTxMessage({ type: 'success', text: 'Checking gas balance...' });
+      try {
+        const gasRes = await privyFetch('/api/wallet/gas', { method: 'POST' });
+        const gasData = await gasRes.json();
+        if (gasRes.ok && gasData.data?.funded) {
+          setTxMessage({ type: 'success', text: 'Gas funded! Preparing transaction...' });
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+      } catch {
+        // Gas funding is best-effort — continue anyway
+      }
+
+      // Step 2: Ensure wallet is on Base chain
       setTxMessage({ type: 'success', text: 'Switching to Base network...' });
       try {
         await wallet.switchChain(BASE_CHAIN_ID);
@@ -99,7 +112,7 @@ export default function FundPage() {
         // If switch fails, try to continue anyway — might already be on Base
       }
 
-      // Step 2: Encode the USDC transfer(treasury, amount) call
+      // Step 3: Encode the USDC transfer(treasury, amount) call
       const usdcAmount = parseUnits(amount.toString(), 6); // USDC has 6 decimals
       const data = encodeFunctionData({
         abi: ERC20_TRANSFER_ABI,
@@ -107,7 +120,7 @@ export default function FundPage() {
         args: [TREASURY_ADDRESS as `0x${string}`, usdcAmount],
       });
 
-      // Step 3: Send the transaction via Privy embedded wallet
+      // Step 4: Send the transaction via Privy embedded wallet
       setTxMessage({ type: 'success', text: 'Confirm the transaction in your wallet...' });
       const provider = await wallet.getEthereumProvider();
       const txHash = await provider.request({
@@ -119,7 +132,7 @@ export default function FundPage() {
         }],
       });
 
-      // Step 4: Wait for confirmation & verify via API
+      // Step 5: Wait for confirmation & verify via API
       setTxMessage({ type: 'success', text: 'Transaction sent! Waiting for confirmation...' });
 
       // Give the chain a moment to confirm
@@ -145,7 +158,7 @@ export default function FundPage() {
       const msg = e instanceof Error ? e.message : 'Deposit failed';
       // Provide helpful errors for common failures
       if (msg.includes('insufficient funds') || msg.includes('gas')) {
-        setTxMessage({ type: 'error', text: 'Not enough ETH for gas fees. You need a small amount of ETH on Base to send transactions.' });
+        setTxMessage({ type: 'error', text: 'Gas funding may have failed. Please try again — we cover gas fees automatically.' });
       } else if (msg.includes('User rejected') || msg.includes('denied')) {
         setTxMessage({ type: 'error', text: 'Transaction was cancelled.' });
       } else {
@@ -338,8 +351,8 @@ export default function FundPage() {
                 <p className="text-xs text-slate-500">
                   Sends USDC from your wallet to the platform treasury on Base. You&apos;ll be asked to confirm the transaction.
                 </p>
-                <p className="text-xs text-slate-500">
-                  Requires a small amount of ETH on Base for gas (~$0.01).
+                <p className="text-xs text-emerald-500/70">
+                  Gas fees are covered automatically — no ETH needed.
                 </p>
               </div>
             </Card>
@@ -365,9 +378,14 @@ export default function FundPage() {
                   {isWithdrawing ? 'Withdrawing...' : 'Withdraw'}
                 </Button>
               </div>
-              <p className="text-xs text-slate-500 mt-3">
-                Moves USDC from your trading balance back to your embedded wallet on Base.
-              </p>
+              <div className="mt-3 space-y-1">
+                <p className="text-xs text-slate-500">
+                  Moves USDC from your trading balance back to your embedded wallet on Base.
+                </p>
+                <p className="text-xs text-amber-400/70">
+                  $1.00 USDC fee applies. Minimum withdrawal: $2.00 USDC.
+                </p>
+              </div>
             </Card>
           </>
         ) : null}

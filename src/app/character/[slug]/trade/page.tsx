@@ -380,8 +380,13 @@ export default function TradePage() {
   const buyTriggerNum = parseFloat(buyTriggerPrice) || 0;
   const sellTriggerNum = parseFloat(sellTriggerPrice) || 0;
 
+  const PLATFORM_FEE_RATE = 0.005; // 0.5% fee
   const estimatedBuyCost = buySharesNum * character.currentPrice * (1 + (buySharesNum / character.totalShares) * 0.05);
+  const buyFee = estimatedBuyCost * PLATFORM_FEE_RATE;
+  const estimatedBuyTotal = estimatedBuyCost + buyFee;
   const estimatedSellProceeds = sellSharesNum * character.currentPrice * (1 - (sellSharesNum / character.totalShares) * 0.05);
+  const sellFee = estimatedSellProceeds * PLATFORM_FEE_RATE;
+  const estimatedSellAfterFee = estimatedSellProceeds - sellFee;
   const limitBuyLocked = buySharesNum * buyTriggerNum * (1 + (buySharesNum / character.totalShares) * 0.05);
 
   const chartData = transactions.map(t => ({
@@ -617,8 +622,16 @@ export default function TradePage() {
                   {orderMode === 'market' && buySharesNum > 0 && (
                     <div className="p-4 bg-slate-900/50 rounded-lg">
                       <div className="flex justify-between text-sm mb-2">
-                        <span className="text-slate-400">Estimated cost:</span>
+                        <span className="text-slate-400">Subtotal:</span>
                         <span className="text-white font-semibold">${estimatedBuyCost.toFixed(2)} USDC</span>
+                      </div>
+                      <div className="flex justify-between text-sm mb-2">
+                        <span className="text-slate-400">Fee (0.5%):</span>
+                        <span className="text-slate-300 font-medium">${buyFee.toFixed(2)} USDC</span>
+                      </div>
+                      <div className="flex justify-between text-sm mb-2 pt-2 border-t border-slate-800">
+                        <span className="text-slate-300 font-semibold">Total cost:</span>
+                        <span className="text-white font-bold">${estimatedBuyTotal.toFixed(2)} USDC</span>
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-slate-400">New ownership:</span>
@@ -734,8 +747,16 @@ export default function TradePage() {
                   {orderMode === 'market' && sellSharesNum > 0 && (
                     <div className="p-4 bg-slate-900/50 rounded-lg">
                       <div className="flex justify-between text-sm mb-2">
-                        <span className="text-slate-400">Estimated proceeds:</span>
+                        <span className="text-slate-400">Gross proceeds:</span>
                         <span className="text-white font-semibold">${estimatedSellProceeds.toFixed(2)} USDC</span>
+                      </div>
+                      <div className="flex justify-between text-sm mb-2">
+                        <span className="text-slate-400">Fee (0.5%):</span>
+                        <span className="text-slate-300 font-medium">-${sellFee.toFixed(2)} USDC</span>
+                      </div>
+                      <div className="flex justify-between text-sm mb-2 pt-2 border-t border-slate-800">
+                        <span className="text-slate-300 font-semibold">You receive:</span>
+                        <span className="text-white font-bold">${estimatedSellAfterFee.toFixed(2)} USDC</span>
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-slate-400">Remaining shares:</span>

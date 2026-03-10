@@ -15,9 +15,10 @@ model User {
   username      String        @unique
   displayName   String?
   walletAddress String?       @unique
-  usdcBalance   Float         @default(0)
-  preferences   Json?
-  createdAt     DateTime      @default(now())
+  usdcBalance     Float         @default(0)
+  lastGasFundedAt DateTime?
+  preferences     Json?
+  createdAt       DateTime      @default(now())
   holdings      Holding[]
   messages      Message[]
   payouts       Payout[]
@@ -130,6 +131,7 @@ model Transaction {
   shares        Int
   pricePerShare Float
   total         Float
+  platformFee   Float     @default(0)
   type          String
   createdAt     DateTime  @default(now())
   character      Character   @relation(fields: [characterId], references: [id])
