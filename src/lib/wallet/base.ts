@@ -12,6 +12,7 @@ export const TREASURY_ADDRESS = '0x797C0D912A65BCcCC2F52d9328f763DbC067b883' as 
 // ── Platform fees ──────────────────────────────────────────────────
 export const PLATFORM_FEE_RATE = 0.005;   // 0.5% on every buy/sell trade
 export const WITHDRAWAL_FEE = 1.0;         // $1 USDC flat fee on withdrawals
+export const FEE_COLLECTOR_ADDRESS = '0x43c661401D7a80ed3260D6252Cc1f431380e0809' as const;
 
 // ── Gas sponsoring ─────────────────────────────────────────────────
 export const GAS_MIN_THRESHOLD = 0.0002;   // Fund user if ETH below this
@@ -191,4 +192,11 @@ export async function getTreasuryBalances(): Promise<{
     getEthBalance(TREASURY_ADDRESS),
   ]);
   return { usdcBalance, ethBalance };
+}
+
+/**
+ * Get fee collector wallet USDC balance
+ */
+export async function getFeeCollectorBalance(): Promise<number> {
+  return getUsdcBalance(FEE_COLLECTOR_ADDRESS);
 }

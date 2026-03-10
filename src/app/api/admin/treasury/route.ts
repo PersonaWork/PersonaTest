@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getTreasuryBalances, getGasStationBalance } from '@/lib/wallet/base';
+import { getTreasuryBalances, getGasStationBalance, getFeeCollectorBalance } from '@/lib/wallet/base';
 
 /**
  * GET /api/admin/treasury — Treasury health dashboard
@@ -26,9 +26,10 @@ export async function GET(request: NextRequest) {
 
   try {
     // Fetch all data in parallel
-    const [treasuryBalances, gasStationEth, feeStats, userBalances] = await Promise.all([
+    const [treasuryBalances, gasStationEth, feeCollectorUsdc, feeStats, userBalances] = await Promise.all([
       getTreasuryBalances(),
       getGasStationBalance(),
+      getFeeCollectorBalance(),
       prisma.transaction.aggregate({
         _sum: { platformFee: true },
         where: { platformFee: { gt: 0 } },
@@ -39,8 +40,8 @@ export async function GET(request: NextRequest) {
       }),
     ]);
 
-    // Fee breakdown by type
-    const [tradeFees, withdrawFees] = await Promise.all([
+    // Fee breakdown by type + swept amount
+    const [tradeFees, withdrawFees, totalSwept] = await Promise.all([
       prisma.transaction.aggregate({
         _sum: { platformFee: true },
         where: { type: { in: ['buy', 'sell'] }, platformFee: { gt: 0 } },
@@ -49,10 +50,16 @@ export async function GET(request: NextRequest) {
         _sum: { platformFee: true },
         where: { type: 'withdraw', platformFee: { gt: 0 } },
       }),
+      prisma.transaction.aggregate({
+        _sum: { total: true },
+        where: { type: 'fee_sweep' },
+      }),
     ]);
 
     const totalRevenue = feeStats._sum.platformFee || 0;
     const totalUserLiabilities = userBalances._sum.usdcBalance || 0;
+    const swept = totalSwept._sum.total || 0;
+    const pendingFees = totalRevenue - swept;
 
     return NextResponse.json({
       success: true,
@@ -65,10 +72,16 @@ export async function GET(request: NextRequest) {
           eth: gasStationEth,
           estimatedUsersCanFund: Math.floor(gasStationEth / 0.0005),
         },
+        feeCollector: {
+          usdc: feeCollectorUsdc,
+          address: '0x43c661401D7a80ed3260D6252Cc1f431380e0809',
+        },
         revenue: {
-          total: totalRevenue,
+          totalEarned: totalRevenue,
           tradeFees: tradeFees._sum.platformFee || 0,
           withdrawFees: withdrawFees._sum.platformFee || 0,
+          swept,
+          pendingFees,
         },
         platform: {
           totalUserBalances: totalUserLiabilities,
