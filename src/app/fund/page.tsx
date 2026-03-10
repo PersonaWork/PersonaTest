@@ -212,9 +212,7 @@ export default function FundPage() {
       await fetchStatus();
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Deposit failed';
-      if (msg.includes('insufficient funds') || msg.includes('gas')) {
-        setTxMessage({ type: 'error', text: 'Gas funding may have failed. Please try again — we cover gas fees automatically.' });
-      } else if (msg.includes('User rejected') || msg.includes('denied')) {
+      if (msg.includes('User rejected') || msg.includes('denied')) {
         setTxMessage({ type: 'error', text: 'Transaction was cancelled.' });
       } else {
         setTxMessage({ type: 'error', text: msg });
