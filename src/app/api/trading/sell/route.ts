@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
 import { successResponse, errorResponse } from '@/lib/api';
+import { matchLimitOrders } from '@/lib/trading/order-matcher';
 import { z } from 'zod';
 
 const SellSchema = z.object({
@@ -101,13 +102,18 @@ export async function POST(request: NextRequest) {
         }
       });
 
+      // After price update, check for triggerable limit orders
+      // A market sell decreases price → may trigger limit buy orders
+      const { filledOrderIds } = await matchLimitOrders(tx, characterId);
+
       return {
         transaction: transactionRecord,
         holding,
         newPrice,
-        totalProceeds
+        totalProceeds,
+        filledLimitOrders: filledOrderIds.length,
       };
-    });
+    }, { timeout: 30000 });
 
     return successResponse(result);
 

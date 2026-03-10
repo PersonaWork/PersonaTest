@@ -24,12 +24,20 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Query USDC locked in pending limit buy orders (informational — already deducted from balance)
+    const pendingBuyOrders = await prisma.limitOrder.aggregate({
+      where: { userId: user.id, side: 'buy', status: 'pending' },
+      _sum: { lockedAmount: true },
+    });
+    const lockedUsdc = pendingBuyOrders._sum.lockedAmount ?? 0;
+
     return successResponse({
       userId: user.id,
       walletAddress: user.walletAddress,
       chain: 'base',
-      platformBalance: user.usdcBalance,   // DB balance — what you can trade with
+      platformBalance: user.usdcBalance,   // DB balance — what you can trade with (locks already deducted)
       walletBalance,                         // On-chain USDC — what you can deposit
+      lockedUsdc,                            // USDC locked in pending limit buy orders
       canBuy: user.usdcBalance > 0,
     });
   } catch (err: unknown) {

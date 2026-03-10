@@ -16,6 +16,7 @@ import { usePrivyAuthedFetch } from '@/lib/auth/privy-client';
 type WalletStatus = {
   platformBalance: number;
   walletBalance: number;
+  lockedUsdc: number;
   canBuy: boolean;
 };
 
@@ -41,6 +42,17 @@ interface Transaction {
   type: string;
 }
 
+interface PendingOrder {
+  id: string;
+  side: 'buy' | 'sell';
+  shares: number;
+  triggerPrice: number;
+  lockedAmount: number;
+  status: string;
+  expiresAt: string | null;
+  createdAt: string;
+}
+
 export default function TradePage() {
   const params = useParams();
   const router = useRouter();
@@ -60,6 +72,16 @@ export default function TradePage() {
   const [buyShares, setBuyShares] = useState('');
   const [sellShares, setSellShares] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // Limit order states
+  const [orderMode, setOrderMode] = useState<'market' | 'limit'>('market');
+  const [buyTriggerPrice, setBuyTriggerPrice] = useState('');
+  const [sellTriggerPrice, setSellTriggerPrice] = useState('');
+  const [buyExpiry, setBuyExpiry] = useState('');
+  const [sellExpiry, setSellExpiry] = useState('');
+  const [pendingOrders, setPendingOrders] = useState<PendingOrder[]>([]);
+  const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
+  const [tradeError, setTradeError] = useState<string | null>(null);
 
   const fetchWalletStatus = useCallback(async () => {
     setWalletStatusLoading(true);
@@ -112,6 +134,21 @@ export default function TradePage() {
     }
   }, [user?.id, character?.id, privyFetch]);
 
+  const fetchPendingOrders = useCallback(async () => {
+    if (!authenticated || !character) return;
+    try {
+      const res = await privyFetch(
+        `/api/trading/limit-order?status=pending&characterId=${character.id}`
+      );
+      if (res.ok) {
+        const data = await res.json();
+        setPendingOrders(data.data || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch pending orders:', error);
+    }
+  }, [authenticated, character, privyFetch]);
+
   useEffect(() => {
     if (slug) {
       fetchCharacter();
@@ -124,6 +161,7 @@ export default function TradePage() {
     if (!authenticated) {
       setWalletStatus(null);
       setHolding(null);
+      setPendingOrders([]);
       return;
     }
     fetchWalletStatus();
@@ -132,26 +170,41 @@ export default function TradePage() {
   useEffect(() => {
     if (character && authenticated && user?.id) {
       fetchHolding();
+      fetchPendingOrders();
     }
-  }, [character, authenticated, user?.id, fetchHolding]);
+  }, [character, authenticated, user?.id, fetchHolding, fetchPendingOrders]);
+
+  // Helper to compute expiry ISO string
+  const getExpiryDate = (expiry: string): string | undefined => {
+    if (expiry === '24h') return new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    if (expiry === '7d') return new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    if (expiry === '30d') return new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    return undefined;
+  };
+
+  // Refresh all data after trade
+  const refreshAfterTrade = async () => {
+    await Promise.all([
+      fetchCharacter(),
+      fetchTransactions(),
+      fetchHolding(),
+      fetchWalletStatus(),
+      fetchPendingOrders(),
+    ]);
+  };
 
   const handleBuy = async () => {
     if (!buyShares || !character) return;
-
     setIsProcessing(true);
+    setTradeError(null);
     try {
       const shares = parseInt(buyShares);
-      if (!authenticated) {
-        await login();
-      }
+      if (!authenticated) { await login(); }
 
       const response = await privyFetch('/api/trading/buy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          characterId: character.id,
-          shares
-        })
+        body: JSON.stringify({ characterId: character.id, shares })
       });
 
       if (!response.ok) {
@@ -163,12 +216,11 @@ export default function TradePage() {
         throw new Error(data?.error || 'Trade failed');
       }
 
-      await fetchCharacter();
-      await fetchTransactions();
-      await fetchHolding();
+      await refreshAfterTrade();
       setBuyShares('');
     } catch (error) {
       console.error('Buy failed:', error);
+      setTradeError(error instanceof Error ? error.message : 'Buy failed');
     } finally {
       setIsProcessing(false);
     }
@@ -176,21 +228,16 @@ export default function TradePage() {
 
   const handleSell = async () => {
     if (!sellShares || !character) return;
-
     setIsProcessing(true);
+    setTradeError(null);
     try {
       const shares = parseInt(sellShares);
-      if (!authenticated) {
-        await login();
-      }
+      if (!authenticated) { await login(); }
 
       const response = await privyFetch('/api/trading/sell', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          characterId: character.id,
-          shares
-        })
+        body: JSON.stringify({ characterId: character.id, shares })
       });
 
       if (!response.ok) {
@@ -198,14 +245,107 @@ export default function TradePage() {
         throw new Error(data?.error || 'Trade failed');
       }
 
-      await fetchCharacter();
-      await fetchTransactions();
-      await fetchHolding();
+      await refreshAfterTrade();
       setSellShares('');
     } catch (error) {
       console.error('Sell failed:', error);
+      setTradeError(error instanceof Error ? error.message : 'Sell failed');
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  const handleLimitBuy = async () => {
+    if (!buyShares || !buyTriggerPrice || !character) return;
+    setIsProcessing(true);
+    setTradeError(null);
+    try {
+      const shares = parseInt(buyShares);
+      const triggerPrice = parseFloat(buyTriggerPrice);
+      if (!authenticated) { await login(); }
+
+      const response = await privyFetch('/api/trading/limit-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          characterId: character.id,
+          side: 'buy',
+          shares,
+          triggerPrice,
+          expiresAt: getExpiryDate(buyExpiry),
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data?.error || 'Failed to place limit order');
+      }
+
+      await Promise.all([fetchWalletStatus(), fetchPendingOrders()]);
+      setBuyShares('');
+      setBuyTriggerPrice('');
+    } catch (error) {
+      console.error('Limit buy failed:', error);
+      setTradeError(error instanceof Error ? error.message : 'Limit buy failed');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleLimitSell = async () => {
+    if (!sellShares || !sellTriggerPrice || !character) return;
+    setIsProcessing(true);
+    setTradeError(null);
+    try {
+      const shares = parseInt(sellShares);
+      const triggerPrice = parseFloat(sellTriggerPrice);
+      if (!authenticated) { await login(); }
+
+      const response = await privyFetch('/api/trading/limit-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          characterId: character.id,
+          side: 'sell',
+          shares,
+          triggerPrice,
+          expiresAt: getExpiryDate(sellExpiry),
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data?.error || 'Failed to place limit order');
+      }
+
+      await Promise.all([fetchHolding(), fetchPendingOrders()]);
+      setSellShares('');
+      setSellTriggerPrice('');
+    } catch (error) {
+      console.error('Limit sell failed:', error);
+      setTradeError(error instanceof Error ? error.message : 'Limit sell failed');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleCancelOrder = async (orderId: string) => {
+    setCancellingOrderId(orderId);
+    setTradeError(null);
+    try {
+      const response = await privyFetch(`/api/trading/limit-order/${orderId}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data?.error || 'Failed to cancel order');
+      }
+      await Promise.all([fetchWalletStatus(), fetchPendingOrders(), fetchHolding()]);
+    } catch (error) {
+      console.error('Cancel failed:', error);
+      setTradeError(error instanceof Error ? error.message : 'Cancel failed');
+    } finally {
+      setCancellingOrderId(null);
     }
   };
 
@@ -223,7 +363,7 @@ export default function TradePage() {
         <div className="text-center">
           <h1 className="text-2xl font-bold text-white mb-4">Character not found</h1>
           <Link href={`/character/${slug}`} className="text-indigo-400 hover:text-indigo-300">
-            ← Back to Character
+            &larr; Back to Character
           </Link>
         </div>
       </div>
@@ -232,14 +372,24 @@ export default function TradePage() {
 
   const buySharesNum = parseInt(buyShares) || 0;
   const sellSharesNum = parseInt(sellShares) || 0;
+  const buyTriggerNum = parseFloat(buyTriggerPrice) || 0;
+  const sellTriggerNum = parseFloat(sellTriggerPrice) || 0;
 
   const estimatedBuyCost = buySharesNum * character.currentPrice * (1 + (buySharesNum / character.totalShares) * 0.05);
   const estimatedSellProceeds = sellSharesNum * character.currentPrice * (1 - (sellSharesNum / character.totalShares) * 0.05);
+  const limitBuyLocked = buySharesNum * buyTriggerNum * (1 + (buySharesNum / character.totalShares) * 0.05);
 
   const chartData = transactions.map(t => ({
     time: new Date(t.createdAt).toLocaleDateString(),
     price: t.pricePerShare
   }));
+
+  const expiryOptions = [
+    { value: '', label: 'Never' },
+    { value: '24h', label: '24h' },
+    { value: '7d', label: '7d' },
+    { value: '30d', label: '30d' },
+  ];
 
   return (
     <div className="min-h-screen pb-20">
@@ -296,6 +446,19 @@ export default function TradePage() {
           </div>
         </div>
 
+        {/* Error Banner */}
+        {tradeError && (
+          <div className="mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20 flex items-start gap-3">
+            <span className="text-red-400 text-sm mt-0.5">!</span>
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-red-300">{tradeError}</p>
+            </div>
+            <button onClick={() => setTradeError(null)} className="text-red-400 hover:text-red-300 text-sm font-bold">
+              &times;
+            </button>
+          </div>
+        )}
+
         <div className="grid lg:grid-cols-2 gap-8">
           {/* Price Chart */}
           <Card className="bg-slate-900/60 backdrop-blur-md border-slate-800/80 shadow-2xl" hover={false}>
@@ -319,7 +482,7 @@ export default function TradePage() {
                   <div className="flex items-start justify-between gap-4 scale-[0.95] origin-top-left md:scale-100">
                     <div>
                       <div className="flex items-center gap-2 mb-1">
-                        <div className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse"></div>
+                        <div className="w-1.5 h-1.5 rounded-full bg-purple-500"></div>
                         <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-0.5">USDC Balance</p>
                       </div>
                       <p className="text-sm font-semibold text-slate-300">
@@ -329,6 +492,11 @@ export default function TradePage() {
                             ? `$${walletStatus.platformBalance.toFixed(2)} USDC`
                             : 'Unable to read balance.'}
                       </p>
+                      {walletStatus && walletStatus.lockedUsdc > 0 && (
+                        <p className="text-xs text-amber-400/70 mt-1">
+                          ${walletStatus.lockedUsdc.toFixed(2)} locked in limit orders
+                        </p>
+                      )}
                     </div>
                     <div className="flex gap-2">
                       <Button size="sm" variant="ghost" onClick={fetchWalletStatus} disabled={walletStatusLoading}>
@@ -344,7 +512,7 @@ export default function TradePage() {
 
                   {walletStatus && !walletStatus.canBuy && (
                     <div className="mt-4 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 flex gap-3 items-start">
-                      <div className="text-amber-500 mt-0.5">⚠️</div>
+                      <div className="text-amber-500 mt-0.5">!</div>
                       <p className="text-xs font-semibold text-amber-200/80 leading-relaxed">
                         Deposit USDC to your platform balance to start buying shares.
                       </p>
@@ -354,10 +522,36 @@ export default function TradePage() {
               </Card>
             )}
 
+            {/* Order Mode Toggle */}
+            <div className="flex bg-slate-900/50 rounded-xl p-1 border border-slate-800/50">
+              <button
+                onClick={() => setOrderMode('market')}
+                className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all ${
+                  orderMode === 'market'
+                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Market
+              </button>
+              <button
+                onClick={() => setOrderMode('limit')}
+                className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all ${
+                  orderMode === 'limit'
+                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Limit
+              </button>
+            </div>
+
             {/* Buy Panel */}
             <Card>
               <div className="p-6">
-                <h2 className="text-xl font-bold text-white mb-4">Buy Shares</h2>
+                <h2 className="text-xl font-bold text-white mb-4">
+                  {orderMode === 'market' ? 'Buy Shares' : 'Limit Buy Order'}
+                </h2>
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-slate-300 mb-2">
@@ -373,7 +567,49 @@ export default function TradePage() {
                     />
                   </div>
 
-                  {buySharesNum > 0 && (
+                  {/* Limit order: trigger price */}
+                  {orderMode === 'limit' && (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-300 mb-2">
+                          Trigger Price (USDC)
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={buyTriggerPrice}
+                          onChange={(e) => setBuyTriggerPrice(e.target.value)}
+                          className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          placeholder={`Below $${character.currentPrice.toFixed(2)}`}
+                        />
+                        <p className="text-xs text-slate-500 mt-1">Order fills when price drops to this level</p>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-slate-300 mb-2">
+                          Expiration
+                        </label>
+                        <div className="flex gap-2">
+                          {expiryOptions.map((option) => (
+                            <button
+                              key={option.value}
+                              onClick={() => setBuyExpiry(option.value)}
+                              className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all ${
+                                buyExpiry === option.value
+                                  ? 'bg-indigo-600/30 text-indigo-300 border border-indigo-500/30'
+                                  : 'bg-slate-800/50 text-slate-400 hover:bg-slate-700 hover:text-white border border-transparent'
+                              }`}
+                            >
+                              {option.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {/* Market order estimate */}
+                  {orderMode === 'market' && buySharesNum > 0 && (
                     <div className="p-4 bg-slate-900/50 rounded-lg">
                       <div className="flex justify-between text-sm mb-2">
                         <span className="text-slate-400">Estimated cost:</span>
@@ -388,14 +624,39 @@ export default function TradePage() {
                     </div>
                   )}
 
+                  {/* Limit order estimate */}
+                  {orderMode === 'limit' && buySharesNum > 0 && buyTriggerNum > 0 && (
+                    <div className="p-4 bg-slate-900/50 rounded-lg">
+                      <div className="flex justify-between text-sm mb-2">
+                        <span className="text-slate-400">USDC to lock:</span>
+                        <span className="text-white font-semibold">${limitBuyLocked.toFixed(2)} USDC</span>
+                      </div>
+                      <div className="flex justify-between text-sm mb-2">
+                        <span className="text-slate-400">Triggers at:</span>
+                        <span className="text-amber-400 font-semibold">${buyTriggerNum.toFixed(2)} or below</span>
+                      </div>
+                      {buyTriggerNum >= character.currentPrice && (
+                        <p className="text-xs text-red-400 mt-1">Trigger price must be below current price (${character.currentPrice.toFixed(2)})</p>
+                      )}
+                    </div>
+                  )}
+
                   <Button
-                    onClick={handleBuy}
-                    disabled={!buySharesNum || isProcessing || (walletStatus ? !walletStatus.canBuy : false)}
+                    onClick={orderMode === 'market' ? handleBuy : handleLimitBuy}
+                    disabled={
+                      !buySharesNum || isProcessing ||
+                      (orderMode === 'market' && walletStatus ? !walletStatus.canBuy : false) ||
+                      (orderMode === 'limit' && (!buyTriggerNum || buyTriggerNum >= character.currentPrice))
+                    }
                     className="w-full"
                     size="lg"
                     variant="primary"
                   >
-                    {isProcessing ? 'Processing...' : `Buy ${buySharesNum || 0} shares`}
+                    {isProcessing
+                      ? 'Processing...'
+                      : orderMode === 'market'
+                        ? `Buy ${buySharesNum || 0} shares`
+                        : 'Place Limit Buy'}
                   </Button>
                 </div>
               </div>
@@ -404,11 +665,13 @@ export default function TradePage() {
             {/* Sell Panel */}
             <Card>
               <div className="p-6">
-                <h2 className="text-xl font-bold text-white mb-4">Sell Shares</h2>
+                <h2 className="text-xl font-bold text-white mb-4">
+                  {orderMode === 'market' ? 'Sell Shares' : 'Limit Sell Order'}
+                </h2>
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-slate-300 mb-2">
-                      Number of shares (max: {holding?.shares || 0})
+                      Number of shares (available: {holding?.shares || 0})
                     </label>
                     <input
                       type="number"
@@ -421,7 +684,49 @@ export default function TradePage() {
                     />
                   </div>
 
-                  {sellSharesNum > 0 && (
+                  {/* Limit order: trigger price */}
+                  {orderMode === 'limit' && (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-300 mb-2">
+                          Trigger Price (USDC)
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={sellTriggerPrice}
+                          onChange={(e) => setSellTriggerPrice(e.target.value)}
+                          className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          placeholder={`Above $${character.currentPrice.toFixed(2)}`}
+                        />
+                        <p className="text-xs text-slate-500 mt-1">Order fills when price rises to this level</p>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-slate-300 mb-2">
+                          Expiration
+                        </label>
+                        <div className="flex gap-2">
+                          {expiryOptions.map((option) => (
+                            <button
+                              key={option.value}
+                              onClick={() => setSellExpiry(option.value)}
+                              className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all ${
+                                sellExpiry === option.value
+                                  ? 'bg-indigo-600/30 text-indigo-300 border border-indigo-500/30'
+                                  : 'bg-slate-800/50 text-slate-400 hover:bg-slate-700 hover:text-white border border-transparent'
+                              }`}
+                            >
+                              {option.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {/* Market sell estimate */}
+                  {orderMode === 'market' && sellSharesNum > 0 && (
                     <div className="p-4 bg-slate-900/50 rounded-lg">
                       <div className="flex justify-between text-sm mb-2">
                         <span className="text-slate-400">Estimated proceeds:</span>
@@ -436,18 +741,97 @@ export default function TradePage() {
                     </div>
                   )}
 
+                  {/* Limit sell estimate */}
+                  {orderMode === 'limit' && sellSharesNum > 0 && sellTriggerNum > 0 && (
+                    <div className="p-4 bg-slate-900/50 rounded-lg">
+                      <div className="flex justify-between text-sm mb-2">
+                        <span className="text-slate-400">Shares to lock:</span>
+                        <span className="text-white font-semibold">{sellSharesNum} shares</span>
+                      </div>
+                      <div className="flex justify-between text-sm mb-2">
+                        <span className="text-slate-400">Triggers at:</span>
+                        <span className="text-emerald-400 font-semibold">${sellTriggerNum.toFixed(2)} or above</span>
+                      </div>
+                      {sellTriggerNum <= character.currentPrice && (
+                        <p className="text-xs text-red-400 mt-1">Trigger price must be above current price (${character.currentPrice.toFixed(2)})</p>
+                      )}
+                    </div>
+                  )}
+
                   <Button
-                    onClick={handleSell}
-                    disabled={!sellSharesNum || !holding || sellSharesNum > holding.shares || isProcessing}
+                    onClick={orderMode === 'market' ? handleSell : handleLimitSell}
+                    disabled={
+                      !sellSharesNum || isProcessing ||
+                      (orderMode === 'market' && (!holding || sellSharesNum > holding.shares)) ||
+                      (orderMode === 'limit' && (!sellTriggerNum || sellTriggerNum <= character.currentPrice || !holding || sellSharesNum > holding.shares))
+                    }
                     className="w-full"
                     size="lg"
                     variant="danger"
                   >
-                    {isProcessing ? 'Processing...' : `Sell ${sellSharesNum || 0} shares`}
+                    {isProcessing
+                      ? 'Processing...'
+                      : orderMode === 'market'
+                        ? `Sell ${sellSharesNum || 0} shares`
+                        : 'Place Limit Sell'}
                   </Button>
                 </div>
               </div>
             </Card>
+
+            {/* Pending Limit Orders */}
+            {pendingOrders.length > 0 && (
+              <Card hover={false} className="bg-slate-900/60 border-slate-800/80">
+                <div className="p-6">
+                  <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                    <svg className="w-5 h-5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Pending Orders
+                    <span className="text-xs font-bold bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-full ml-1">
+                      {pendingOrders.length}
+                    </span>
+                  </h2>
+                  <div className="space-y-3">
+                    {pendingOrders.map((order) => (
+                      <div key={order.id} className="flex items-center justify-between p-4 bg-slate-950/50 rounded-xl border border-slate-800/50">
+                        <div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className={`px-2 py-0.5 rounded text-xs font-bold uppercase ${
+                              order.side === 'buy'
+                                ? 'bg-emerald-500/10 text-emerald-400'
+                                : 'bg-red-500/10 text-red-400'
+                            }`}>
+                              {order.side}
+                            </span>
+                            <span className="text-sm font-semibold text-white">
+                              {order.shares.toLocaleString()} shares
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-400">
+                            Trigger: ${order.triggerPrice.toFixed(2)}
+                            {order.expiresAt && ` \u00b7 Expires ${new Date(order.expiresAt).toLocaleDateString()}`}
+                          </p>
+                          {order.side === 'buy' && (
+                            <p className="text-xs text-slate-500">
+                              Locked: ${order.lockedAmount.toFixed(2)} USDC
+                            </p>
+                          )}
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleCancelOrder(order.id)}
+                          disabled={cancellingOrderId === order.id}
+                        >
+                          {cancellingOrderId === order.id ? 'Cancelling...' : 'Cancel'}
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </Card>
+            )}
 
             {/* Your Holdings */}
             {holding ? (

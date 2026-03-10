@@ -23,6 +23,7 @@ model User {
   payouts       Payout[]
   buyerTxns     Transaction[] @relation("BuyerTransactions")
   sellerTxns    Transaction[] @relation("SellerTransactions")
+  limitOrders   LimitOrder[]
 
   @@index([privyId])
   @@index([email])
@@ -53,6 +54,7 @@ model Character {
   transactions    Transaction[]
   animationClips  AnimationClip[]
   payouts         Payout[]
+  limitOrders     LimitOrder[]
 
   @@index([slug])
   @@index([isLaunched])
@@ -130,9 +132,10 @@ model Transaction {
   total         Float
   type          String
   createdAt     DateTime  @default(now())
-  character     Character @relation(fields: [characterId], references: [id])
-  buyer         User?     @relation("BuyerTransactions", fields: [buyerId], references: [id])
-  seller        User?     @relation("SellerTransactions", fields: [sellerId], references: [id])
+  character      Character   @relation(fields: [characterId], references: [id])
+  buyer          User?       @relation("BuyerTransactions", fields: [buyerId], references: [id])
+  seller         User?       @relation("SellerTransactions", fields: [sellerId], references: [id])
+  limitOrderFill LimitOrder?
 
   @@index([buyerId])
   @@index([sellerId])
@@ -165,4 +168,30 @@ model AnimationClip {
   character   Character @relation(fields: [characterId], references: [id])
 
   @@index([characterId, type])
+}
+
+model LimitOrder {
+  id                String       @id @default(cuid())
+  userId            String
+  characterId       String
+  side              String       // "buy" or "sell"
+  shares            Int
+  triggerPrice      Float
+  lockedAmount      Float        // USDC locked (buys), 0 (sells)
+  lockedAvgBuyPrice Float?       // saved from holding on sell orders for restoration on cancel
+  status            String       @default("pending") // pending | filled | cancelled | expired
+  expiresAt         DateTime?
+  filledAt          DateTime?
+  cancelledAt       DateTime?
+  transactionId     String?      @unique
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  user              User         @relation(fields: [userId], references: [id])
+  character         Character    @relation(fields: [characterId], references: [id])
+  transaction       Transaction? @relation(fields: [transactionId], references: [id])
+
+  @@index([characterId, status])
+  @@index([userId, status])
+  @@index([status, expiresAt])
 }
