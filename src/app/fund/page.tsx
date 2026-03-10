@@ -96,20 +96,7 @@ export default function FundPage() {
     setTxMessage(null);
 
     try {
-      // Step 1: Auto-fund gas if needed (we cover ETH fees for users)
-      setTxMessage({ type: 'success', text: 'Checking gas balance...' });
-      try {
-        const gasRes = await privyFetch('/api/wallet/gas', { method: 'POST' });
-        const gasData = await gasRes.json();
-        if (gasRes.ok && gasData.data?.funded) {
-          setTxMessage({ type: 'success', text: 'Gas funded! Preparing transaction...' });
-          await new Promise(resolve => setTimeout(resolve, 3000));
-        }
-      } catch {
-        // Gas funding is best-effort — continue anyway
-      }
-
-      // Step 2: Ensure wallet is on Base chain
+      // Step 1: Ensure wallet is on Base chain
       setTxMessage({ type: 'success', text: 'Switching to Base network...' });
       try {
         await wallet.switchChain(BASE_CHAIN_ID);
@@ -117,7 +104,42 @@ export default function FundPage() {
         // If switch fails, try to continue anyway — might already be on Base
       }
 
-      // Step 3: Encode the USDC transfer(treasury, amount) call
+      const provider = await wallet.getEthereumProvider();
+
+      // Step 2: Auto-fund gas if needed (we cover ETH fees for users)
+      setTxMessage({ type: 'success', text: 'Checking gas balance...' });
+      let gasFunded = false;
+      try {
+        const gasRes = await privyFetch('/api/wallet/gas', { method: 'POST' });
+        const gasData = await gasRes.json();
+        if (gasRes.ok && gasData.data?.funded) {
+          gasFunded = true;
+          setTxMessage({ type: 'success', text: 'Gas funded! Waiting for confirmation...' });
+          await new Promise(resolve => setTimeout(resolve, 4000));
+        } else if (!gasRes.ok) {
+          console.warn('Gas funding failed:', gasData?.error);
+        }
+      } catch {
+        console.warn('Gas funding request failed');
+      }
+
+      // Step 3: Verify ETH balance before attempting tx — prevents Privy error modal
+      const ethHex = await provider.request({
+        method: 'eth_getBalance',
+        params: [wallet.address, 'latest'],
+      });
+      const ethBalance = parseInt(ethHex as string, 16) / 1e18;
+
+      if (ethBalance < 0.00005) {
+        // Not enough gas to do anything
+        if (gasFunded) {
+          throw new Error('Gas was sent but hasn\'t arrived yet. Please wait 10 seconds and try again.');
+        } else {
+          throw new Error('Your wallet needs ETH for gas fees. Gas auto-funding may be temporarily unavailable — please try again in a moment.');
+        }
+      }
+
+      // Step 4: Encode the USDC transfer(treasury, amount) call
       const usdcAmount = parseUnits(amount.toString(), 6); // USDC has 6 decimals
       const data = encodeFunctionData({
         abi: ERC20_TRANSFER_ABI,
@@ -125,9 +147,8 @@ export default function FundPage() {
         args: [TREASURY_ADDRESS as `0x${string}`, usdcAmount],
       });
 
-      // Step 4: Send the transaction via Privy embedded wallet
+      // Step 5: Send the transaction via Privy embedded wallet
       setTxMessage({ type: 'success', text: 'Sending USDC to platform...' });
-      const provider = await wallet.getEthereumProvider();
       const txHash = await provider.request({
         method: 'eth_sendTransaction',
         params: [{
@@ -242,24 +263,43 @@ export default function FundPage() {
     setTxMessage(null);
 
     try {
-      // Fund gas if needed
-      setTxMessage({ type: 'success', text: 'Checking gas balance...' });
-      try {
-        const gasRes = await privyFetch('/api/wallet/gas', { method: 'POST' });
-        const gasData = await gasRes.json();
-        if (gasRes.ok && gasData.data?.funded) {
-          setTxMessage({ type: 'success', text: 'Gas funded! Preparing transfer...' });
-          await new Promise(resolve => setTimeout(resolve, 3000));
-        }
-      } catch {
-        // best-effort
-      }
-
       // Switch chain
       try {
         await wallet.switchChain(BASE_CHAIN_ID);
       } catch {
         // may already be on Base
+      }
+
+      const provider = await wallet.getEthereumProvider();
+
+      // Fund gas if needed
+      setTxMessage({ type: 'success', text: 'Checking gas balance...' });
+      let gasFunded = false;
+      try {
+        const gasRes = await privyFetch('/api/wallet/gas', { method: 'POST' });
+        const gasData = await gasRes.json();
+        if (gasRes.ok && gasData.data?.funded) {
+          gasFunded = true;
+          setTxMessage({ type: 'success', text: 'Gas funded! Waiting for confirmation...' });
+          await new Promise(resolve => setTimeout(resolve, 4000));
+        }
+      } catch {
+        // best-effort
+      }
+
+      // Verify ETH balance before attempting tx
+      const ethHex = await provider.request({
+        method: 'eth_getBalance',
+        params: [wallet.address, 'latest'],
+      });
+      const ethBalance = parseInt(ethHex as string, 16) / 1e18;
+
+      if (ethBalance < 0.00005) {
+        if (gasFunded) {
+          throw new Error('Gas was sent but hasn\'t arrived yet. Please wait 10 seconds and try again.');
+        } else {
+          throw new Error('Your wallet needs ETH for gas fees. Gas auto-funding may be temporarily unavailable — please try again in a moment.');
+        }
       }
 
       const usdcAmount = parseUnits(amount.toString(), 6);
@@ -270,7 +310,6 @@ export default function FundPage() {
       });
 
       setTxMessage({ type: 'success', text: 'Sending USDC to external wallet...' });
-      const provider = await wallet.getEthereumProvider();
       await provider.request({
         method: 'eth_sendTransaction',
         params: [{
