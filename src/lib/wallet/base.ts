@@ -6,6 +6,9 @@ import { privateKeyToAccount } from 'viem/accounts';
 export const USDC_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as const;
 export const USDC_DECIMALS = 6;
 
+// Platform treasury address on Base — receives deposits, funds withdrawals
+export const TREASURY_ADDRESS = '0x797C0D912A65BCcCC2F52d9328f763DbC067b883' as const;
+
 const ERC20_ABI = parseAbi([
   'function balanceOf(address account) view returns (uint256)',
   'function transfer(address to, uint256 amount) returns (bool)',

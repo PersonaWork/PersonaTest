@@ -2,25 +2,23 @@ import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { successResponse, errorResponse } from '@/lib/api';
 import { requireAuth } from '@/lib/auth';
-import { getUsdcBalance, USDC_ADDRESS } from '@/lib/wallet/base';
+import { getUsdcBalance, verifyUsdcTransfer, USDC_ADDRESS, TREASURY_ADDRESS } from '@/lib/wallet/base';
 import { z } from 'zod';
 
 const DepositSchema = z.object({
-  amount: z.number().positive('Amount must be positive'),
+  txHash: z.string().min(1, 'Transaction hash is required'),
 });
 
 /**
- * POST /api/wallet/fund — Credit user's platform balance
+ * POST /api/wallet/fund — Credit user's platform balance after on-chain deposit
  *
- * MVP Flow (no treasury needed):
- * 1. User has USDC in their Privy embedded wallet (sent from Coinbase, etc.)
- * 2. User requests to "deposit" an amount to their platform trading balance
- * 3. We verify their on-chain wallet has enough USDC
- * 4. Credit the user's usdcBalance in the database
+ * Flow:
+ * 1. User sends USDC from their Privy wallet → treasury address (client-side)
+ * 2. Client sends the tx hash to this endpoint
+ * 3. We verify the on-chain transfer (from user wallet → treasury)
+ * 4. Credit the verified amount to the user's usdcBalance
  *
- * NOTE: In a production version, this would actually transfer USDC from the
- * user's wallet to a treasury/escrow contract. For MVP, we trust the on-chain
- * balance as proof of funds.
+ * This prevents double-crediting by checking for duplicate tx hashes.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -35,22 +33,47 @@ export async function POST(request: NextRequest) {
       return errorResponse(parsed.error.issues[0].message, 400);
     }
 
-    const { amount } = parsed.data;
+    const { txHash } = parsed.data;
 
-    // Verify user has enough USDC in their wallet
-    let walletBalance = 0;
-    try {
-      walletBalance = await getUsdcBalance(user.walletAddress as `0x${string}`);
-    } catch {
-      // If chain read fails, allow deposit anyway for development
-      walletBalance = amount;
+    // Prevent double-crediting: check if this tx was already processed
+    const existingTx = await prisma.transaction.findFirst({
+      where: { type: 'deposit', buyerId: user.id },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+    // We store txHash in a workaround field — check all recent deposits
+    const existingDeposits = await prisma.transaction.findMany({
+      where: { type: 'deposit', buyerId: user.id },
+      select: { id: true, total: true, createdAt: true },
+    });
+    // Simple duplicate check: see if a deposit with the exact same tx hash string was created
+    // We'll store the txHash in the transaction's characterId field as 'deposit:{txHash}'
+    const duplicateCheck = await prisma.transaction.findFirst({
+      where: { type: 'deposit', characterId: `deposit:${txHash}` },
+    });
+    if (duplicateCheck) {
+      return errorResponse('This transaction has already been processed', 400);
     }
 
-    if (walletBalance < amount) {
+    // Verify the on-chain USDC transfer
+    let transferResult;
+    try {
+      transferResult = await verifyUsdcTransfer(
+        txHash as `0x${string}`,
+        user.walletAddress as `0x${string}`,
+        TREASURY_ADDRESS,
+      );
+    } catch (error) {
+      console.error('Transfer verification failed:', error);
       return errorResponse(
-        `Insufficient wallet balance. You have ${walletBalance.toFixed(2)} USDC but tried to deposit ${amount.toFixed(2)} USDC.`,
+        error instanceof Error ? error.message : 'Failed to verify on-chain transfer',
         400
       );
+    }
+
+    const amount = transferResult.amount;
+    if (amount <= 0) {
+      return errorResponse('Transfer amount must be greater than 0', 400);
     }
 
     // Credit the user's balance and create a transaction record atomically
@@ -62,7 +85,7 @@ export async function POST(request: NextRequest) {
       prisma.transaction.create({
         data: {
           buyerId: user.id,
-          characterId: 'platform',
+          characterId: `deposit:${txHash}`,
           type: 'deposit',
           shares: 0,
           pricePerShare: 1,
@@ -72,8 +95,10 @@ export async function POST(request: NextRequest) {
     ]);
 
     return successResponse({
-      message: `Successfully deposited ${amount} USDC to your trading balance`,
+      message: `Successfully deposited ${amount.toFixed(2)} USDC to your trading balance`,
       newBalance: updatedUser.usdcBalance,
+      txHash,
+      amount,
     });
   } catch (error: unknown) {
     console.error('Deposit failed:', error);
@@ -106,8 +131,9 @@ export async function GET(request: NextRequest) {
         chainId: 8453,
         token: 'USDC',
         tokenAddress: USDC_ADDRESS,
+        treasuryAddress: TREASURY_ADDRESS,
         walletAddress: user.walletAddress || '',
-        note: 'Send USDC on Base network to your wallet address below. Then click Deposit to move funds to your trading balance.',
+        note: 'Send USDC on Base network to your wallet address, then deposit to move funds to your trading balance.',
       },
       currentBalance: user.usdcBalance,
       totalDeposited,

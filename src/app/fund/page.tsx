@@ -5,6 +5,25 @@ import Link from 'next/link';
 import { usePrivy, useWallets } from '@privy-io/react-auth';
 import { usePrivyAuthedFetch } from '@/lib/auth/privy-client';
 import { Button, Card } from '@/components/ui';
+import { encodeFunctionData, parseUnits } from 'viem';
+
+// Constants matching server-side values
+const USDC_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
+const TREASURY_ADDRESS = '0x797C0D912A65BCcCC2F52d9328f763DbC067b883';
+const BASE_CHAIN_ID = 8453;
+
+const ERC20_TRANSFER_ABI = [
+  {
+    name: 'transfer',
+    type: 'function' as const,
+    inputs: [
+      { name: 'to', type: 'address' as const },
+      { name: 'amount', type: 'uint256' as const },
+    ],
+    outputs: [{ name: '', type: 'bool' as const }],
+    stateMutability: 'nonpayable' as const,
+  },
+] as const;
 
 type WalletStatus = {
   userId: string;
@@ -57,30 +76,81 @@ export default function FundPage() {
     }
   }, [ready, authenticated, fetchStatus]);
 
-  // Simplified deposit: send amount to API, backend verifies on-chain balance
+  // Real deposit: send USDC on-chain from Privy wallet → treasury, then verify via API
   const handleDeposit = async () => {
     const amount = parseFloat(depositAmount);
     if (!amount || amount <= 0) return;
+
+    const wallet = wallets.find((w) => w.walletClientType === 'privy');
+    if (!wallet) {
+      setTxMessage({ type: 'error', text: 'No embedded wallet found. Try logging out and back in.' });
+      return;
+    }
 
     setIsDepositing(true);
     setTxMessage(null);
 
     try {
+      // Step 1: Ensure wallet is on Base chain
+      setTxMessage({ type: 'success', text: 'Switching to Base network...' });
+      try {
+        await wallet.switchChain(BASE_CHAIN_ID);
+      } catch {
+        // If switch fails, try to continue anyway — might already be on Base
+      }
+
+      // Step 2: Encode the USDC transfer(treasury, amount) call
+      const usdcAmount = parseUnits(amount.toString(), 6); // USDC has 6 decimals
+      const data = encodeFunctionData({
+        abi: ERC20_TRANSFER_ABI,
+        functionName: 'transfer',
+        args: [TREASURY_ADDRESS as `0x${string}`, usdcAmount],
+      });
+
+      // Step 3: Send the transaction via Privy embedded wallet
+      setTxMessage({ type: 'success', text: 'Confirm the transaction in your wallet...' });
+      const provider = await wallet.getEthereumProvider();
+      const txHash = await provider.request({
+        method: 'eth_sendTransaction',
+        params: [{
+          from: wallet.address,
+          to: USDC_ADDRESS,
+          data,
+        }],
+      });
+
+      // Step 4: Wait for confirmation & verify via API
+      setTxMessage({ type: 'success', text: 'Transaction sent! Waiting for confirmation...' });
+
+      // Give the chain a moment to confirm
+      await new Promise(resolve => setTimeout(resolve, 3000));
+
       const res = await privyFetch('/api/wallet/fund', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount }),
+        body: JSON.stringify({ txHash }),
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || 'Deposit failed');
+      const result = await res.json();
+      if (!res.ok) throw new Error(result?.error || 'Deposit verification failed');
 
-      setTxMessage({ type: 'success', text: data.data?.message || `Deposited ${amount} USDC` });
+      setTxMessage({
+        type: 'success',
+        text: result.data?.message || `Deposited ${amount} USDC to your trading balance`,
+      });
       setDepositAmount('');
       hasFetched.current = false;
       await fetchStatus();
     } catch (e: unknown) {
-      setTxMessage({ type: 'error', text: e instanceof Error ? e.message : 'Deposit failed' });
+      const msg = e instanceof Error ? e.message : 'Deposit failed';
+      // Provide helpful errors for common failures
+      if (msg.includes('insufficient funds') || msg.includes('gas')) {
+        setTxMessage({ type: 'error', text: 'Not enough ETH for gas fees. You need a small amount of ETH on Base to send transactions.' });
+      } else if (msg.includes('User rejected') || msg.includes('denied')) {
+        setTxMessage({ type: 'error', text: 'Transaction was cancelled.' });
+      } else {
+        setTxMessage({ type: 'error', text: msg });
+      }
     } finally {
       setIsDepositing(false);
     }
@@ -261,12 +331,17 @@ export default function FundPage() {
                   step="0.01"
                 />
                 <Button onClick={handleDeposit} disabled={isDepositing || !depositAmount || parseFloat(depositAmount) <= 0}>
-                  {isDepositing ? 'Depositing...' : 'Deposit'}
+                  {isDepositing ? 'Processing...' : 'Deposit'}
                 </Button>
               </div>
-              <p className="text-xs text-slate-500 mt-3">
-                Moves USDC from your wallet to your platform trading balance. Your wallet must have USDC on Base network.
-              </p>
+              <div className="mt-3 space-y-1">
+                <p className="text-xs text-slate-500">
+                  Sends USDC from your wallet to the platform treasury on Base. You&apos;ll be asked to confirm the transaction.
+                </p>
+                <p className="text-xs text-slate-500">
+                  Requires a small amount of ETH on Base for gas (~$0.01).
+                </p>
+              </div>
             </Card>
 
             {/* Withdraw from Platform */}
