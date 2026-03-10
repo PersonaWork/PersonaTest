@@ -11,7 +11,7 @@ export const TREASURY_ADDRESS = '0x797C0D912A65BCcCC2F52d9328f763DbC067b883' as 
 
 // ── Platform fees ──────────────────────────────────────────────────
 export const PLATFORM_FEE_RATE = 0.005;   // 0.5% on every buy/sell trade
-export const WITHDRAWAL_FEE = 1.0;         // $1 USDC flat fee on withdrawals
+export const WITHDRAWAL_FEE = 0.50;        // $0.50 USDC flat fee on withdrawals
 export const FEE_COLLECTOR_ADDRESS = '0x43c661401D7a80ed3260D6252Cc1f431380e0809' as const;
 
 // ── Gas sponsoring ─────────────────────────────────────────────────

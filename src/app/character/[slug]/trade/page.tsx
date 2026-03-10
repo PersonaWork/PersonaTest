@@ -567,14 +567,27 @@ export default function TradePage() {
                     <label className="block text-sm font-medium text-slate-300 mb-2">
                       Number of shares
                     </label>
-                    <input
-                      type="number"
-                      value={buyShares}
-                      onChange={(e) => setBuyShares(e.target.value)}
-                      min="1"
-                      className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      placeholder="Enter amount"
-                    />
+                    <div className="flex gap-2">
+                      <input
+                        type="number"
+                        value={buyShares}
+                        onChange={(e) => setBuyShares(e.target.value)}
+                        min="1"
+                        className="flex-1 px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        placeholder="Enter amount"
+                      />
+                      {walletStatus && character && (
+                        <button
+                          onClick={() => {
+                            const maxShares = Math.floor(walletStatus.platformBalance / (character.currentPrice * 1.005));
+                            if (maxShares > 0) setBuyShares(maxShares.toString());
+                          }}
+                          className="px-3 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-xs font-bold text-slate-300 hover:text-white transition-colors"
+                        >
+                          MAX
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   {/* Limit order: trigger price */}
@@ -691,15 +704,25 @@ export default function TradePage() {
                     <label className="block text-sm font-medium text-slate-300 mb-2">
                       Number of shares (available: {holding?.shares || 0})
                     </label>
-                    <input
-                      type="number"
-                      value={sellShares}
-                      onChange={(e) => setSellShares(e.target.value)}
-                      min="1"
-                      max={holding?.shares || 0}
-                      className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      placeholder="Enter amount"
-                    />
+                    <div className="flex gap-2">
+                      <input
+                        type="number"
+                        value={sellShares}
+                        onChange={(e) => setSellShares(e.target.value)}
+                        min="1"
+                        max={holding?.shares || 0}
+                        className="flex-1 px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        placeholder="Enter amount"
+                      />
+                      {holding && holding.shares > 0 && (
+                        <button
+                          onClick={() => setSellShares(holding.shares.toString())}
+                          className="px-3 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-xs font-bold text-slate-300 hover:text-white transition-colors"
+                        >
+                          MAX
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   {/* Limit order: trigger price */}

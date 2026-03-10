@@ -49,6 +49,11 @@ export default function FundPage() {
   const [isWithdrawing, setIsWithdrawing] = useState(false);
   const [txMessage, setTxMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
+  // External withdrawal state
+  const [externalAddress, setExternalAddress] = useState('');
+  const [externalAmount, setExternalAmount] = useState('');
+  const [isSendingExternal, setIsSendingExternal] = useState(false);
+
   const fetchStatus = useCallback(async () => {
     setIsLoading(true);
     setError(null);
@@ -98,7 +103,7 @@ export default function FundPage() {
         const gasData = await gasRes.json();
         if (gasRes.ok && gasData.data?.funded) {
           setTxMessage({ type: 'success', text: 'Gas funded! Preparing transaction...' });
-          await new Promise(resolve => setTimeout(resolve, 2000));
+          await new Promise(resolve => setTimeout(resolve, 3000));
         }
       } catch {
         // Gas funding is best-effort — continue anyway
@@ -121,7 +126,7 @@ export default function FundPage() {
       });
 
       // Step 4: Send the transaction via Privy embedded wallet
-      setTxMessage({ type: 'success', text: 'Confirm the transaction in your wallet...' });
+      setTxMessage({ type: 'success', text: 'Sending USDC to platform...' });
       const provider = await wallet.getEthereumProvider();
       const txHash = await provider.request({
         method: 'eth_sendTransaction',
@@ -129,34 +134,53 @@ export default function FundPage() {
           from: wallet.address,
           to: USDC_ADDRESS,
           data,
+          chainId: `0x${BASE_CHAIN_ID.toString(16)}`,
         }],
       });
 
       // Step 5: Wait for confirmation & verify via API
       setTxMessage({ type: 'success', text: 'Transaction sent! Waiting for confirmation...' });
 
-      // Give the chain a moment to confirm
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      // Poll for confirmation with retries
+      let verified = false;
+      for (let i = 0; i < 5; i++) {
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        try {
+          const res = await privyFetch('/api/wallet/fund', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ txHash }),
+          });
 
-      const res = await privyFetch('/api/wallet/fund', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ txHash }),
-      });
+          const result = await res.json();
+          if (res.ok) {
+            setTxMessage({
+              type: 'success',
+              text: result.data?.message || `Deposited ${amount} USDC to your trading balance!`,
+            });
+            verified = true;
+            break;
+          }
+          // If it says "not confirmed yet", keep retrying
+          if (result?.error?.includes('not confirmed') || result?.error?.includes('not found')) {
+            setTxMessage({ type: 'success', text: `Waiting for on-chain confirmation... (attempt ${i + 2}/5)` });
+            continue;
+          }
+          throw new Error(result?.error || 'Deposit verification failed');
+        } catch (e: unknown) {
+          if (i === 4) throw e;
+        }
+      }
 
-      const result = await res.json();
-      if (!res.ok) throw new Error(result?.error || 'Deposit verification failed');
+      if (!verified) {
+        throw new Error('Transaction sent but verification timed out. Your deposit should appear shortly — try refreshing.');
+      }
 
-      setTxMessage({
-        type: 'success',
-        text: result.data?.message || `Deposited ${amount} USDC to your trading balance`,
-      });
       setDepositAmount('');
       hasFetched.current = false;
       await fetchStatus();
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Deposit failed';
-      // Provide helpful errors for common failures
       if (msg.includes('insufficient funds') || msg.includes('gas')) {
         setTxMessage({ type: 'error', text: 'Gas funding may have failed. Please try again — we cover gas fees automatically.' });
       } else if (msg.includes('User rejected') || msg.includes('denied')) {
@@ -186,7 +210,8 @@ export default function FundPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || 'Withdrawal failed');
 
-      setTxMessage({ type: 'success', text: `Withdrew ${amount} USDC` });
+      const received = data.data?.amountSent ?? (amount - 0.5);
+      setTxMessage({ type: 'success', text: `Withdrew $${amount.toFixed(2)} — $${received.toFixed(2)} sent to your wallet` });
       setWithdrawAmount('');
       hasFetched.current = false;
       await fetchStatus();
@@ -194,6 +219,82 @@ export default function FundPage() {
       setTxMessage({ type: 'error', text: e instanceof Error ? e.message : 'Withdrawal failed' });
     } finally {
       setIsWithdrawing(false);
+    }
+  };
+
+  // Send USDC from Privy embedded wallet → any external address
+  const handleSendExternal = async () => {
+    const amount = parseFloat(externalAmount);
+    if (!amount || amount <= 0 || !externalAddress) return;
+
+    if (!/^0x[a-fA-F0-9]{40}$/.test(externalAddress)) {
+      setTxMessage({ type: 'error', text: 'Invalid wallet address. Must be a valid Ethereum/Base address.' });
+      return;
+    }
+
+    const wallet = wallets.find((w) => w.walletClientType === 'privy');
+    if (!wallet) {
+      setTxMessage({ type: 'error', text: 'No embedded wallet found. Try logging out and back in.' });
+      return;
+    }
+
+    setIsSendingExternal(true);
+    setTxMessage(null);
+
+    try {
+      // Fund gas if needed
+      setTxMessage({ type: 'success', text: 'Checking gas balance...' });
+      try {
+        const gasRes = await privyFetch('/api/wallet/gas', { method: 'POST' });
+        const gasData = await gasRes.json();
+        if (gasRes.ok && gasData.data?.funded) {
+          setTxMessage({ type: 'success', text: 'Gas funded! Preparing transfer...' });
+          await new Promise(resolve => setTimeout(resolve, 3000));
+        }
+      } catch {
+        // best-effort
+      }
+
+      // Switch chain
+      try {
+        await wallet.switchChain(BASE_CHAIN_ID);
+      } catch {
+        // may already be on Base
+      }
+
+      const usdcAmount = parseUnits(amount.toString(), 6);
+      const data = encodeFunctionData({
+        abi: ERC20_TRANSFER_ABI,
+        functionName: 'transfer',
+        args: [externalAddress as `0x${string}`, usdcAmount],
+      });
+
+      setTxMessage({ type: 'success', text: 'Sending USDC to external wallet...' });
+      const provider = await wallet.getEthereumProvider();
+      await provider.request({
+        method: 'eth_sendTransaction',
+        params: [{
+          from: wallet.address,
+          to: USDC_ADDRESS,
+          data,
+          chainId: `0x${BASE_CHAIN_ID.toString(16)}`,
+        }],
+      });
+
+      setTxMessage({ type: 'success', text: `Sent ${amount} USDC to ${externalAddress.slice(0, 6)}...${externalAddress.slice(-4)}` });
+      setExternalAmount('');
+      setExternalAddress('');
+      hasFetched.current = false;
+      await fetchStatus();
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Transfer failed';
+      if (msg.includes('User rejected') || msg.includes('denied')) {
+        setTxMessage({ type: 'error', text: 'Transaction was cancelled.' });
+      } else {
+        setTxMessage({ type: 'error', text: msg });
+      }
+    } finally {
+      setIsSendingExternal(false);
     }
   };
 
@@ -208,6 +309,10 @@ export default function FundPage() {
   // Get embedded wallet address from Privy (may differ from DB until sync)
   const embeddedWallet = wallets.find((w) => w.walletClientType === 'privy');
   const displayAddress = status?.walletAddress || embeddedWallet?.address || '';
+
+  // Withdrawal preview
+  const withdrawNum = parseFloat(withdrawAmount) || 0;
+  const withdrawReceive = Math.max(0, withdrawNum - 0.5);
 
   if (!ready || (authenticated && !walletsReady)) {
     return (
@@ -334,15 +439,23 @@ export default function FundPage() {
             <Card className="p-8" hover={false}>
               <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">Deposit to Trading Balance</p>
               <div className="flex gap-3">
-                <input
-                  type="number"
-                  placeholder="Amount (USDC)"
-                  value={depositAmount}
-                  onChange={(e) => setDepositAmount(e.target.value)}
-                  className="flex-1 h-12 px-4 rounded-xl bg-slate-800 border border-slate-700 focus:outline-none focus:border-indigo-500 text-white placeholder:text-slate-500"
-                  min="0"
-                  step="0.01"
-                />
+                <div className="flex-1 flex gap-2">
+                  <input
+                    type="number"
+                    placeholder="Amount (USDC)"
+                    value={depositAmount}
+                    onChange={(e) => setDepositAmount(e.target.value)}
+                    className="flex-1 h-12 px-4 rounded-xl bg-slate-800 border border-slate-700 focus:outline-none focus:border-indigo-500 text-white placeholder:text-slate-500"
+                    min="0"
+                    step="0.01"
+                  />
+                  <button
+                    onClick={() => setDepositAmount(status.walletBalance.toFixed(2))}
+                    className="h-12 px-3 rounded-xl bg-slate-700 hover:bg-slate-600 text-xs font-bold text-slate-300 hover:text-white transition-colors"
+                  >
+                    MAX
+                  </button>
+                </div>
                 <Button onClick={handleDeposit} disabled={isDepositing || !depositAmount || parseFloat(depositAmount) <= 0}>
                   {isDepositing ? 'Processing...' : 'Deposit'}
                 </Button>
@@ -361,31 +474,102 @@ export default function FundPage() {
             <Card className="p-8" hover={false}>
               <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">Withdraw to Wallet</p>
               <div className="flex gap-3">
-                <input
-                  type="number"
-                  placeholder="Amount (USDC)"
-                  value={withdrawAmount}
-                  onChange={(e) => setWithdrawAmount(e.target.value)}
-                  className="flex-1 h-12 px-4 rounded-xl bg-slate-800 border border-slate-700 focus:outline-none focus:border-indigo-500 text-white placeholder:text-slate-500"
-                  min="0"
-                  step="0.01"
-                />
+                <div className="flex-1 flex gap-2">
+                  <input
+                    type="number"
+                    placeholder="Amount (USDC)"
+                    value={withdrawAmount}
+                    onChange={(e) => setWithdrawAmount(e.target.value)}
+                    className="flex-1 h-12 px-4 rounded-xl bg-slate-800 border border-slate-700 focus:outline-none focus:border-indigo-500 text-white placeholder:text-slate-500"
+                    min="0"
+                    step="0.01"
+                  />
+                  <button
+                    onClick={() => setWithdrawAmount(status.platformBalance.toFixed(2))}
+                    className="h-12 px-3 rounded-xl bg-slate-700 hover:bg-slate-600 text-xs font-bold text-slate-300 hover:text-white transition-colors"
+                  >
+                    MAX
+                  </button>
+                </div>
                 <Button
                   variant="secondary"
                   onClick={handleWithdraw}
-                  disabled={isWithdrawing || !withdrawAmount || parseFloat(withdrawAmount) <= 0}
+                  disabled={isWithdrawing || !withdrawAmount || parseFloat(withdrawAmount) < 1}
                 >
                   {isWithdrawing ? 'Withdrawing...' : 'Withdraw'}
                 </Button>
               </div>
+              {/* Withdrawal preview */}
+              {withdrawNum >= 1 && (
+                <div className="mt-3 p-3 rounded-lg bg-slate-900/50 border border-slate-800">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-400">You withdraw:</span>
+                    <span className="text-white font-semibold">${withdrawNum.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm mt-1">
+                    <span className="text-slate-400">Fee:</span>
+                    <span className="text-slate-300">-$0.50</span>
+                  </div>
+                  <div className="flex justify-between text-sm mt-1 pt-1 border-t border-slate-800">
+                    <span className="text-slate-300 font-semibold">You receive:</span>
+                    <span className="text-white font-bold">${withdrawReceive.toFixed(2)} USDC</span>
+                  </div>
+                </div>
+              )}
               <div className="mt-3 space-y-1">
                 <p className="text-xs text-slate-500">
                   Moves USDC from your trading balance back to your embedded wallet on Base.
                 </p>
                 <p className="text-xs text-amber-400/70">
-                  $1.00 USDC fee applies. Minimum withdrawal: $2.00 USDC.
+                  $0.50 USDC fee is subtracted from your withdrawal. Minimum: $1.00 USDC.
                 </p>
               </div>
+            </Card>
+
+            {/* Send to External Wallet */}
+            <Card className="p-8" hover={false}>
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">Send to External Wallet</p>
+              <p className="text-xs text-slate-400 mb-4">
+                Send USDC directly from your embedded wallet to any personal wallet or exchange address on Base.
+              </p>
+              <div className="space-y-3">
+                <input
+                  type="text"
+                  placeholder="Recipient address (0x...)"
+                  value={externalAddress}
+                  onChange={(e) => setExternalAddress(e.target.value)}
+                  className="w-full h-12 px-4 rounded-xl bg-slate-800 border border-slate-700 focus:outline-none focus:border-indigo-500 text-white placeholder:text-slate-500 font-mono text-sm"
+                />
+                <div className="flex gap-3">
+                  <div className="flex-1 flex gap-2">
+                    <input
+                      type="number"
+                      placeholder="Amount (USDC)"
+                      value={externalAmount}
+                      onChange={(e) => setExternalAmount(e.target.value)}
+                      className="flex-1 h-12 px-4 rounded-xl bg-slate-800 border border-slate-700 focus:outline-none focus:border-indigo-500 text-white placeholder:text-slate-500"
+                      min="0"
+                      step="0.01"
+                    />
+                    <button
+                      onClick={() => setExternalAmount(status.walletBalance.toFixed(2))}
+                      className="h-12 px-3 rounded-xl bg-slate-700 hover:bg-slate-600 text-xs font-bold text-slate-300 hover:text-white transition-colors"
+                    >
+                      MAX
+                    </button>
+                  </div>
+                  <Button
+                    variant="secondary"
+                    onClick={handleSendExternal}
+                    disabled={isSendingExternal || !externalAmount || !externalAddress || parseFloat(externalAmount) <= 0}
+                  >
+                    {isSendingExternal ? 'Sending...' : 'Send'}
+                  </Button>
+                </div>
+              </div>
+              <p className="text-xs text-slate-500 mt-3">
+                This sends from your on-chain wallet balance (not your trading balance). No platform fee — only Base gas.
+              </p>
             </Card>
           </>
         ) : null}
