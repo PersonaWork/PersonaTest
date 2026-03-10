@@ -18,6 +18,12 @@ export const FEE_COLLECTOR_ADDRESS = '0x43c661401D7a80ed3260D6252Cc1f431380e0809
 export const GAS_MIN_THRESHOLD = 0.0002;   // Fund user if ETH below this
 export const GAS_TOPUP_AMOUNT = 0.0005;    // Send this much ETH per top-up
 
+/** Normalize a private key to ensure it has 0x prefix and no whitespace */
+function normalizeKey(key: string): `0x${string}` {
+  const trimmed = key.trim();
+  return (trimmed.startsWith('0x') ? trimmed : `0x${trimmed}`) as `0x${string}`;
+}
+
 const ERC20_ABI = parseAbi([
   'function balanceOf(address account) view returns (uint256)',
   'function transfer(address to, uint256 amount) returns (bool)',
@@ -104,12 +110,12 @@ export async function sendUsdcFromTreasury(
   toAddress: `0x${string}`,
   amount: number,
 ): Promise<`0x${string}`> {
-  const privateKey = process.env.TREASURY_PRIVATE_KEY;
-  if (!privateKey) {
+  const rawKey = process.env.TREASURY_PRIVATE_KEY;
+  if (!rawKey) {
     throw new Error('TREASURY_PRIVATE_KEY not configured');
   }
 
-  const account = privateKeyToAccount(privateKey as `0x${string}`);
+  const account = privateKeyToAccount(normalizeKey(rawKey));
   const walletClient = createWalletClient({
     account,
     chain: base,
@@ -144,12 +150,12 @@ export async function sendEthFromGasStation(
   toAddress: `0x${string}`,
   amountEth: number = GAS_TOPUP_AMOUNT,
 ): Promise<`0x${string}`> {
-  const privateKey = process.env.GAS_STATION_PRIVATE_KEY;
-  if (!privateKey) {
+  const rawKey = process.env.GAS_STATION_PRIVATE_KEY;
+  if (!rawKey) {
     throw new Error('GAS_STATION_PRIVATE_KEY not configured');
   }
 
-  const account = privateKeyToAccount(privateKey as `0x${string}`);
+  const account = privateKeyToAccount(normalizeKey(rawKey));
   const walletClient = createWalletClient({
     account,
     chain: base,
@@ -173,10 +179,10 @@ export async function sendEthFromGasStation(
  * Get the ETH balance of the gas station wallet
  */
 export async function getGasStationBalance(): Promise<number> {
-  const privateKey = process.env.GAS_STATION_PRIVATE_KEY;
-  if (!privateKey) return 0;
+  const rawKey = process.env.GAS_STATION_PRIVATE_KEY;
+  if (!rawKey) return 0;
 
-  const account = privateKeyToAccount(privateKey as `0x${string}`);
+  const account = privateKeyToAccount(normalizeKey(rawKey));
   return getEthBalance(account.address);
 }
 
