@@ -109,18 +109,26 @@ export default function FundPage() {
       // Step 2: Auto-fund gas if needed (we cover ETH fees for users)
       setTxMessage({ type: 'success', text: 'Checking gas balance...' });
       let gasFunded = false;
+      let gasError = '';
       try {
         const gasRes = await privyFetch('/api/wallet/gas', { method: 'POST' });
         const gasData = await gasRes.json();
         if (gasRes.ok && gasData.data?.funded) {
           gasFunded = true;
           setTxMessage({ type: 'success', text: 'Gas funded! Waiting for confirmation...' });
-          await new Promise(resolve => setTimeout(resolve, 4000));
+          // Wait longer for the ETH tx to confirm on Base
+          await new Promise(resolve => setTimeout(resolve, 6000));
+        } else if (gasRes.ok && gasData.data?.reason === 'sufficient') {
+          // User already has gas — proceed
+        } else if (gasRes.ok && gasData.data?.reason === 'cooldown') {
+          gasError = gasData.data?.message || 'Gas funding on cooldown';
         } else if (!gasRes.ok) {
-          console.warn('Gas funding failed:', gasData?.error);
+          gasError = gasData?.error || 'Gas funding failed';
+          console.warn('Gas funding failed:', gasError);
         }
-      } catch {
-        console.warn('Gas funding request failed');
+      } catch (gasErr) {
+        gasError = gasErr instanceof Error ? gasErr.message : 'Gas funding request failed';
+        console.warn('Gas funding request failed:', gasErr);
       }
 
       // Step 3: Verify ETH balance before attempting tx — prevents Privy error modal
@@ -131,11 +139,13 @@ export default function FundPage() {
       const ethBalance = parseInt(ethHex as string, 16) / 1e18;
 
       if (ethBalance < 0.00005) {
-        // Not enough gas to do anything
+        // Not enough gas to do anything — give specific error
         if (gasFunded) {
-          throw new Error('Gas was sent but hasn\'t arrived yet. Please wait 10 seconds and try again.');
+          throw new Error('Gas was just sent to your wallet but hasn\'t confirmed yet. Please wait 15 seconds and try again.');
+        } else if (gasError) {
+          throw new Error(`No ETH for gas fees. Gas funding error: ${gasError}`);
         } else {
-          throw new Error('Your wallet needs ETH for gas fees. Gas auto-funding may be temporarily unavailable — please try again in a moment.');
+          throw new Error('Your wallet has no ETH for gas fees and auto-funding didn\'t work. Please try again or contact support.');
         }
       }
 

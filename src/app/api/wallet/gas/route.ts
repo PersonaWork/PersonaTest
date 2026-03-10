@@ -41,6 +41,7 @@ export async function POST(request: NextRequest) {
 
     // Check current ETH balance
     const ethBalance = await getEthBalance(user.walletAddress as `0x${string}`);
+    console.log(`[GAS] User ${user.walletAddress} ETH balance: ${ethBalance}, threshold: ${GAS_MIN_THRESHOLD}`);
 
     if (ethBalance >= GAS_MIN_THRESHOLD) {
       return successResponse({
@@ -51,17 +52,26 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // Verify gas station private key is configured
+    if (!process.env.GAS_STATION_PRIVATE_KEY) {
+      console.error('[GAS] GAS_STATION_PRIVATE_KEY env var is not set!');
+      return errorResponse('Gas station not configured on this server.', 500);
+    }
+
     // Send ETH from gas station
+    console.log(`[GAS] Sending ${GAS_TOPUP_AMOUNT} ETH to ${user.walletAddress}...`);
     let txHash: string;
     try {
       txHash = await sendEthFromGasStation(
         user.walletAddress as `0x${string}`,
         GAS_TOPUP_AMOUNT,
       );
+      console.log(`[GAS] Success! TX: ${txHash}`);
     } catch (error) {
-      console.error('Gas station funding failed:', error);
+      const errMsg = error instanceof Error ? error.message : String(error);
+      console.error(`[GAS] Send failed: ${errMsg}`, error);
       return errorResponse(
-        'Failed to send gas — the gas station may be empty. Please try again later.',
+        `Failed to send gas: ${errMsg}`,
         500
       );
     }
