@@ -130,7 +130,7 @@ export default async function HomePage() {
                         <div className="flex items-center justify-between">
                           <div>
                             <p className="text-sm font-bold text-white">{c.name}</p>
-                            <p className="text-xs text-slate-500">${c.currentPrice.toFixed(2)} USDC</p>
+                            <p className="text-xs text-slate-500">${(c.currentPrice ?? 0).toFixed(2)} USDC</p>
                           </div>
                           <div className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center text-xl">
                             {c.name[0]}
@@ -251,7 +251,7 @@ export default async function HomePage() {
                   {c.description}
                 </p>
                 <p className="text-sm font-semibold text-indigo-400 mb-4">
-                  ${c.currentPrice.toFixed(2)} USDC &bull; {c.sharesIssued.toLocaleString()} shares issued
+                  ${(c.currentPrice ?? 0).toFixed(2)} USDC &bull; {(c.sharesIssued ?? 0).toLocaleString()} shares issued
                 </p>
                 <Link href={`/character/${c.slug}`}>
                   <Button variant="secondary" size="sm">View Character</Button>

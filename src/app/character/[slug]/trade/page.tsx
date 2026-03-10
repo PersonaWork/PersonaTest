@@ -99,8 +99,13 @@ export default function TradePage() {
       const response = await fetch(`/api/characters/${slug}`);
       if (!response.ok) throw new Error('Failed to fetch character');
 
-      const data = await response.json();
-      setCharacter(data);
+      const json = await response.json();
+      // Unwrap successResponse envelope: { success: true, data: {...} }
+      if (json.success && json.data) {
+        setCharacter(json.data);
+      } else {
+        setCharacter(json);
+      }
     } catch (error) {
       console.error('Failed to fetch character:', error);
     } finally {

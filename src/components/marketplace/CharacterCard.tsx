@@ -27,7 +27,7 @@ interface CharacterCardProps {
 }
 
 const CharacterCard = memo(function CharacterCard({ character, showStats = true }: CharacterCardProps) {
-    const isPositive = character.change >= 0;
+    const isPositive = (character.change ?? 0) >= 0;
     const progress = character.totalShares
         ? ((character.sharesIssued || 0) / character.totalShares) * 100
         : 0;
@@ -91,9 +91,9 @@ const CharacterCard = memo(function CharacterCard({ character, showStats = true 
                             <p className="text-sm text-slate-500">@{character.slug}_persona</p>
                         </div>
                         <div className="text-right">
-                            <p className="text-xl font-black text-white">${character.price.toFixed(2)}</p>
+                            <p className="text-xl font-black text-white">${(character.price ?? 0).toFixed(2)}</p>
                             <p className={`text-xs font-semibold ${isPositive ? 'text-emerald-400' : 'text-red-400'}`}>
-                                {isPositive ? '+' : ''}{character.change.toFixed(1)}%
+                                {isPositive ? '+' : ''}{(character.change ?? 0).toFixed(1)}%
                             </p>
                         </div>
                     </div>
@@ -128,7 +128,7 @@ const CharacterCard = memo(function CharacterCard({ character, showStats = true 
                                 <div className="p-3 rounded-xl bg-slate-900/50">
                                     <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-0.5">Market Cap</p>
                                     <p className="text-sm font-bold text-white">
-                                        ${(character.marketCap / 1000).toFixed(0)}K
+                                        ${((character.marketCap ?? 0) / 1000).toFixed(0)}K
                                     </p>
                                 </div>
                                 <div className="p-3 rounded-xl bg-slate-900/50">
