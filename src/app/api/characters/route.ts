@@ -19,8 +19,21 @@ export async function GET(request: NextRequest) {
 
         const characters = await prisma.character.findMany({
             where,
-            orderBy: { id: 'desc' },
-            include: {
+            orderBy: { marketCap: 'desc' },
+            select: {
+                id: true,
+                name: true,
+                slug: true,
+                description: true,
+                thumbnailUrl: true,
+                currentPrice: true,
+                marketCap: true,
+                totalShares: true,
+                sharesIssued: true,
+                isLaunched: true,
+                tiktokHandle: true,
+                instagramHandle: true,
+                launchAt: true,
                 holdings: {
                     select: { userId: true }
                 }
@@ -41,8 +54,6 @@ export async function GET(request: NextRequest) {
             sharesIssued: char.sharesIssued,
             holders: new Set(char.holdings.map(h => h.userId)).size,
             status: char.isLaunched ? 'LIVE' : 'LAUNCHING SOON',
-            personality: char.personality,
-            environment: char.environment,
             tiktokHandle: char.tiktokHandle,
             instagramHandle: char.instagramHandle,
             launchAt: char.launchAt,

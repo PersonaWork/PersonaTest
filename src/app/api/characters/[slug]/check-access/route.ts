@@ -11,9 +11,10 @@ export async function GET(
     const { claims } = await requireAuth(request.headers);
     const userId = claims.userId;
 
-    // Get character
+    // Get character ID only
     const character = await prisma.character.findUnique({
-      where: { slug }
+      where: { slug },
+      select: { id: true }
     });
 
     if (!character) {
@@ -23,14 +24,15 @@ export async function GET(
       );
     }
 
-    // Check if user has holdings
+    // Check if user has holdings (only fetch shares count)
     const holding = await prisma.holding.findUnique({
       where: {
         userId_characterId: {
           userId,
           characterId: character.id
         }
-      }
+      },
+      select: { shares: true }
     });
 
     const hasAccess = holding && holding.shares > 0;

@@ -8,9 +8,10 @@ export async function GET(
   try {
     const { slug } = await params;
 
-    // Get character
+    // Get character ID only
     const character = await prisma.character.findUnique({
-      where: { slug }
+      where: { slug },
+      select: { id: true }
     });
 
     if (!character) {
@@ -20,11 +21,12 @@ export async function GET(
       );
     }
 
-    // Get recent messages
+    // Get recent messages (only needed fields)
     const messages = await prisma.message.findMany({
       where: { characterId: character.id },
       orderBy: { createdAt: 'desc' },
-      take: 50
+      take: 50,
+      select: { id: true, content: true, role: true, createdAt: true }
     });
 
     return NextResponse.json(messages.reverse());

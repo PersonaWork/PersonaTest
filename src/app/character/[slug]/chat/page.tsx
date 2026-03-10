@@ -92,15 +92,20 @@ export default function ChatPage() {
     }
   }, [slug]);
 
+  // Fetch character + messages (no auth dependency — won't re-run on login)
   useEffect(() => {
     if (slug) {
-      if (ready) {
-        checkAccess();
-      }
       fetchCharacter();
       fetchMessages();
     }
-  }, [slug, ready, authenticated, checkAccess, fetchCharacter, fetchMessages]);
+  }, [slug, fetchCharacter, fetchMessages]);
+
+  // Check access (auth-dependent — separate to avoid refetching character/messages)
+  useEffect(() => {
+    if (slug && ready) {
+      checkAccess();
+    }
+  }, [slug, ready, checkAccess]);
 
   useEffect(() => {
     scrollToBottom();

@@ -22,35 +22,32 @@ export async function POST(
     const { message } = parsed.data;
     const userId = claims.userId;
 
-    // Get character
+    // Get character (only fields needed for chat)
     const character = await prisma.character.findUnique({
-      where: { slug }
+      where: { slug },
+      select: { id: true, name: true, personality: true }
     });
 
     if (!character) {
       return errorResponse('Character not found', 404);
     }
 
-    // Check user has access (holds shares)
-    const holding = await prisma.holding.findUnique({
-      where: {
-        userId_characterId: {
-          userId,
-          characterId: character.id
-        }
-      }
-    });
+    // Parallelize: check access + fetch message history at the same time
+    const [holding, messageHistory] = await Promise.all([
+      prisma.holding.findUnique({
+        where: { userId_characterId: { userId, characterId: character.id } },
+        select: { shares: true }
+      }),
+      prisma.message.findMany({
+        where: { characterId: character.id },
+        orderBy: { createdAt: 'desc' },
+        take: 20
+      })
+    ]);
 
     if (!holding || holding.shares <= 0) {
       return errorResponse('Access denied - no shares held', 403);
     }
-
-    // Get message history
-    const messageHistory = await prisma.message.findMany({
-      where: { characterId: character.id },
-      orderBy: { createdAt: 'desc' },
-      take: 20
-    });
 
     // Save user message
     const userMessageRecord = await prisma.message.create({
@@ -89,15 +86,11 @@ export async function POST(
       }
     });
 
-    // Get updated message list
-    const updatedMessages = await prisma.message.findMany({
-      where: { characterId: character.id },
-      orderBy: { createdAt: 'desc' },
-      take: 50
-    });
+    // Construct response from existing data (avoids redundant DB round-trip)
+    const allMessages = [...messageHistory.reverse(), userMessageRecord, aiMessageRecord];
 
     return successResponse({
-      messages: updatedMessages.reverse(),
+      messages: allMessages,
       userMessage: userMessageRecord,
       aiMessage: aiMessageRecord
     });

@@ -28,13 +28,14 @@ export async function POST(request: NextRequest) {
       return errorResponse('User ID not found in claims', 400);
     }
 
-    const user = await prisma.user.findUnique({ where: { privyId: userId } });
-    if (!user) {
-      return errorResponse('User not found in database', 404);
-    }
-
     // Wrap everything in a transaction to ensure atomic execution
     const result = await prisma.$transaction(async (tx) => {
+      // Resolve privyId → internal user inside the transaction (single lookup)
+      const user = await tx.user.findUnique({ where: { privyId: userId } });
+      if (!user) {
+        throw new Error('User not found in database');
+      }
+
       // Get character and current user holding
       const character = await tx.character.findUnique({ where: { id: characterId } });
       if (!character) {
@@ -120,6 +121,9 @@ export async function POST(request: NextRequest) {
   } catch (err: unknown) {
     const error = err as Error & { statusCode?: number };
     console.error('Sell failed:', error);
+    if (error.message === 'User not found in database') {
+      return errorResponse(error.message, 404);
+    }
     if (error.message === 'Character not found' || error.message === 'Insufficient shares to sell') {
       return errorResponse(error.message, 400);
     }

@@ -8,9 +8,10 @@ export async function GET(
   try {
     const { slug } = await params;
 
-    // First get the character
+    // Get character ID only
     const character = await prisma.character.findUnique({
-      where: { slug }
+      where: { slug },
+      select: { id: true }
     });
 
     if (!character) {
@@ -20,11 +21,12 @@ export async function GET(
       );
     }
 
-    // Get recent events
+    // Get recent events (only needed fields)
     const events = await prisma.characterEvent.findMany({
       where: { characterId: character.id },
       orderBy: { triggeredAt: 'desc' },
-      take: 20
+      take: 20,
+      select: { id: true, actionId: true, isRare: true, triggeredAt: true }
     });
 
     return NextResponse.json(events);

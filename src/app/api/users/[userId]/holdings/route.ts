@@ -17,7 +17,15 @@ export async function GET(
     const holdings = await prisma.holding.findMany({
       where: { userId },
       include: {
-        character: true
+        character: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            currentPrice: true,
+            thumbnailUrl: true,
+          }
+        }
       }
     });
 

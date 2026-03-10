@@ -36,11 +36,12 @@ export async function GET(
             return errorResponse('Character not found', 404);
         }
 
-        // Calculate price change from transactions
+        // Calculate price change from transactions (only fetch needed field)
         const recentTransactions = await prisma.transaction.findMany({
             where: { characterId: character.id },
             orderBy: { createdAt: 'desc' },
-            take: 20
+            take: 20,
+            select: { pricePerShare: true }
         });
 
         let priceChange = 0;

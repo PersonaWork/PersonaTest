@@ -3,10 +3,19 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { Button, Card, Skeleton } from '@/components/ui';
-import AnimatedLiveCam from '@/components/character/AnimatedLiveCam';
-import PriceChart from '@/components/character/PriceChart';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import Image from 'next/image';
+
+const AnimatedLiveCam = dynamic(() => import('@/components/character/AnimatedLiveCam'), {
+  ssr: false,
+  loading: () => <div className="h-full w-full bg-slate-950 animate-pulse" />
+});
+
+const PriceChart = dynamic(() => import('@/components/character/PriceChart'), {
+  ssr: false,
+  loading: () => <div className="h-[200px] bg-slate-950/50 rounded-xl animate-pulse border border-slate-800" />
+});
 
 interface Character {
   id: string;

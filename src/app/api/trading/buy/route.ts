@@ -28,13 +28,14 @@ export async function POST(request: NextRequest) {
       return errorResponse('User ID not found in claims', 400);
     }
 
-    const user = await prisma.user.findUnique({ where: { privyId: userId } });
-    if (!user) {
-      return errorResponse('User not found in database', 404);
-    }
-
     // Wrap everything in a transaction to ensure atomic execution
     const result = await prisma.$transaction(async (tx) => {
+      // Resolve privyId → internal user inside the transaction (single lookup)
+      const user = await tx.user.findUnique({ where: { privyId: userId } });
+      if (!user) {
+        throw new Error('User not found in database');
+      }
+
       // Get character and current user holding
       const character = await tx.character.findUnique({ where: { id: characterId } });
       if (!character) {
@@ -50,10 +51,9 @@ export async function POST(request: NextRequest) {
       const pricePerShare = currentPrice * (1 + (shares / character.totalShares) * 0.05);
       const totalCost = shares * pricePerShare;
 
-      // Check USDC balance
-      const buyer = await tx.user.findUnique({ where: { id: user.id } });
-      if (!buyer || buyer.usdcBalance < totalCost) {
-        throw new Error(`Insufficient USDC balance. Need ${totalCost.toFixed(2)} USDC but have ${(buyer?.usdcBalance ?? 0).toFixed(2)} USDC`);
+      // Check USDC balance (user already fetched with transaction isolation)
+      if (user.usdcBalance < totalCost) {
+        throw new Error(`Insufficient USDC balance. Need ${totalCost.toFixed(2)} USDC but have ${user.usdcBalance.toFixed(2)} USDC`);
       }
 
       // Deduct USDC balance
@@ -132,6 +132,9 @@ export async function POST(request: NextRequest) {
   } catch (err: unknown) {
     const error = err as Error & { statusCode?: number };
     console.error('Buy failed:', error);
+    if (error.message === 'User not found in database') {
+      return errorResponse(error.message, 404);
+    }
     if (error.message === 'Character not found') {
       return errorResponse(error.message, 404);
     }
