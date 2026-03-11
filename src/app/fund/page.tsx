@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { usePrivy, useWallets } from '@privy-io/react-auth';
 import { usePrivyAuthedFetch } from '@/lib/auth/privy-client';
+import { useAuth } from '@/lib/auth/auth-context';
 import { Button, Card } from '@/components/ui';
 import { encodeFunctionData, parseUnits } from 'viem';
 
@@ -38,6 +39,7 @@ export default function FundPage() {
   const { ready, authenticated, login } = usePrivy();
   const { ready: walletsReady, wallets } = useWallets();
   const privyFetch = usePrivyAuthedFetch();
+  const { refreshBalance } = useAuth();
   const hasFetched = useRef(false);
 
   const [status, setStatus] = useState<WalletStatus | null>(null);
@@ -79,6 +81,15 @@ export default function FundPage() {
       hasFetched.current = true;
       fetchStatus();
     }
+  }, [ready, authenticated, fetchStatus]);
+
+  // Auto-refresh balances every 15 seconds
+  useEffect(() => {
+    if (!ready || !authenticated) return;
+    const interval = setInterval(() => {
+      fetchStatus();
+    }, 15000);
+    return () => clearInterval(interval);
   }, [ready, authenticated, fetchStatus]);
 
   // Real deposit: send USDC on-chain from Privy wallet → treasury, then verify via API
@@ -210,6 +221,7 @@ export default function FundPage() {
       setDepositAmount('');
       hasFetched.current = false;
       await fetchStatus();
+      await refreshBalance();
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Deposit failed';
       if (msg.includes('User rejected') || msg.includes('denied')) {
@@ -244,6 +256,7 @@ export default function FundPage() {
       setWithdrawAmount('');
       hasFetched.current = false;
       await fetchStatus();
+      await refreshBalance();
     } catch (e: unknown) {
       setTxMessage({ type: 'error', text: e instanceof Error ? e.message : 'Withdrawal failed' });
     } finally {
@@ -333,6 +346,7 @@ export default function FundPage() {
       setExternalAddress('');
       hasFetched.current = false;
       await fetchStatus();
+      await refreshBalance();
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Transfer failed';
       if (msg.includes('User rejected') || msg.includes('denied')) {
@@ -432,7 +446,7 @@ export default function FundPage() {
                   </div>
                   <div className="mt-4 space-y-2 text-sm text-slate-400">
                     <p>Send <span className="text-white font-semibold">USDC on Base network</span> to this address from any exchange (Coinbase, Binance, etc).</p>
-                    <p>After sending, click <strong className="text-white">Refresh</strong> to see your updated balance, then deposit to your trading balance.</p>
+                    <p>Balances update automatically. Once your USDC arrives, deposit it to your trading balance below.</p>
                   </div>
                 </>
               ) : (
@@ -442,9 +456,6 @@ export default function FundPage() {
                   </p>
                 </div>
               )}
-              <div className="mt-4">
-                <Button variant="secondary" onClick={() => { hasFetched.current = false; fetchStatus(); }}>Refresh Balances</Button>
-              </div>
             </Card>
 
             {/* Balances */}

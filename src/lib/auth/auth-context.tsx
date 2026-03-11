@@ -26,18 +26,24 @@ interface AuthContextType {
   isLoading: boolean;
   /** Whether the user is authenticated via Privy */
   isAuthenticated: boolean;
+  /** Platform USDC balance */
+  balance: number | null;
   /** Open Privy login modal */
   login: () => void;
   /** Log out and clear state */
   logout: () => Promise<void>;
+  /** Force refresh balance from server */
+  refreshBalance: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
   isLoading: true,
   isAuthenticated: false,
+  balance: null,
   login: () => { },
   logout: async () => { },
+  refreshBalance: async () => { },
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -52,8 +58,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const { wallets } = useWallets();
 
   const [dbUser, setDbUser] = useState<DbUser | null>(null);
+  const [balance, setBalance] = useState<number | null>(null);
   const [syncing, setSyncing] = useState(false);
   const syncingRef = useRef(false);
+  const balanceIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Sync Privy user to our database on login
   const syncUser = useCallback(async () => {
@@ -94,18 +102,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [authenticated, privyUser, getAccessToken, wallets]);
 
+  const fetchBalance = useCallback(async () => {
+    if (!authenticated) return;
+    try {
+      const token = await getAccessToken();
+      if (!token) return;
+      const res = await fetch('/api/wallet/status', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setBalance(data.data?.platformBalance ?? data.platformBalance ?? null);
+      }
+    } catch {
+      // silent
+    }
+  }, [authenticated, getAccessToken]);
+
   useEffect(() => {
     if (ready && authenticated && privyUser && !dbUser && !syncingRef.current) {
       syncUser();
     }
     if (ready && !authenticated) {
       setDbUser(null);
+      setBalance(null);
     }
   }, [ready, authenticated, privyUser, dbUser, syncUser]);
+
+  // Fetch balance after user syncs, then poll every 15s
+  useEffect(() => {
+    if (dbUser && authenticated) {
+      fetchBalance();
+      balanceIntervalRef.current = setInterval(fetchBalance, 15000);
+    }
+    return () => {
+      if (balanceIntervalRef.current) clearInterval(balanceIntervalRef.current);
+    };
+  }, [dbUser, authenticated, fetchBalance]);
 
   const logout = useCallback(async () => {
     await privyLogout();
     setDbUser(null);
+    setBalance(null);
+    if (balanceIntervalRef.current) clearInterval(balanceIntervalRef.current);
   }, [privyLogout]);
 
   return (
@@ -114,8 +153,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user: dbUser,
         isLoading: !ready || syncing,
         isAuthenticated: authenticated,
+        balance,
         login,
         logout,
+        refreshBalance: fetchBalance,
       }}
     >
       {children}

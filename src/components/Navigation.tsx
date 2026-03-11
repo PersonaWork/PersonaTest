@@ -9,7 +9,7 @@ import { useAuth } from '@/lib/auth/auth-context';
 const Navigation = () => {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const { isAuthenticated, isLoading, login, logout, user } = useAuth();
+  const { isAuthenticated, isLoading, login, logout, user, balance } = useAuth();
 
   const isActive = (path: string) => {
     if (path === '/') return pathname === '/';
@@ -71,8 +71,14 @@ const Navigation = () => {
                 <div className="w-20 h-9 rounded-lg bg-slate-800 animate-pulse" />
               ) : isAuthenticated ? (
                 <>
+                  {balance !== null && (
+                    <Link href="/fund" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800/80 border border-slate-700/50 hover:border-indigo-500/30 transition-colors">
+                      <span className="text-xs font-bold text-slate-400">$</span>
+                      <span className="text-sm font-bold text-white">{balance.toFixed(2)}</span>
+                    </Link>
+                  )}
                   {user && (
-                    <span className="text-sm text-slate-400 font-medium mr-2">
+                    <span className="text-sm text-slate-400 font-medium">
                       {user.username}
                     </span>
                   )}

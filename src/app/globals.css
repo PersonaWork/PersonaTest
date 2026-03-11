@@ -734,6 +734,17 @@ a:hover {
   animation: ticker 30s linear infinite;
 }
 
+/* Hide number input spinners */
+input[type='number']::-webkit-inner-spin-button,
+input[type='number']::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type='number'] {
+  -moz-appearance: textfield;
+}
+
 /* Glow effect */
 .glow {
   box-shadow: 0 0 30px rgba(99, 102, 241, 0.3);
