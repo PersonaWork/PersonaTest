@@ -7,6 +7,7 @@ import { z } from 'zod';
 
 const DepositSchema = z.object({
   txHash: z.string().min(1, 'Transaction hash is required'),
+  walletAddress: z.string().optional(), // Client sends the wallet that signed the tx
 });
 
 /**
@@ -25,7 +26,6 @@ export async function POST(request: NextRequest) {
     const { claims } = await requireAuth(request.headers);
     const user = await prisma.user.findUnique({ where: { privyId: claims.userId } });
     if (!user) return errorResponse('User not found', 404);
-    if (!user.walletAddress) return errorResponse('No wallet address on file. Please log out and back in.', 400);
 
     const body = await request.json();
     const parsed = DepositSchema.safeParse(body);
@@ -33,7 +33,23 @@ export async function POST(request: NextRequest) {
       return errorResponse(parsed.error.issues[0].message, 400);
     }
 
-    const { txHash } = parsed.data;
+    const { txHash, walletAddress: clientWallet } = parsed.data;
+
+    // Use client-provided wallet address (the one that actually signed the tx),
+    // falling back to DB address. This fixes the case where the DB address
+    // hasn't been synced yet from the Privy embedded wallet.
+    const senderAddress = clientWallet || user.walletAddress;
+    if (!senderAddress) {
+      return errorResponse('No wallet address available. Please log out and back in.', 400);
+    }
+
+    // If client sent a wallet address and it differs from DB, update the DB
+    if (clientWallet && clientWallet !== user.walletAddress) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { walletAddress: clientWallet },
+      }).catch(() => { /* ignore conflicts */ });
+    }
 
     // Prevent double-crediting: check if this tx hash was already processed
     // We store txHash in the transaction's characterId field as 'deposit:{txHash}'
@@ -49,7 +65,7 @@ export async function POST(request: NextRequest) {
     try {
       transferResult = await verifyUsdcTransfer(
         txHash as `0x${string}`,
-        user.walletAddress as `0x${string}`,
+        senderAddress as `0x${string}`,
         TREASURY_ADDRESS,
       );
     } catch (error) {

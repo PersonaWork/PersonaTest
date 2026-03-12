@@ -15,8 +15,8 @@ export const WITHDRAWAL_FEE = 0.50;        // $0.50 USDC flat fee on withdrawals
 export const FEE_COLLECTOR_ADDRESS = '0x43c661401D7a80ed3260D6252Cc1f431380e0809' as const;
 
 // ── Gas sponsoring ─────────────────────────────────────────────────
-export const GAS_MIN_THRESHOLD = 0.0002;   // Fund user if ETH below this
-export const GAS_TOPUP_AMOUNT = 0.0005;    // Send this much ETH per top-up
+export const GAS_MIN_THRESHOLD = 0.00002;  // Fund user if ETH below this (~$0.05)
+export const GAS_TOPUP_AMOUNT = 0.0001;    // Send this much ETH per top-up (~$0.25, covers 30+ Base txs)
 
 /** Normalize a private key to ensure it has 0x prefix and no whitespace */
 function normalizeKey(key: string): `0x${string}` {

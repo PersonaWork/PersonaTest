@@ -122,7 +122,11 @@ export default function FundPage() {
       let gasFunded = false;
       let gasError = '';
       try {
-        const gasRes = await privyFetch('/api/wallet/gas', { method: 'POST' });
+        const gasRes = await privyFetch('/api/wallet/gas', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ walletAddress: wallet.address }),
+        });
         const gasData = await gasRes.json();
         if (gasRes.ok && gasData.data?.funded) {
           gasFunded = true;
@@ -149,7 +153,7 @@ export default function FundPage() {
       });
       const ethBalance = parseInt(ethHex as string, 16) / 1e18;
 
-      if (ethBalance < 0.00005) {
+      if (ethBalance < 0.000005) {
         // Not enough gas to do anything — give specific error
         if (gasFunded) {
           throw new Error('Gas was just sent to your wallet but hasn\'t confirmed yet. Please wait 15 seconds and try again.');
@@ -183,15 +187,16 @@ export default function FundPage() {
       // Step 5: Wait for confirmation & verify via API
       setTxMessage({ type: 'success', text: 'Transaction sent! Waiting for confirmation...' });
 
-      // Poll for confirmation with retries
+      // Poll for confirmation with retries (8 attempts, 4s apart = 32s max)
       let verified = false;
-      for (let i = 0; i < 5; i++) {
-        await new Promise(resolve => setTimeout(resolve, 3000));
+      let lastError = '';
+      for (let i = 0; i < 8; i++) {
+        await new Promise(resolve => setTimeout(resolve, 4000));
         try {
           const res = await privyFetch('/api/wallet/fund', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ txHash }),
+            body: JSON.stringify({ txHash, walletAddress: wallet.address }),
           });
 
           const result = await res.json();
@@ -203,19 +208,27 @@ export default function FundPage() {
             verified = true;
             break;
           }
-          // If it says "not confirmed yet", keep retrying
-          if (result?.error?.includes('not confirmed') || result?.error?.includes('not found')) {
-            setTxMessage({ type: 'success', text: `Waiting for on-chain confirmation... (attempt ${i + 2}/5)` });
+          lastError = result?.error || 'Deposit verification failed';
+          // If tx hasn't been mined yet or receipt not found, keep retrying
+          if (lastError.includes('not found') || lastError.includes('not confirmed') || lastError.includes('could not be found')) {
+            setTxMessage({ type: 'success', text: `Waiting for on-chain confirmation... (attempt ${i + 2}/8)` });
             continue;
           }
-          throw new Error(result?.error || 'Deposit verification failed');
+          // Already processed is fine — means a previous attempt credited it
+          if (lastError.includes('already been processed')) {
+            setTxMessage({ type: 'success', text: `Deposit of ${amount} USDC confirmed!` });
+            verified = true;
+            break;
+          }
+          throw new Error(lastError);
         } catch (e: unknown) {
-          if (i === 4) throw e;
+          if (i === 7) throw e;
+          lastError = e instanceof Error ? e.message : 'Unknown error';
         }
       }
 
       if (!verified) {
-        throw new Error('Transaction sent but verification timed out. Your deposit should appear shortly — try refreshing.');
+        throw new Error(`Transaction sent but verification timed out (last error: ${lastError}). Your deposit should appear shortly — try refreshing.`);
       }
 
       setDepositAmount('');
@@ -297,7 +310,11 @@ export default function FundPage() {
       setTxMessage({ type: 'success', text: 'Checking gas balance...' });
       let gasFunded = false;
       try {
-        const gasRes = await privyFetch('/api/wallet/gas', { method: 'POST' });
+        const gasRes = await privyFetch('/api/wallet/gas', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ walletAddress: wallet.address }),
+        });
         const gasData = await gasRes.json();
         if (gasRes.ok && gasData.data?.funded) {
           gasFunded = true;
@@ -315,7 +332,7 @@ export default function FundPage() {
       });
       const ethBalance = parseInt(ethHex as string, 16) / 1e18;
 
-      if (ethBalance < 0.00005) {
+      if (ethBalance < 0.000005) {
         if (gasFunded) {
           throw new Error('Gas was sent but hasn\'t arrived yet. Please wait 10 seconds and try again.');
         } else {

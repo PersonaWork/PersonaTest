@@ -24,7 +24,21 @@ export async function POST(request: NextRequest) {
     const { claims } = await requireAuth(request.headers);
     const user = await prisma.user.findUnique({ where: { privyId: claims.userId } });
     if (!user) return errorResponse('User not found', 404);
-    if (!user.walletAddress) return errorResponse('No wallet address on file', 400);
+
+    // Accept wallet address from client (handles case where DB isn't synced yet)
+    const body = await request.json().catch(() => ({}));
+    const clientWallet = body?.walletAddress as string | undefined;
+    const walletAddress = clientWallet || user.walletAddress;
+
+    if (!walletAddress) return errorResponse('No wallet address on file', 400);
+
+    // Sync wallet address to DB if client provided one and it differs
+    if (clientWallet && clientWallet !== user.walletAddress) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { walletAddress: clientWallet },
+      }).catch(() => { /* ignore conflicts */ });
+    }
 
     // Check rate limit (once per 24h)
     if (user.lastGasFundedAt) {
@@ -40,8 +54,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Check current ETH balance
-    const ethBalance = await getEthBalance(user.walletAddress as `0x${string}`);
-    console.log(`[GAS] User ${user.walletAddress} ETH balance: ${ethBalance}, threshold: ${GAS_MIN_THRESHOLD}`);
+    const ethBalance = await getEthBalance(walletAddress as `0x${string}`);
+    console.log(`[GAS] User ${walletAddress} ETH balance: ${ethBalance}, threshold: ${GAS_MIN_THRESHOLD}`);
 
     if (ethBalance >= GAS_MIN_THRESHOLD) {
       return successResponse({
@@ -59,11 +73,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Send ETH from gas station
-    console.log(`[GAS] Sending ${GAS_TOPUP_AMOUNT} ETH to ${user.walletAddress}...`);
+    console.log(`[GAS] Sending ${GAS_TOPUP_AMOUNT} ETH to ${walletAddress}...`);
     let txHash: string;
     try {
       txHash = await sendEthFromGasStation(
-        user.walletAddress as `0x${string}`,
+        walletAddress as `0x${string}`,
         GAS_TOPUP_AMOUNT,
       );
       console.log(`[GAS] Success! TX: ${txHash}`);
