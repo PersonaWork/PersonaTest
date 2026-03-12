@@ -36,11 +36,10 @@ type WalletStatus = {
 };
 
 export default function FundPage() {
-  const { ready, authenticated, login } = usePrivy();
+  const { ready, authenticated, login, getAccessToken } = usePrivy();
   const { ready: walletsReady, wallets } = useWallets();
   const privyFetch = usePrivyAuthedFetch();
   const { refreshBalance } = useAuth();
-  const hasFetched = useRef(false);
 
   const [status, setStatus] = useState<WalletStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -56,21 +55,37 @@ export default function FundPage() {
   const [externalAmount, setExternalAmount] = useState('');
   const [isSendingExternal, setIsSendingExternal] = useState(false);
 
-  const fetchStatus = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
+  // Stable ref for fetching — avoids stale closure issues with intervals
+  const getAccessTokenRef = useRef(getAccessToken);
+  getAccessTokenRef.current = getAccessToken;
+
+  // Core fetch function — showLoading=true only for initial load
+  const doFetchStatus = useCallback(async (showLoading: boolean) => {
+    if (showLoading) {
+      setIsLoading(true);
+      setError(null);
+    }
     try {
-      const res = await privyFetch('/api/wallet/status');
+      const token = await getAccessTokenRef.current();
+      const res = await fetch('/api/wallet/status', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error || 'Failed to load wallet status');
       setStatus(data.data || data);
+      setError(null);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to load wallet status');
+      // Only set error on initial load — don't overwrite good data on refresh failure
+      if (showLoading) {
+        setError(e instanceof Error ? e.message : 'Failed to load wallet status');
+      }
     } finally {
-      setIsLoading(false);
+      if (showLoading) setIsLoading(false);
     }
-  }, [privyFetch]);
+  }, []); // No dependencies — uses refs for stable identity
 
+  // Initial fetch when authenticated
+  const hasFetched = useRef(false);
   useEffect(() => {
     if (!ready) return;
     if (!authenticated) {
@@ -79,18 +94,21 @@ export default function FundPage() {
     }
     if (!hasFetched.current) {
       hasFetched.current = true;
-      fetchStatus();
+      doFetchStatus(true);
     }
-  }, [ready, authenticated, fetchStatus]);
+  }, [ready, authenticated, doFetchStatus]);
 
-  // Auto-refresh balances every 15 seconds
+  // Silent auto-refresh every 15 seconds — never shows loading spinner
   useEffect(() => {
     if (!ready || !authenticated) return;
-    const interval = setInterval(() => {
-      fetchStatus();
-    }, 15000);
+    const interval = setInterval(() => doFetchStatus(false), 15000);
     return () => clearInterval(interval);
-  }, [ready, authenticated, fetchStatus]);
+  }, [ready, authenticated, doFetchStatus]);
+
+  // Wrapper for actions that need to refresh (deposit/withdraw) — no loading spinner
+  const refreshStatus = useCallback(async () => {
+    await doFetchStatus(false);
+  }, [doFetchStatus]);
 
   // Real deposit: send USDC on-chain from Privy wallet → treasury, then verify via API
   const handleDeposit = async () => {
@@ -232,8 +250,7 @@ export default function FundPage() {
       }
 
       setDepositAmount('');
-      hasFetched.current = false;
-      await fetchStatus();
+      await refreshStatus();
       await refreshBalance();
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Deposit failed';
@@ -267,8 +284,7 @@ export default function FundPage() {
       const received = data.data?.amountSent ?? (amount - 0.5);
       setTxMessage({ type: 'success', text: `Withdrew $${amount.toFixed(2)} — $${received.toFixed(2)} sent to your wallet` });
       setWithdrawAmount('');
-      hasFetched.current = false;
-      await fetchStatus();
+      await refreshStatus();
       await refreshBalance();
     } catch (e: unknown) {
       setTxMessage({ type: 'error', text: e instanceof Error ? e.message : 'Withdrawal failed' });
@@ -361,8 +377,7 @@ export default function FundPage() {
       setTxMessage({ type: 'success', text: `Sent ${amount} USDC to ${externalAddress.slice(0, 6)}...${externalAddress.slice(-4)}` });
       setExternalAmount('');
       setExternalAddress('');
-      hasFetched.current = false;
-      await fetchStatus();
+      await refreshStatus();
       await refreshBalance();
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Transfer failed';
@@ -446,7 +461,7 @@ export default function FundPage() {
         ) : error ? (
           <Card className="p-8" hover={false}>
             <p className="text-red-400 font-medium mb-4">{error}</p>
-            <Button onClick={() => { hasFetched.current = false; fetchStatus(); }}>Retry</Button>
+            <Button onClick={() => doFetchStatus(true)}>Retry</Button>
           </Card>
         ) : status ? (
           <>
