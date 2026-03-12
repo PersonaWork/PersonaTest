@@ -4,7 +4,7 @@ import { successResponse, errorResponse } from '@/lib/api';
 
 export async function GET(
   request: Request,
-  { params }: { params: Promise<{ userId: string }> }
+  { params: _params }: { params: Promise<{ userId: string }> }
 ) {
   try {
     const { claims } = await requireAuth(request.headers);
