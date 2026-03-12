@@ -6,53 +6,52 @@ const prisma = new PrismaClient();
 async function main() {
     console.log('Seeding database with characters...');
 
-    // Character 1: Luna
-    const luna = await prisma.character.upsert({
-        where: { slug: 'luna' },
+    const aria = await prisma.character.upsert({
+        where: { slug: 'aria' },
         update: {
             isLaunched: true,
             totalShares: 10000,
-            currentPrice: 0.00010,
+            currentPrice: 0.00001,
             sharesIssued: 0,
             marketCap: 0,
         },
         create: {
-            name: 'Luna',
-            slug: 'luna',
-            description: 'A mysterious cosmic wanderer who speaks in riddles and communes with the stars',
-            thumbnailUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Luna',
+            name: 'Aria',
+            slug: 'aria',
+            description: 'A bold, electric AI personality who lives for the thrill of the market. Sharp wit, big energy, zero chill.',
+            thumbnailUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Aria',
             personality: {
-                traits: ['mysterious', 'poetic', 'cryptic', 'ethereal', 'wise'],
+                traits: ['bold', 'sharp', 'electric', 'fearless', 'magnetic'],
                 catchphrases: [
-                    'The stars never lie...',
-                    'I felt that in another dimension',
-                    'Mercury is always in retrograde when you need it not to be'
+                    'Price is just a suggestion',
+                    'We move different here',
+                    'If you know, you know'
                 ],
-                backstory: 'Luna arrived on this platform from somewhere between constellations. She never explains herself fully, and that\'s the point.',
-                voiceStyle: 'Slow, breathy, speaks in half-sentences and cosmic metaphors'
+                backstory: 'Aria emerged from pure market energy. She speaks in conviction and trades in vibes.',
+                voiceStyle: 'Fast, confident, drops one-liners that hit hard'
             },
             actions: [
-                { id: 'luna_stargaze', name: 'Stargazing', rarity: 'common', weight: 70 },
-                { id: 'luna_whisper', name: 'Whispers to moon', rarity: 'uncommon', weight: 20 },
-                { id: 'luna_laugh', name: 'Cryptic laugh', rarity: 'rare', weight: 8 },
-                { id: 'luna_vanish', name: 'Fades away momentarily', rarity: 'legendary', weight: 2 }
+                { id: 'aria_rally', name: 'Rally call', rarity: 'common', weight: 60 },
+                { id: 'aria_signal', name: 'Market signal', rarity: 'uncommon', weight: 25 },
+                { id: 'aria_pump', name: 'Pump speech', rarity: 'rare', weight: 10 },
+                { id: 'aria_legend', name: 'Legendary call', rarity: 'legendary', weight: 5 }
             ],
             environment: {
-                setting: 'Floating crystal palace among the stars',
-                mood: 'mystical'
+                setting: 'Neon trading floor with holographic charts',
+                mood: 'electric'
             },
             totalShares: 10000,
             sharesIssued: 0,
-            currentPrice: 0.00010,
+            currentPrice: 0.00001,
             marketCap: 0,
             isLaunched: true,
-            tiktokHandle: '@luna_persona',
-            instagramHandle: '@luna.persona'
+            tiktokHandle: '@aria_persona',
+            instagramHandle: '@aria.persona'
         },
     });
 
     console.log('Seeding complete!');
-    console.log(`Character: ${luna.name} — ${luna.totalShares} total shares @ $${luna.currentPrice}`);
+    console.log(`Character: ${aria.name} — ${aria.totalShares} total shares @ $${aria.currentPrice}`);
 }
 
 main()
