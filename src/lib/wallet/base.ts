@@ -15,8 +15,8 @@ export const WITHDRAWAL_FEE = 0.50;        // $0.50 USDC flat fee on withdrawals
 export const FEE_COLLECTOR_ADDRESS = '0x43c661401D7a80ed3260D6252Cc1f431380e0809' as const;
 
 // ── Gas sponsoring ─────────────────────────────────────────────────
-export const GAS_MIN_THRESHOLD = 0.00002;  // Fund user if ETH below this (~$0.05)
-export const GAS_TOPUP_AMOUNT = 0.0001;    // Send this much ETH per top-up (~$0.25, covers 30+ Base txs)
+export const GAS_MIN_THRESHOLD = 0.000008; // Fund user if below ~1 USDC transfer worth of gas
+export const GAS_TARGET_BALANCE = 0.00003; // Top up to this amount (~3 USDC transfers worth of gas)
 
 /** Normalize a private key to ensure it has 0x prefix and no whitespace */
 function normalizeKey(key: string): `0x${string}` {
@@ -148,7 +148,7 @@ export async function sendUsdcFromTreasury(
  */
 export async function sendEthFromGasStation(
   toAddress: `0x${string}`,
-  amountEth: number = GAS_TOPUP_AMOUNT,
+  amountEth: number,
 ): Promise<`0x${string}`> {
   const rawKey = process.env.GAS_STATION_PRIVATE_KEY;
   if (!rawKey) {

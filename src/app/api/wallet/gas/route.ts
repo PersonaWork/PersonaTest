@@ -6,7 +6,7 @@ import {
   getEthBalance,
   sendEthFromGasStation,
   GAS_MIN_THRESHOLD,
-  GAS_TOPUP_AMOUNT,
+  GAS_TARGET_BALANCE,
 } from '@/lib/wallet/base';
 
 const GAS_COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24 hours between gas top-ups
@@ -72,13 +72,27 @@ export async function POST(request: NextRequest) {
       return errorResponse('Gas station not configured on this server.', 500);
     }
 
+    // Only send what's needed to reach the target balance
+    const topUpAmount = Math.max(0, GAS_TARGET_BALANCE - ethBalance);
+    // Round to 8 decimal places to avoid floating point dust
+    const roundedAmount = Math.ceil(topUpAmount * 1e8) / 1e8;
+
+    if (roundedAmount <= 0) {
+      return successResponse({
+        funded: false,
+        reason: 'sufficient',
+        ethBalance,
+        message: 'User already has enough ETH for gas.',
+      });
+    }
+
     // Send ETH from gas station
-    console.log(`[GAS] Sending ${GAS_TOPUP_AMOUNT} ETH to ${walletAddress}...`);
+    console.log(`[GAS] Sending ${roundedAmount} ETH to ${walletAddress} (current: ${ethBalance}, target: ${GAS_TARGET_BALANCE})...`);
     let txHash: string;
     try {
       txHash = await sendEthFromGasStation(
         walletAddress as `0x${string}`,
-        GAS_TOPUP_AMOUNT,
+        roundedAmount,
       );
       console.log(`[GAS] Success! TX: ${txHash}`);
     } catch (error) {
@@ -99,8 +113,8 @@ export async function POST(request: NextRequest) {
     return successResponse({
       funded: true,
       txHash,
-      amount: GAS_TOPUP_AMOUNT,
-      message: `Sent ${GAS_TOPUP_AMOUNT} ETH for gas fees.`,
+      amount: roundedAmount,
+      message: `Sent ${roundedAmount} ETH for gas fees.`,
     });
   } catch (error: unknown) {
     console.error('Gas funding failed:', error);
