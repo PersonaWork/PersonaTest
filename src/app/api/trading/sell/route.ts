@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
 import { successResponse, errorResponse } from '@/lib/api';
 import { matchLimitOrders } from '@/lib/trading/order-matcher';
-import { PLATFORM_FEE_RATE } from '@/lib/wallet/base';
+import { PLATFORM_FEE_RATE, BONDING_CURVE_FACTOR, PRICE_FLOOR } from '@/lib/wallet/base';
 import { z } from 'zod';
 
 const SellSchema = z.object({
@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
 
       // Calculate price with bonding curve (with price floor)
       const currentPrice = character.currentPrice;
-      const pricePerShare = Math.max(0.01, currentPrice * (1 - (shares / character.totalShares) * 0.05));
+      const pricePerShare = Math.max(PRICE_FLOOR, currentPrice * (1 - (shares / character.totalShares) * BONDING_CURVE_FACTOR));
       const totalProceeds = shares * pricePerShare;
       const fee = totalProceeds * PLATFORM_FEE_RATE;
       const proceedsAfterFee = totalProceeds - fee;
@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
       });
 
       // Update character price and market cap
-      const newPrice = Math.max(0.01, currentPrice * (1 - (shares / character.totalShares) * 0.05));
+      const newPrice = Math.max(PRICE_FLOOR, currentPrice * (1 - (shares / character.totalShares) * BONDING_CURVE_FACTOR));
       const newSharesIssued = character.sharesIssued - shares;
       const newMarketCap = newPrice * newSharesIssued;
 

@@ -53,6 +53,33 @@ interface PendingOrder {
   createdAt: string;
 }
 
+const BONDING_CURVE_FACTOR = 1.5; // Must match server-side constant
+
+/** Format a share price with enough decimals for its magnitude */
+function formatPrice(price: number): string {
+  if (price >= 100) return price.toFixed(2);
+  if (price >= 1) return price.toFixed(4);
+  if (price >= 0.01) return price.toFixed(4);
+  if (price >= 0.0001) return price.toFixed(6);
+  return price.toFixed(8);
+}
+
+/** Format a USDC dollar amount (trade costs, balances, etc.) */
+function formatUsd(amount: number): string {
+  if (Math.abs(amount) >= 1) return amount.toFixed(2);
+  if (Math.abs(amount) >= 0.01) return amount.toFixed(4);
+  if (Math.abs(amount) >= 0.0001) return amount.toFixed(6);
+  return amount.toFixed(8);
+}
+
+/** Format market cap in a human-readable way */
+function formatMarketCap(cap: number): string {
+  if (cap >= 1_000_000) return `$${(cap / 1_000_000).toFixed(2)}M`;
+  if (cap >= 1_000) return `$${(cap / 1_000).toFixed(2)}K`;
+  if (cap >= 1) return `$${cap.toFixed(2)}`;
+  return `$${formatUsd(cap)}`;
+}
+
 export default function TradePage() {
   const params = useParams();
   const router = useRouter();
@@ -381,13 +408,15 @@ export default function TradePage() {
   const sellTriggerNum = parseFloat(sellTriggerPrice) || 0;
 
   const PLATFORM_FEE_RATE = 0.005; // 0.5% fee
-  const estimatedBuyCost = buySharesNum * character.currentPrice * (1 + (buySharesNum / character.totalShares) * 0.05);
+  const estimatedBuyCost = buySharesNum * character.currentPrice * (1 + (buySharesNum / character.totalShares) * BONDING_CURVE_FACTOR);
   const buyFee = estimatedBuyCost * PLATFORM_FEE_RATE;
   const estimatedBuyTotal = estimatedBuyCost + buyFee;
-  const estimatedSellProceeds = sellSharesNum * character.currentPrice * (1 - (sellSharesNum / character.totalShares) * 0.05);
+  const estimatedSellProceeds = sellSharesNum * character.currentPrice * (1 - (sellSharesNum / character.totalShares) * BONDING_CURVE_FACTOR);
   const sellFee = estimatedSellProceeds * PLATFORM_FEE_RATE;
   const estimatedSellAfterFee = estimatedSellProceeds - sellFee;
-  const limitBuyLocked = buySharesNum * buyTriggerNum * (1 + (buySharesNum / character.totalShares) * 0.05);
+  const limitBuyLocked = buySharesNum * buyTriggerNum * (1 + (buySharesNum / character.totalShares) * BONDING_CURVE_FACTOR);
+  const availableShares = character.totalShares - character.sharesIssued;
+  const isSoldOut = availableShares <= 0;
 
   const chartData = transactions.map(t => ({
     time: new Date(t.createdAt).toLocaleDateString(),
@@ -442,17 +471,20 @@ export default function TradePage() {
         <div className="flex items-center gap-6 mb-8 bg-slate-900/40 p-5 rounded-2xl border border-slate-800/80">
           <div>
             <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 mt-0.5">Current Price</p>
-            <p className="text-3xl font-black text-white">${character.currentPrice.toFixed(2)}</p>
+            <p className="text-3xl font-black text-white">${formatPrice(character.currentPrice)}</p>
           </div>
           <div className="w-px h-12 bg-slate-800/80"></div>
           <div>
             <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 mt-0.5">Market Cap</p>
-            <p className="text-2xl font-bold text-white">${(character.marketCap / 1000).toFixed(1)}K</p>
+            <p className="text-2xl font-bold text-white">{formatMarketCap(character.marketCap)}</p>
           </div>
           <div className="w-px h-12 bg-slate-800/80 hidden sm:block"></div>
           <div className="hidden sm:block">
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 mt-0.5">Shares Issued</p>
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 mt-0.5">Supply</p>
             <p className="text-2xl font-bold text-white">{character.sharesIssued.toLocaleString()} / {character.totalShares.toLocaleString()}</p>
+            <p className={`text-xs font-semibold mt-0.5 ${isSoldOut ? 'text-red-400' : 'text-emerald-400/70'}`}>
+              {isSoldOut ? 'Sold out' : `${availableShares.toLocaleString()} available`}
+            </p>
           </div>
         </div>
 
@@ -499,12 +531,12 @@ export default function TradePage() {
                         {walletStatusLoading
                           ? 'Checking balance...'
                           : walletStatus
-                            ? `$${walletStatus.platformBalance.toFixed(2)} USDC`
+                            ? `$${formatUsd(walletStatus.platformBalance)} USDC`
                             : 'Unable to read balance.'}
                       </p>
                       {walletStatus && walletStatus.lockedUsdc > 0 && (
                         <p className="text-xs text-amber-400/70 mt-1">
-                          ${walletStatus.lockedUsdc.toFixed(2)} locked in limit orders
+                          ${formatUsd(walletStatus.lockedUsdc)} locked in limit orders
                         </p>
                       )}
                     </div>
@@ -562,6 +594,11 @@ export default function TradePage() {
                 <h2 className="text-xl font-bold text-white mb-4">
                   {orderMode === 'market' ? 'Buy Shares' : 'Limit Buy Order'}
                 </h2>
+                {isSoldOut && (
+                  <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20">
+                    <p className="text-sm font-semibold text-red-300">All {character.totalShares.toLocaleString()} shares have been issued. Wait for someone to sell.</p>
+                  </div>
+                )}
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-slate-300 mb-2">
@@ -579,10 +616,12 @@ export default function TradePage() {
                       {walletStatus && character && (
                         <button
                           onClick={() => {
-                            const maxShares = Math.floor(walletStatus.platformBalance / (character.currentPrice * 1.005));
+                            const maxByBalance = Math.floor(walletStatus.platformBalance / (character.currentPrice * 1.005));
+                            const maxShares = Math.min(maxByBalance, availableShares);
                             if (maxShares > 0) setBuyShares(maxShares.toString());
                           }}
-                          className="px-3 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-xs font-bold text-slate-300 hover:text-white transition-colors"
+                          disabled={isSoldOut}
+                          className="px-3 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-xs font-bold text-slate-300 hover:text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                         >
                           MAX
                         </button>
@@ -599,11 +638,11 @@ export default function TradePage() {
                         </label>
                         <input
                           type="number"
-                          step="0.01"
+                          step="any"
                           value={buyTriggerPrice}
                           onChange={(e) => setBuyTriggerPrice(e.target.value)}
                           className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                          placeholder={`Below $${character.currentPrice.toFixed(2)}`}
+                          placeholder={`Below $${formatPrice(character.currentPrice)}`}
                         />
                         <p className="text-xs text-slate-500 mt-1">Order fills when price drops to this level</p>
                       </div>
@@ -636,15 +675,15 @@ export default function TradePage() {
                     <div className="p-4 bg-slate-900/50 rounded-lg">
                       <div className="flex justify-between text-sm mb-2">
                         <span className="text-slate-400">Subtotal:</span>
-                        <span className="text-white font-semibold">${estimatedBuyCost.toFixed(2)} USDC</span>
+                        <span className="text-white font-semibold">${formatUsd(estimatedBuyCost)} USDC</span>
                       </div>
                       <div className="flex justify-between text-sm mb-2">
                         <span className="text-slate-400">Fee (0.5%):</span>
-                        <span className="text-slate-300 font-medium">${buyFee.toFixed(2)} USDC</span>
+                        <span className="text-slate-300 font-medium">${formatUsd(buyFee)} USDC</span>
                       </div>
                       <div className="flex justify-between text-sm mb-2 pt-2 border-t border-slate-800">
                         <span className="text-slate-300 font-semibold">Total cost:</span>
-                        <span className="text-white font-bold">${estimatedBuyTotal.toFixed(2)} USDC</span>
+                        <span className="text-white font-bold">${formatUsd(estimatedBuyTotal)} USDC</span>
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-slate-400">New ownership:</span>
@@ -660,22 +699,25 @@ export default function TradePage() {
                     <div className="p-4 bg-slate-900/50 rounded-lg">
                       <div className="flex justify-between text-sm mb-2">
                         <span className="text-slate-400">USDC to lock:</span>
-                        <span className="text-white font-semibold">${limitBuyLocked.toFixed(2)} USDC</span>
+                        <span className="text-white font-semibold">${formatUsd(limitBuyLocked)} USDC</span>
                       </div>
                       <div className="flex justify-between text-sm mb-2">
                         <span className="text-slate-400">Triggers at:</span>
-                        <span className="text-amber-400 font-semibold">${buyTriggerNum.toFixed(2)} or below</span>
+                        <span className="text-amber-400 font-semibold">${formatPrice(buyTriggerNum)} or below</span>
                       </div>
                       {buyTriggerNum >= character.currentPrice && (
-                        <p className="text-xs text-red-400 mt-1">Trigger price must be below current price (${character.currentPrice.toFixed(2)})</p>
+                        <p className="text-xs text-red-400 mt-1">Trigger price must be below current price (${formatPrice(character.currentPrice)})</p>
                       )}
                     </div>
                   )}
 
+                  {buySharesNum > availableShares && availableShares > 0 && (
+                    <p className="text-xs text-red-400 mb-2">Only {availableShares.toLocaleString()} shares available</p>
+                  )}
                   <Button
                     onClick={orderMode === 'market' ? handleBuy : handleLimitBuy}
                     disabled={
-                      !buySharesNum || isProcessing ||
+                      !buySharesNum || isProcessing || isSoldOut || buySharesNum > availableShares ||
                       (orderMode === 'market' && walletStatus ? !walletStatus.canBuy : false) ||
                       (orderMode === 'limit' && (!buyTriggerNum || buyTriggerNum >= character.currentPrice))
                     }
@@ -685,9 +727,11 @@ export default function TradePage() {
                   >
                     {isProcessing
                       ? 'Processing...'
-                      : orderMode === 'market'
-                        ? `Buy ${buySharesNum || 0} shares`
-                        : 'Place Limit Buy'}
+                      : isSoldOut
+                        ? 'Sold Out'
+                        : orderMode === 'market'
+                          ? `Buy ${buySharesNum || 0} shares`
+                          : 'Place Limit Buy'}
                   </Button>
                 </div>
               </div>
@@ -734,11 +778,11 @@ export default function TradePage() {
                         </label>
                         <input
                           type="number"
-                          step="0.01"
+                          step="any"
                           value={sellTriggerPrice}
                           onChange={(e) => setSellTriggerPrice(e.target.value)}
                           className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                          placeholder={`Above $${character.currentPrice.toFixed(2)}`}
+                          placeholder={`Above $${formatPrice(character.currentPrice)}`}
                         />
                         <p className="text-xs text-slate-500 mt-1">Order fills when price rises to this level</p>
                       </div>
@@ -771,15 +815,15 @@ export default function TradePage() {
                     <div className="p-4 bg-slate-900/50 rounded-lg">
                       <div className="flex justify-between text-sm mb-2">
                         <span className="text-slate-400">Gross proceeds:</span>
-                        <span className="text-white font-semibold">${estimatedSellProceeds.toFixed(2)} USDC</span>
+                        <span className="text-white font-semibold">${formatUsd(estimatedSellProceeds)} USDC</span>
                       </div>
                       <div className="flex justify-between text-sm mb-2">
                         <span className="text-slate-400">Fee (0.5%):</span>
-                        <span className="text-slate-300 font-medium">-${sellFee.toFixed(2)} USDC</span>
+                        <span className="text-slate-300 font-medium">-${formatUsd(sellFee)} USDC</span>
                       </div>
                       <div className="flex justify-between text-sm mb-2 pt-2 border-t border-slate-800">
                         <span className="text-slate-300 font-semibold">You receive:</span>
-                        <span className="text-white font-bold">${estimatedSellAfterFee.toFixed(2)} USDC</span>
+                        <span className="text-white font-bold">${formatUsd(estimatedSellAfterFee)} USDC</span>
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-slate-400">Remaining shares:</span>
@@ -799,10 +843,10 @@ export default function TradePage() {
                       </div>
                       <div className="flex justify-between text-sm mb-2">
                         <span className="text-slate-400">Triggers at:</span>
-                        <span className="text-emerald-400 font-semibold">${sellTriggerNum.toFixed(2)} or above</span>
+                        <span className="text-emerald-400 font-semibold">${formatPrice(sellTriggerNum)} or above</span>
                       </div>
                       {sellTriggerNum <= character.currentPrice && (
-                        <p className="text-xs text-red-400 mt-1">Trigger price must be above current price (${character.currentPrice.toFixed(2)})</p>
+                        <p className="text-xs text-red-400 mt-1">Trigger price must be above current price (${formatPrice(character.currentPrice)})</p>
                       )}
                     </div>
                   )}
@@ -858,12 +902,12 @@ export default function TradePage() {
                             </span>
                           </div>
                           <p className="text-xs text-slate-400">
-                            Trigger: ${order.triggerPrice.toFixed(2)}
+                            Trigger: ${formatPrice(order.triggerPrice)}
                             {order.expiresAt && ` \u00b7 Expires ${new Date(order.expiresAt).toLocaleDateString()}`}
                           </p>
                           {order.side === 'buy' && (
                             <p className="text-xs text-slate-500">
-                              Locked: ${order.lockedAmount.toFixed(2)} USDC
+                              Locked: ${formatUsd(order.lockedAmount)} USDC
                             </p>
                           )}
                         </div>
@@ -900,12 +944,12 @@ export default function TradePage() {
                     </div>
                     <div className="flex justify-between items-center py-2 border-b border-slate-800">
                       <span className="text-sm font-medium text-slate-400">Avg Entry Price</span>
-                      <span className="text-lg font-semibold text-slate-200">${holding.avgBuyPrice.toFixed(2)}</span>
+                      <span className="text-lg font-semibold text-slate-200">${formatPrice(holding.avgBuyPrice)}</span>
                     </div>
                     <div className="flex justify-between items-center py-2 border-b border-slate-800">
                       <span className="text-sm font-medium text-slate-400">Current Capital</span>
                       <span className="text-lg font-bold text-white">
-                        ${(holding.shares * character.currentPrice).toFixed(2)}
+                        ${formatUsd(holding.shares * character.currentPrice)}
                       </span>
                     </div>
                     <div className="flex justify-between items-center pt-2">
@@ -915,7 +959,7 @@ export default function TradePage() {
                           ? 'text-emerald-400'
                           : 'text-red-400'
                           }`}>
-                          ${((character.currentPrice - holding.avgBuyPrice) * holding.shares).toFixed(2)}
+                          ${formatUsd((character.currentPrice - holding.avgBuyPrice) * holding.shares)}
                         </span>
                         <div className={`text-xs font-bold ${(character.currentPrice - holding.avgBuyPrice) >= 0
                           ? 'text-emerald-400/80 bg-emerald-500/10'

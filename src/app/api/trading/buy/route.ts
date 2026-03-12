@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
 import { successResponse, errorResponse } from '@/lib/api';
 import { matchLimitOrders } from '@/lib/trading/order-matcher';
-import { PLATFORM_FEE_RATE } from '@/lib/wallet/base';
+import { PLATFORM_FEE_RATE, BONDING_CURVE_FACTOR } from '@/lib/wallet/base';
 import { z } from 'zod';
 
 const BuySchema = z.object({
@@ -47,16 +47,26 @@ export async function POST(request: NextRequest) {
         where: { userId_characterId: { userId: user.id, characterId } }
       });
 
+      // Check supply cap — can't buy more shares than are available
+      const availableShares = character.totalShares - character.sharesIssued;
+      if (shares > availableShares) {
+        throw new Error(
+          availableShares === 0
+            ? 'All shares have been issued. Wait for someone to sell before buying.'
+            : `Only ${availableShares.toLocaleString()} shares available. You requested ${shares.toLocaleString()}.`
+        );
+      }
+
       // Calculate price with bonding curve
       const currentPrice = character.currentPrice;
-      const pricePerShare = currentPrice * (1 + (shares / character.totalShares) * 0.05);
+      const pricePerShare = currentPrice * (1 + (shares / character.totalShares) * BONDING_CURVE_FACTOR);
       const totalCost = shares * pricePerShare;
       const fee = totalCost * PLATFORM_FEE_RATE;
       const totalWithFee = totalCost + fee;
 
       // Check USDC balance (user already fetched with transaction isolation)
       if (user.usdcBalance < totalWithFee) {
-        throw new Error(`Insufficient USDC balance. Need ${totalWithFee.toFixed(2)} USDC (incl. 0.5% fee) but have ${user.usdcBalance.toFixed(2)} USDC`);
+        throw new Error(`Insufficient USDC balance. Need ${totalWithFee.toFixed(6)} USDC (incl. 0.5% fee) but have ${user.usdcBalance.toFixed(6)} USDC`);
       }
 
       // Deduct USDC balance (cost + fee)
@@ -66,7 +76,7 @@ export async function POST(request: NextRequest) {
       });
 
       // Update character price and market cap
-      const newPrice = currentPrice * (1 + (shares / character.totalShares) * 0.05);
+      const newPrice = currentPrice * (1 + (shares / character.totalShares) * BONDING_CURVE_FACTOR);
       const newSharesIssued = character.sharesIssued + shares;
       const newMarketCap = newPrice * newSharesIssued;
 
@@ -144,7 +154,9 @@ export async function POST(request: NextRequest) {
     if (error.message === 'Character not found') {
       return errorResponse(error.message, 404);
     }
-    if (error.message.startsWith('Insufficient USDC balance')) {
+    if (error.message.startsWith('Insufficient USDC balance') ||
+        error.message.startsWith('All shares have been issued') ||
+        error.message.startsWith('Only ')) {
       return errorResponse(error.message, 400);
     }
     const status = typeof error?.statusCode === 'number' ? error.statusCode : 500;

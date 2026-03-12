@@ -2,7 +2,16 @@ import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
 import { successResponse, errorResponse } from '@/lib/api';
+import { BONDING_CURVE_FACTOR } from '@/lib/wallet/base';
 import { z } from 'zod';
+
+/** Format a price with enough decimals to be meaningful */
+function fmtPrice(p: number): string {
+  if (p >= 1) return p.toFixed(2);
+  if (p >= 0.01) return p.toFixed(4);
+  if (p >= 0.0001) return p.toFixed(6);
+  return p.toFixed(8);
+}
 
 const LimitOrderSchema = z.object({
   characterId: z.string().min(1, 'Character ID is required'),
@@ -41,15 +50,27 @@ export async function POST(request: NextRequest) {
         throw new Error('Character not found');
       }
 
+      // Validate supply cap for buy orders
+      if (side === 'buy') {
+        const availableShares = character.totalShares - character.sharesIssued;
+        if (shares > availableShares) {
+          throw new Error(
+            availableShares === 0
+              ? 'All shares have been issued. Wait for someone to sell before placing a buy order.'
+              : `Only ${availableShares.toLocaleString()} shares available. You requested ${shares.toLocaleString()}.`
+          );
+        }
+      }
+
       // Validate trigger price direction
       if (side === 'buy' && triggerPrice >= character.currentPrice) {
         throw new Error(
-          `Trigger price ($${triggerPrice.toFixed(2)}) must be below current price ($${character.currentPrice.toFixed(2)}) for limit buy orders. Use a market buy instead.`
+          `Trigger price ($${fmtPrice(triggerPrice)}) must be below current price ($${fmtPrice(character.currentPrice)}) for limit buy orders. Use a market buy instead.`
         );
       }
       if (side === 'sell' && triggerPrice <= character.currentPrice) {
         throw new Error(
-          `Trigger price ($${triggerPrice.toFixed(2)}) must be above current price ($${character.currentPrice.toFixed(2)}) for limit sell orders. Use a market sell instead.`
+          `Trigger price ($${fmtPrice(triggerPrice)}) must be above current price ($${fmtPrice(character.currentPrice)}) for limit sell orders. Use a market sell instead.`
         );
       }
 
@@ -58,14 +79,14 @@ export async function POST(request: NextRequest) {
 
       if (side === 'buy') {
         // Calculate the maximum cost at the trigger price using bonding curve
-        const estimatedPricePerShare = triggerPrice * (1 + (shares / character.totalShares) * 0.05);
+        const estimatedPricePerShare = triggerPrice * (1 + (shares / character.totalShares) * BONDING_CURVE_FACTOR);
         lockedAmount = shares * estimatedPricePerShare;
 
         // Check user has enough available balance
         const buyer = await tx.user.findUnique({ where: { id: user.id } });
         if (!buyer || buyer.usdcBalance < lockedAmount) {
           throw new Error(
-            `Insufficient USDC balance. Need $${lockedAmount.toFixed(2)} USDC to place this order but have $${(buyer?.usdcBalance ?? 0).toFixed(2)} USDC available.`
+            `Insufficient USDC balance. Need $${lockedAmount.toFixed(6)} USDC to place this order but have $${(buyer?.usdcBalance ?? 0).toFixed(6)} USDC available.`
           );
         }
 

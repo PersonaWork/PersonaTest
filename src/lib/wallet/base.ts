@@ -9,6 +9,10 @@ export const USDC_DECIMALS = 6;
 // Platform treasury address on Base — receives deposits, funds withdrawals
 export const TREASURY_ADDRESS = '0x797C0D912A65BCcCC2F52d9328f763DbC067b883' as const;
 
+// ── Trading constants ────────────────────────────────────────────
+export const BONDING_CURVE_FACTOR = 1.5;  // Price impact per 100% of supply traded
+export const PRICE_FLOOR = 0.0000001;     // Absolute minimum price to prevent negatives
+
 // ── Platform fees ──────────────────────────────────────────────────
 export const PLATFORM_FEE_RATE = 0.005;   // 0.5% on every buy/sell trade
 export const WITHDRAWAL_FEE = 0.50;        // $0.50 USDC flat fee on withdrawals
