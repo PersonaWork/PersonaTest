@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
 import { successResponse, errorResponse } from '@/lib/api';
 import { matchLimitOrders } from '@/lib/trading/order-matcher';
-import { PLATFORM_FEE_RATE, BONDING_CURVE_FACTOR } from '@/lib/wallet/base';
+import { PLATFORM_FEE_RATE, BONDING_CURVE_FACTOR, VIRTUAL_LIQUIDITY } from '@/lib/wallet/base';
 import { z } from 'zod';
 
 const BuySchema = z.object({
@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
       return errorResponse('User ID not found in claims', 400);
     }
 
-    // Wrap everything in a transaction to ensure atomic execution
+    // Wrap everything in a serializable transaction to ensure atomic execution
     const result = await prisma.$transaction(async (tx) => {
       // Resolve privyId → internal user inside the transaction (single lookup)
       const user = await tx.user.findUnique({ where: { privyId: userId } });
@@ -47,19 +47,13 @@ export async function POST(request: NextRequest) {
         where: { userId_characterId: { userId: user.id, characterId } }
       });
 
-      // Check supply cap — can't buy more shares than are available
-      const availableShares = character.totalShares - character.sharesIssued;
-      if (shares > availableShares) {
-        throw new Error(
-          availableShares === 0
-            ? 'All shares have been issued. Wait for someone to sell before buying.'
-            : `Only ${availableShares.toLocaleString()} shares available. You requested ${shares.toLocaleString()}.`
-        );
-      }
+      // No supply cap — shares are minted on demand (crypto-style bonding curve)
 
-      // Calculate price with bonding curve
+      // Calculate price with bonding curve using dynamic liquidity denominator
+      // Impact = shares / (currentSupply + virtualLiquidity) * factor
+      // Early: big moves. Mature: smaller moves. Never sells out.
       const currentPrice = character.currentPrice;
-      const pricePerShare = currentPrice * (1 + (shares / character.totalShares) * BONDING_CURVE_FACTOR);
+      const pricePerShare = currentPrice * (1 + (shares / (character.sharesIssued + VIRTUAL_LIQUIDITY)) * BONDING_CURVE_FACTOR);
       const totalCost = shares * pricePerShare;
       const fee = totalCost * PLATFORM_FEE_RATE;
       const totalWithFee = totalCost + fee;
@@ -75,8 +69,8 @@ export async function POST(request: NextRequest) {
         data: { usdcBalance: { decrement: totalWithFee } },
       });
 
-      // Update character price and market cap
-      const newPrice = currentPrice * (1 + (shares / character.totalShares) * BONDING_CURVE_FACTOR);
+      // Update character price and supply (shares are minted)
+      const newPrice = currentPrice * (1 + (shares / (character.sharesIssued + VIRTUAL_LIQUIDITY)) * BONDING_CURVE_FACTOR);
       const newSharesIssued = character.sharesIssued + shares;
       const newMarketCap = newPrice * newSharesIssued;
 
@@ -158,9 +152,7 @@ export async function POST(request: NextRequest) {
     if (error.message === 'Character not found') {
       return errorResponse(error.message, 404);
     }
-    if (error.message?.startsWith('Insufficient USDC balance') ||
-        error.message?.startsWith('All shares have been issued') ||
-        error.message?.startsWith('Only ')) {
+    if (error.message?.startsWith('Insufficient USDC balance')) {
       return errorResponse(error.message, 400);
     }
     const status = typeof error?.statusCode === 'number' ? error.statusCode : 500;

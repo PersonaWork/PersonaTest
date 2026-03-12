@@ -53,7 +53,9 @@ interface PendingOrder {
   createdAt: string;
 }
 
-const BONDING_CURVE_FACTOR = 1.5; // Must match server-side constant
+// Must match server-side constants in src/lib/wallet/base.ts
+const BONDING_CURVE_FACTOR = 1.5;
+const VIRTUAL_LIQUIDITY = 1000;
 
 /** Format a share price with enough decimals for its magnitude */
 function formatPrice(price: number): string {
@@ -419,15 +421,14 @@ export default function TradePage() {
   const sellTriggerNum = parseFloat(sellTriggerPrice) || 0;
 
   const PLATFORM_FEE_RATE = 0.005; // 0.5% fee
-  const estimatedBuyCost = buySharesNum * character.currentPrice * (1 + (buySharesNum / character.totalShares) * BONDING_CURVE_FACTOR);
+  const liquidityDenom = character.sharesIssued + VIRTUAL_LIQUIDITY;
+  const estimatedBuyCost = buySharesNum * character.currentPrice * (1 + (buySharesNum / liquidityDenom) * BONDING_CURVE_FACTOR);
   const buyFee = estimatedBuyCost * PLATFORM_FEE_RATE;
   const estimatedBuyTotal = estimatedBuyCost + buyFee;
-  const estimatedSellProceeds = sellSharesNum * character.currentPrice * (1 - (sellSharesNum / character.totalShares) * BONDING_CURVE_FACTOR);
+  const estimatedSellProceeds = sellSharesNum * character.currentPrice * Math.max(0, (1 - (sellSharesNum / liquidityDenom) * BONDING_CURVE_FACTOR));
   const sellFee = estimatedSellProceeds * PLATFORM_FEE_RATE;
   const estimatedSellAfterFee = estimatedSellProceeds - sellFee;
-  const limitBuyLocked = buySharesNum * buyTriggerNum * (1 + (buySharesNum / character.totalShares) * BONDING_CURVE_FACTOR);
-  const availableShares = character.totalShares - character.sharesIssued;
-  const isSoldOut = availableShares <= 0;
+  const limitBuyLocked = buySharesNum * buyTriggerNum * (1 + (buySharesNum / liquidityDenom) * BONDING_CURVE_FACTOR);
 
   const chartData = transactions.map(t => ({
     time: new Date(t.createdAt).toLocaleDateString(),
@@ -491,11 +492,8 @@ export default function TradePage() {
           </div>
           <div className="w-px h-12 bg-slate-800/80 hidden sm:block"></div>
           <div className="hidden sm:block">
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 mt-0.5">Supply</p>
-            <p className="text-2xl font-bold text-white">{character.sharesIssued.toLocaleString()} / {character.totalShares.toLocaleString()}</p>
-            <p className={`text-xs font-semibold mt-0.5 ${isSoldOut ? 'text-red-400' : 'text-emerald-400/70'}`}>
-              {isSoldOut ? 'Sold out' : `${availableShares.toLocaleString()} available`}
-            </p>
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 mt-0.5">Circulating Supply</p>
+            <p className="text-2xl font-bold text-white">{character.sharesIssued.toLocaleString()} shares</p>
           </div>
         </div>
 
@@ -605,11 +603,6 @@ export default function TradePage() {
                 <h2 className="text-xl font-bold text-white mb-4">
                   {orderMode === 'market' ? 'Buy Shares' : 'Limit Buy Order'}
                 </h2>
-                {isSoldOut && (
-                  <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20">
-                    <p className="text-sm font-semibold text-red-300">All {character.totalShares.toLocaleString()} shares have been issued. Wait for someone to sell.</p>
-                  </div>
-                )}
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-slate-300 mb-2">
@@ -628,11 +621,9 @@ export default function TradePage() {
                         <button
                           onClick={() => {
                             const maxByBalance = Math.floor(walletStatus.platformBalance / (character.currentPrice * 1.005));
-                            const maxShares = Math.min(maxByBalance, availableShares);
-                            if (maxShares > 0) setBuyShares(maxShares.toString());
+                            if (maxByBalance > 0) setBuyShares(maxByBalance.toString());
                           }}
-                          disabled={isSoldOut}
-                          className="px-3 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-xs font-bold text-slate-300 hover:text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                          className="px-3 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-xs font-bold text-slate-300 hover:text-white transition-colors"
                         >
                           MAX
                         </button>
@@ -697,9 +688,9 @@ export default function TradePage() {
                         <span className="text-white font-bold">${formatUsd(estimatedBuyTotal)} USDC</span>
                       </div>
                       <div className="flex justify-between text-sm">
-                        <span className="text-slate-400">New ownership:</span>
-                        <span className="text-white font-semibold">
-                          {((buySharesNum / character.totalShares) * 100).toFixed(2)}%
+                        <span className="text-slate-400">Est. price impact:</span>
+                        <span className="text-emerald-400 font-semibold">
+                          +{((buySharesNum / liquidityDenom) * BONDING_CURVE_FACTOR * 100).toFixed(2)}%
                         </span>
                       </div>
                     </div>
@@ -722,13 +713,10 @@ export default function TradePage() {
                     </div>
                   )}
 
-                  {buySharesNum > availableShares && availableShares > 0 && (
-                    <p className="text-xs text-red-400 mb-2">Only {availableShares.toLocaleString()} shares available</p>
-                  )}
                   <Button
                     onClick={orderMode === 'market' ? handleBuy : handleLimitBuy}
                     disabled={
-                      !buySharesNum || isProcessing || isSoldOut || buySharesNum > availableShares ||
+                      !buySharesNum || isProcessing ||
                       (orderMode === 'market' && walletStatus ? !walletStatus.canBuy : false) ||
                       (orderMode === 'limit' && (!buyTriggerNum || buyTriggerNum >= character.currentPrice))
                     }
@@ -738,11 +726,9 @@ export default function TradePage() {
                   >
                     {isProcessing
                       ? 'Processing...'
-                      : isSoldOut
-                        ? 'Sold Out'
-                        : orderMode === 'market'
-                          ? `Buy ${buySharesNum || 0} shares`
-                          : 'Place Limit Buy'}
+                      : orderMode === 'market'
+                        ? `Buy ${buySharesNum || 0} shares`
+                        : 'Place Limit Buy'}
                   </Button>
                 </div>
               </div>
@@ -836,10 +822,16 @@ export default function TradePage() {
                         <span className="text-slate-300 font-semibold">You receive:</span>
                         <span className="text-white font-bold">${formatUsd(estimatedSellAfterFee)} USDC</span>
                       </div>
-                      <div className="flex justify-between text-sm">
+                      <div className="flex justify-between text-sm mb-2">
                         <span className="text-slate-400">Remaining shares:</span>
                         <span className="text-white font-semibold">
                           {(holding?.shares || 0) - sellSharesNum}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-400">Est. price impact:</span>
+                        <span className="text-red-400 font-semibold">
+                          -{((sellSharesNum / liquidityDenom) * BONDING_CURVE_FACTOR * 100).toFixed(2)}%
                         </span>
                       </div>
                     </div>

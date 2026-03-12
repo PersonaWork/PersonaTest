@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
 import { successResponse, errorResponse } from '@/lib/api';
-import { BONDING_CURVE_FACTOR } from '@/lib/wallet/base';
+import { BONDING_CURVE_FACTOR, VIRTUAL_LIQUIDITY } from '@/lib/wallet/base';
 import { z } from 'zod';
 
 /** Format a price with enough decimals to be meaningful */
@@ -50,17 +50,7 @@ export async function POST(request: NextRequest) {
         throw new Error('Character not found');
       }
 
-      // Validate supply cap for buy orders
-      if (side === 'buy') {
-        const availableShares = character.totalShares - character.sharesIssued;
-        if (shares > availableShares) {
-          throw new Error(
-            availableShares === 0
-              ? 'All shares have been issued. Wait for someone to sell before placing a buy order.'
-              : `Only ${availableShares.toLocaleString()} shares available. You requested ${shares.toLocaleString()}.`
-          );
-        }
-      }
+      // No supply cap — crypto-style bonding curve (shares minted on demand)
 
       // Validate trigger price direction
       if (side === 'buy' && triggerPrice >= character.currentPrice) {
@@ -79,7 +69,7 @@ export async function POST(request: NextRequest) {
 
       if (side === 'buy') {
         // Calculate the maximum cost at the trigger price using bonding curve
-        const estimatedPricePerShare = triggerPrice * (1 + (shares / character.totalShares) * BONDING_CURVE_FACTOR);
+        const estimatedPricePerShare = triggerPrice * (1 + (shares / (character.sharesIssued + VIRTUAL_LIQUIDITY)) * BONDING_CURVE_FACTOR);
         lockedAmount = shares * estimatedPricePerShare;
 
         // Check user has enough available balance

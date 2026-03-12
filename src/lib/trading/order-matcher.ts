@@ -7,7 +7,7 @@
  * to trigger another order, that one executes too (up to maxCascadeDepth).
  */
 
-import { PLATFORM_FEE_RATE, BONDING_CURVE_FACTOR, PRICE_FLOOR } from '@/lib/wallet/base';
+import { PLATFORM_FEE_RATE, BONDING_CURVE_FACTOR, PRICE_FLOOR, VIRTUAL_LIQUIDITY } from '@/lib/wallet/base';
 
 // Use Prisma's transaction client type
 type TxClient = Parameters<Parameters<import('@prisma/client').PrismaClient['$transaction']>[0]>[0];
@@ -97,14 +97,10 @@ async function executeLimitBuy(
   order: { id: string; userId: string; characterId: string; shares: number; lockedAmount: number },
   character: { id: string; currentPrice: number; totalShares: number; sharesIssued: number }
 ): Promise<boolean> {
-  // Check supply cap — skip if not enough shares available
-  const availableShares = character.totalShares - character.sharesIssued;
-  if (order.shares > availableShares) {
-    return false; // Can't fill — supply exhausted, skip (don't cancel)
-  }
+  // No supply cap — shares are minted on demand (crypto-style bonding curve)
 
-  // Calculate actual cost at current bonding curve price
-  const pricePerShare = character.currentPrice * (1 + (order.shares / character.totalShares) * BONDING_CURVE_FACTOR);
+  // Calculate actual cost at current bonding curve price (dynamic liquidity denominator)
+  const pricePerShare = character.currentPrice * (1 + (order.shares / (character.sharesIssued + VIRTUAL_LIQUIDITY)) * BONDING_CURVE_FACTOR);
   const totalCost = order.shares * pricePerShare;
   const fee = totalCost * PLATFORM_FEE_RATE;
   const totalWithFee = totalCost + fee;
@@ -124,8 +120,8 @@ async function executeLimitBuy(
     });
   }
 
-  // Update character price and shares
-  const newPrice = character.currentPrice * (1 + (order.shares / character.totalShares) * BONDING_CURVE_FACTOR);
+  // Update character price and shares (minting new supply)
+  const newPrice = character.currentPrice * (1 + (order.shares / (character.sharesIssued + VIRTUAL_LIQUIDITY)) * BONDING_CURVE_FACTOR);
   const newSharesIssued = character.sharesIssued + order.shares;
   const newMarketCap = newPrice * newSharesIssued;
 
@@ -190,8 +186,8 @@ async function executeLimitSell(
   order: { id: string; userId: string; characterId: string; shares: number; lockedAmount: number },
   character: { id: string; currentPrice: number; totalShares: number; sharesIssued: number }
 ): Promise<boolean> {
-  // Calculate proceeds at current bonding curve price
-  const pricePerShare = Math.max(PRICE_FLOOR, character.currentPrice * (1 -(order.shares / character.totalShares) * BONDING_CURVE_FACTOR));
+  // Calculate proceeds at current bonding curve price (dynamic liquidity denominator)
+  const pricePerShare = Math.max(PRICE_FLOOR, character.currentPrice * (1 - (order.shares / (character.sharesIssued + VIRTUAL_LIQUIDITY)) * BONDING_CURVE_FACTOR));
   const totalProceeds = order.shares * pricePerShare;
   const fee = totalProceeds * PLATFORM_FEE_RATE;
   const proceedsAfterFee = totalProceeds - fee;
@@ -202,8 +198,8 @@ async function executeLimitSell(
     data: { usdcBalance: { increment: proceedsAfterFee } },
   });
 
-  // Update character price
-  const newPrice = Math.max(PRICE_FLOOR, character.currentPrice * (1 -(order.shares / character.totalShares) * BONDING_CURVE_FACTOR));
+  // Update character price (burning supply)
+  const newPrice = Math.max(PRICE_FLOOR, character.currentPrice * (1 - (order.shares / (character.sharesIssued + VIRTUAL_LIQUIDITY)) * BONDING_CURVE_FACTOR));
   const newSharesIssued = character.sharesIssued - order.shares;
   const newMarketCap = newPrice * newSharesIssued;
 
