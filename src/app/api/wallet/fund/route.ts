@@ -52,9 +52,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Prevent double-crediting: check if this tx hash was already processed
-    // We store txHash in the transaction's characterId field as 'deposit:{txHash}'
-    const duplicateCheck = await prisma.transaction.findFirst({
-      where: { type: 'deposit', characterId: `deposit:${txHash}` },
+    const duplicateCheck = await prisma.transaction.findUnique({
+      where: { txHash },
     });
     if (duplicateCheck) {
       return errorResponse('This transaction has already been processed', 400);
@@ -90,8 +89,8 @@ export async function POST(request: NextRequest) {
       prisma.transaction.create({
         data: {
           buyerId: user.id,
-          characterId: `deposit:${txHash}`,
           type: 'deposit',
+          txHash,
           shares: 0,
           pricePerShare: 1,
           total: amount,

@@ -76,13 +76,11 @@ export async function POST(request: NextRequest) {
     await prisma.transaction.create({
       data: {
         type: 'fee_sweep',
-        characterId: `sweep:${txHash}`,
+        txHash,
         shares: 0,
         pricePerShare: 0,
         total: pendingFees,
         platformFee: 0,
-        buyerId: null,
-        sellerId: null,
       },
     });
 

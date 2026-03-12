@@ -127,14 +127,15 @@ model Transaction {
   id            String    @id @default(cuid())
   buyerId       String?
   sellerId      String?
-  characterId   String
+  characterId   String?
   shares        Int
   pricePerShare Float
   total         Float
   platformFee   Float     @default(0)
   type          String
+  txHash        String?   @unique   // On-chain tx hash for deposits/withdrawals (dedup key)
   createdAt     DateTime  @default(now())
-  character      Character   @relation(fields: [characterId], references: [id])
+  character      Character?  @relation(fields: [characterId], references: [id])
   buyer          User?       @relation("BuyerTransactions", fields: [buyerId], references: [id])
   seller         User?       @relation("SellerTransactions", fields: [sellerId], references: [id])
   limitOrderFill LimitOrder?

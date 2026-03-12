@@ -32,7 +32,7 @@ export async function GET(
     const transformedTransactions = transactions.map(transaction => ({
       id: transaction.id,
       type: transaction.type,
-      characterName: transaction.character.name,
+      characterName: transaction.character?.name ?? transaction.type,
       shares: transaction.shares,
       pricePerShare: transaction.pricePerShare,
       total: transaction.total,

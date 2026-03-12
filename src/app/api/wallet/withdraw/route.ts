@@ -75,13 +75,12 @@ export async function POST(request: NextRequest) {
     await prisma.transaction.create({
       data: {
         sellerId: user.id,
-        characterId: 'withdraw',
         type: 'withdraw',
+        txHash,
         shares: 0,
         pricePerShare: 1,
         total: amount,
         platformFee: fee,
-        buyerId: null,
       },
     });
 
