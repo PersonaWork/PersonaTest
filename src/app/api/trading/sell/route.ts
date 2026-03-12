@@ -120,13 +120,17 @@ export async function POST(request: NextRequest) {
         proceedsAfterFee,
         filledLimitOrders: filledOrderIds.length,
       };
-    }, { timeout: 30000 });
+    }, { timeout: 30000, isolationLevel: 'Serializable' });
 
     return successResponse(result);
 
   } catch (err: unknown) {
-    const error = err as Error & { statusCode?: number };
+    const error = err as Error & { code?: string; statusCode?: number };
     console.error('Sell failed:', error);
+    // Serialization conflict — tell client to retry
+    if (error.code === 'P2034') {
+      return errorResponse('Trade conflict — please retry', 409);
+    }
     if (error.message === 'User not found in database') {
       return errorResponse(error.message, 404);
     }

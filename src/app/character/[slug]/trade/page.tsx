@@ -157,8 +157,11 @@ export default function TradePage() {
       if (!user?.id || !character?.id) return;
       const response = await privyFetch(`/api/users/${user.id}/holdings`);
       if (response.ok) {
-        const data = await response.json();
-        const charHolding = data.find((h: { characterId: string }) => h.characterId === character.id);
+        const json = await response.json();
+        const holdings = json.data || json;
+        const charHolding = Array.isArray(holdings)
+          ? holdings.find((h: { characterId: string }) => h.characterId === character.id)
+          : null;
         setHolding(charHolding || null);
       }
     } catch (error) {
@@ -225,6 +228,18 @@ export default function TradePage() {
     ]);
   };
 
+  /** Execute a trade API call with one automatic retry on 409 (serialization conflict) */
+  const tradeWithRetry = async (url: string, body: object): Promise<Response> => {
+    const doFetch = () => privyFetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const res = await doFetch();
+    if (res.status === 409) return doFetch(); // retry once on conflict
+    return res;
+  };
+
   const handleBuy = async () => {
     if (!buyShares || !character) return;
     setIsProcessing(true);
@@ -233,10 +248,8 @@ export default function TradePage() {
       const shares = parseInt(buyShares);
       if (!authenticated) { await login(); }
 
-      const response = await privyFetch('/api/trading/buy', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ characterId: character.id, shares })
+      const response = await tradeWithRetry('/api/trading/buy', {
+        characterId: character.id, shares,
       });
 
       if (!response.ok) {
@@ -266,10 +279,8 @@ export default function TradePage() {
       const shares = parseInt(sellShares);
       if (!authenticated) { await login(); }
 
-      const response = await privyFetch('/api/trading/sell', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ characterId: character.id, shares })
+      const response = await tradeWithRetry('/api/trading/sell', {
+        characterId: character.id, shares,
       });
 
       if (!response.ok) {

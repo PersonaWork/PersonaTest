@@ -8,14 +8,13 @@ export async function GET(
 ) {
   try {
     const { claims } = await requireAuth(request.headers);
-    const { userId } = await params;
     const authUser = await prisma.user.findUnique({ where: { privyId: claims.userId } });
-    if (!authUser || authUser.id !== userId) {
-      return errorResponse('Forbidden', 403);
+    if (!authUser) {
+      return errorResponse('User not found', 404);
     }
 
     const holdings = await prisma.holding.findMany({
-      where: { userId },
+      where: { userId: authUser.id },
       include: {
         character: {
           select: {

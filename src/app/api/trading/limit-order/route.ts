@@ -140,13 +140,16 @@ export async function POST(request: NextRequest) {
       });
 
       return limitOrder;
-    });
+    }, { isolationLevel: 'Serializable' });
 
     return successResponse(result, 201);
   } catch (err: unknown) {
-    const error = err as Error & { statusCode?: number };
+    const error = err as Error & { code?: string; statusCode?: number };
     console.error('Create limit order failed:', error);
 
+    if (error.code === 'P2034') {
+      return errorResponse('Order conflict — please retry', 409);
+    }
     if (
       error.message?.includes('Insufficient') ||
       error.message?.includes('Trigger price') ||

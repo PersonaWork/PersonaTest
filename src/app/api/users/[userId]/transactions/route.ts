@@ -8,17 +8,16 @@ export async function GET(
 ) {
   try {
     const { claims } = await requireAuth(request.headers);
-    const { userId } = await params;
     const authUser = await prisma.user.findUnique({ where: { privyId: claims.userId } });
-    if (!authUser || authUser.id !== userId) {
-      return errorResponse('Forbidden', 403);
+    if (!authUser) {
+      return errorResponse('User not found', 404);
     }
 
     const transactions = await prisma.transaction.findMany({
       where: {
         OR: [
-          { buyerId: userId },
-          { sellerId: userId }
+          { buyerId: authUser.id },
+          { sellerId: authUser.id }
         ]
       },
       include: {
