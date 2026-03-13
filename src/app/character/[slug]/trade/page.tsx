@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button, Card } from '@/components/ui';
 import Link from 'next/link';
@@ -255,6 +255,32 @@ export default function TradePage() {
     }
   }, [character, fetchOrderBook]);
 
+  // ── Auto-polling: refresh all data every 5 seconds ──
+  const isProcessingRef = useRef(false);
+  useEffect(() => { isProcessingRef.current = isProcessing; }, [isProcessing]);
+
+  useEffect(() => {
+    if (!slug || !character) return;
+
+    const poll = setInterval(() => {
+      // Don't poll while a trade is in-flight
+      if (isProcessingRef.current) return;
+
+      // Silently refresh everything
+      fetchCharacter();
+      fetchTransactions();
+      fetchOrderBook();
+      if (authenticated && user?.id) {
+        fetchHolding();
+        fetchWalletStatus();
+        fetchPendingOrders();
+      }
+    }, 5000);
+
+    return () => clearInterval(poll);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug, character?.id, authenticated, user?.id]);
+
   const getExpiryDate = (expiry: string): string | undefined => {
     if (expiry === '24h') return new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
     if (expiry === '7d') return new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
@@ -479,8 +505,9 @@ export default function TradePage() {
     ? buySharesNum * buyTriggerNum * (1 + PLATFORM_FEE_RATE)
     : buySharesNum * buyTriggerNum * (1 + (buySharesNum / liquidityDenom) * BONDING_CURVE_FACTOR);
 
-  const chartData = transactions.map(t => ({
-    time: new Date(t.createdAt).toLocaleDateString(),
+  // Reverse so oldest is on the left, newest on the right
+  const chartData = [...transactions].reverse().map(t => ({
+    time: new Date(t.createdAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
     price: t.pricePerShare
   }));
 
@@ -789,32 +816,38 @@ export default function TradePage() {
                         <span className="text-xs text-slate-500 ml-2">({availableShares.toLocaleString()} available)</span>
                       )}
                     </label>
-                    <div className="flex gap-2">
-                      <input
-                        type="number"
-                        value={buyShares}
-                        onChange={(e) => setBuyShares(e.target.value)}
-                        min="1"
-                        {...(!isGraduated && orderMode === 'market' ? { max: availableShares } : {})}
-                        className="flex-1 px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                        placeholder="Enter amount"
-                      />
-                      {walletStatus && character && orderMode === 'market' && (
-                        <button
-                          onClick={() => {
-                            const est = isGraduated
-                              ? (orderBook?.bestAsk || character.currentPrice)
-                              : character.currentPrice * 1.1;
-                            const maxBal = Math.floor(walletStatus.platformBalance / (est * 1.005));
-                            const max = !isGraduated ? Math.min(maxBal, availableShares) : maxBal;
-                            if (max > 0) setBuyShares(max.toString());
-                          }}
-                          className="px-3 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-xs font-bold text-slate-300 hover:text-white transition-colors"
-                        >
-                          MAX
-                        </button>
-                      )}
-                    </div>
+                    <input
+                      type="number"
+                      value={buyShares}
+                      onChange={(e) => setBuyShares(e.target.value)}
+                      min="1"
+                      {...(!isGraduated && orderMode === 'market' ? { max: availableShares } : {})}
+                      className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      placeholder="Enter amount"
+                    />
+                    {walletStatus && character && orderMode === 'market' && (() => {
+                      const est = isGraduated
+                        ? (orderBook?.bestAsk || character.currentPrice)
+                        : character.currentPrice * 1.1;
+                      const maxBal = Math.floor(walletStatus.platformBalance / (est * 1.005));
+                      const maxBuy = !isGraduated ? Math.min(maxBal, availableShares) : maxBal;
+                      return (
+                        <div className="flex gap-1.5 mt-2">
+                          {[25, 50, 75, 100].map(pct => {
+                            const val = Math.floor(maxBuy * pct / 100);
+                            return (
+                              <button
+                                key={pct}
+                                onClick={() => val > 0 && setBuyShares(val.toString())}
+                                className="flex-1 py-1.5 rounded-md text-xs font-bold bg-slate-800 hover:bg-indigo-600/20 text-slate-400 hover:text-indigo-300 border border-slate-700/50 hover:border-indigo-500/30 transition-all"
+                              >
+                                {pct}%
+                              </button>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   {orderMode === 'limit' && (
@@ -929,25 +962,31 @@ export default function TradePage() {
                     <label className="block text-sm font-medium text-slate-300 mb-2">
                       Shares to sell (you own: {holding?.shares || 0})
                     </label>
-                    <div className="flex gap-2">
-                      <input
-                        type="number"
-                        value={sellShares}
-                        onChange={(e) => setSellShares(e.target.value)}
-                        min="1"
-                        max={holding?.shares || 0}
-                        className="flex-1 px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                        placeholder="Enter amount"
-                      />
-                      {holding && holding.shares > 0 && (
-                        <button
-                          onClick={() => setSellShares(holding.shares.toString())}
-                          className="px-3 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-xs font-bold text-slate-300 hover:text-white transition-colors"
-                        >
-                          MAX
-                        </button>
-                      )}
-                    </div>
+                    <input
+                      type="number"
+                      value={sellShares}
+                      onChange={(e) => setSellShares(e.target.value)}
+                      min="1"
+                      max={holding?.shares || 0}
+                      className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      placeholder="Enter amount"
+                    />
+                    {holding && holding.shares > 0 && (
+                      <div className="flex gap-1.5 mt-2">
+                        {[25, 50, 75, 100].map(pct => {
+                          const val = Math.floor(holding.shares * pct / 100);
+                          return (
+                            <button
+                              key={pct}
+                              onClick={() => val > 0 && setSellShares(val.toString())}
+                              className="flex-1 py-1.5 rounded-md text-xs font-bold bg-slate-800 hover:bg-rose-600/20 text-slate-400 hover:text-rose-300 border border-slate-700/50 hover:border-rose-500/30 transition-all"
+                            >
+                              {pct}%
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
 
                   {orderMode === 'limit' && (
