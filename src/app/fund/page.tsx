@@ -405,7 +405,7 @@ export default function FundPage() {
 
   // Withdrawal preview
   const withdrawNum = parseFloat(withdrawAmount) || 0;
-  const withdrawReceive = Math.max(0, withdrawNum - 0.5);
+  const withdrawReceive = Math.max(0, withdrawNum - 1.0);
 
   if (!ready || (authenticated && !walletsReady)) {
     return (
@@ -590,7 +590,7 @@ export default function FundPage() {
                 </Button>
               </div>
               {/* Withdrawal preview */}
-              {withdrawNum >= 1 && (
+              {withdrawNum >= 2 && (
                 <div className="mt-3 p-3 rounded-lg bg-slate-900/50 border border-slate-800">
                   <div className="flex justify-between text-sm">
                     <span className="text-slate-400">You withdraw:</span>
@@ -598,7 +598,7 @@ export default function FundPage() {
                   </div>
                   <div className="flex justify-between text-sm mt-1">
                     <span className="text-slate-400">Fee:</span>
-                    <span className="text-slate-300">-$0.50</span>
+                    <span className="text-slate-300">-$1.00</span>
                   </div>
                   <div className="flex justify-between text-sm mt-1 pt-1 border-t border-slate-800">
                     <span className="text-slate-300 font-semibold">You receive:</span>
@@ -611,7 +611,7 @@ export default function FundPage() {
                   Moves USDC from your trading balance back to your embedded wallet on Base.
                 </p>
                 <p className="text-xs text-amber-400/70">
-                  $0.50 USDC fee is subtracted from your withdrawal. Minimum: $1.00 USDC.
+                  $1.00 USDC fee is subtracted from your withdrawal. Minimum: $2.00 USDC.
                 </p>
               </div>
             </Card>

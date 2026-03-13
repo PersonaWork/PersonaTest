@@ -488,21 +488,23 @@ export default function TradePage() {
   const buyTriggerNum = parseFloat(buyTriggerPrice) || 0;
   const sellTriggerNum = parseFloat(sellTriggerPrice) || 0;
 
-  const PLATFORM_FEE_RATE = 0.005;
+  // Fee rates: 2% bonding curve, 1% P2P per side
+  const feeRate = !isGraduated ? 0.02 : 0.01;
+  const feeLabel = !isGraduated ? '2%' : '1%';
   const liquidityDenom = character.sharesIssued + VIRTUAL_LIQUIDITY;
 
   const estimatedBuyCost = !isGraduated
     ? buySharesNum * character.currentPrice * (1 + (buySharesNum / liquidityDenom) * BONDING_CURVE_FACTOR)
     : buySharesNum * (orderBook?.bestAsk || character.currentPrice);
-  const buyFee = estimatedBuyCost * PLATFORM_FEE_RATE;
+  const buyFee = estimatedBuyCost * feeRate;
   const estimatedBuyTotal = estimatedBuyCost + buyFee;
   const estimatedSellProceeds = !isGraduated
     ? sellSharesNum * character.currentPrice * Math.max(0, (1 - (sellSharesNum / liquidityDenom) * BONDING_CURVE_FACTOR))
     : sellSharesNum * (orderBook?.bestBid || character.currentPrice);
-  const sellFee = estimatedSellProceeds * PLATFORM_FEE_RATE;
+  const sellFee = estimatedSellProceeds * feeRate;
   const estimatedSellAfterFee = estimatedSellProceeds - sellFee;
   const limitBuyLocked = isGraduated
-    ? buySharesNum * buyTriggerNum * (1 + PLATFORM_FEE_RATE)
+    ? buySharesNum * buyTriggerNum * (1 + feeRate)
     : buySharesNum * buyTriggerNum * (1 + (buySharesNum / liquidityDenom) * BONDING_CURVE_FACTOR);
 
   // Reverse so oldest is on the left, newest on the right
@@ -838,7 +840,7 @@ export default function TradePage() {
                       const est = isGraduated
                         ? (orderBook?.bestAsk || character.currentPrice)
                         : character.currentPrice * 1.1;
-                      const maxBal = Math.floor(walletStatus.platformBalance / (est * 1.005));
+                      const maxBal = Math.floor(walletStatus.platformBalance / (est * (1 + feeRate)));
                       const maxBuy = !isGraduated ? Math.min(maxBal, effectiveBuyCap) : maxBal;
                       return (
                         <div className="flex gap-1.5 mt-2">
@@ -907,7 +909,7 @@ export default function TradePage() {
                         <span className="text-white font-semibold">${formatUsd(estimatedBuyCost)} USDC</span>
                       </div>
                       <div className="flex justify-between text-sm mb-2">
-                        <span className="text-slate-400">Fee (0.5%):</span>
+                        <span className="text-slate-400">Fee ({feeLabel}):</span>
                         <span className="text-slate-300 font-medium">${formatUsd(buyFee)} USDC</span>
                       </div>
                       <div className="flex justify-between text-sm pt-2 border-t border-slate-800">
@@ -1046,7 +1048,7 @@ export default function TradePage() {
                         <span className="text-white font-semibold">${formatUsd(estimatedSellProceeds)} USDC</span>
                       </div>
                       <div className="flex justify-between text-sm mb-2">
-                        <span className="text-slate-400">Fee (0.5%):</span>
+                        <span className="text-slate-400">Fee ({feeLabel}):</span>
                         <span className="text-slate-300 font-medium">-${formatUsd(sellFee)} USDC</span>
                       </div>
                       <div className="flex justify-between text-sm pt-2 border-t border-slate-800">

@@ -4,7 +4,7 @@ import { requireAuth } from '@/lib/auth';
 import { successResponse, errorResponse } from '@/lib/api';
 import { matchLimitOrders } from '@/lib/trading/order-matcher';
 import { matchMarketSell } from '@/lib/trading/p2p-matcher';
-import { PLATFORM_FEE_RATE, BONDING_CURVE_FACTOR, PRICE_FLOOR, VIRTUAL_LIQUIDITY, PHASE_GRADUATED } from '@/lib/wallet/base';
+import { BONDING_FEE_RATE, BONDING_CURVE_FACTOR, PRICE_FLOOR, VIRTUAL_LIQUIDITY, PHASE_GRADUATED } from '@/lib/wallet/base';
 import { z } from 'zod';
 
 const SellSchema = z.object({
@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
       const currentPrice = character.currentPrice;
       const pricePerShare = Math.max(PRICE_FLOOR, currentPrice * (1 - (shares / (character.sharesIssued + VIRTUAL_LIQUIDITY)) * BONDING_CURVE_FACTOR));
       const totalProceeds = shares * pricePerShare;
-      const fee = totalProceeds * PLATFORM_FEE_RATE;
+      const fee = totalProceeds * BONDING_FEE_RATE;
       const proceedsAfterFee = totalProceeds - fee;
 
       // Verify pool has enough liquidity to pay seller

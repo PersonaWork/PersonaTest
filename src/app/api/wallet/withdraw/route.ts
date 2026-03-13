@@ -35,9 +35,9 @@ export async function POST(request: NextRequest) {
     const fee = WITHDRAWAL_FEE; // $0.50 flat fee — subtracted from withdrawal
     const sendAmount = amount - fee; // User receives amount minus fee
 
-    // Minimum withdrawal ($1 so user gets at least $0.50 after fee)
-    if (amount < 1) {
-      return errorResponse('Minimum withdrawal is $1.00 USDC', 400);
+    // Minimum withdrawal ($2 so user gets at least $1.00 after fee)
+    if (amount < 2) {
+      return errorResponse('Minimum withdrawal is $2.00 USDC', 400);
     }
 
     // Check sufficient balance

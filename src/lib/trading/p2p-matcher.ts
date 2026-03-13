@@ -9,7 +9,7 @@
  * Market sells → match against highest buy limit orders (descending price)
  */
 
-import { PLATFORM_FEE_RATE } from '@/lib/wallet/base';
+import { P2P_FEE_RATE } from '@/lib/wallet/base';
 
 type TxClient = Parameters<Parameters<import('@prisma/client').PrismaClient['$transaction']>[0]>[0];
 
@@ -70,7 +70,7 @@ export async function matchMarketBuy(
     const fillShares = Math.min(result.remainingShares, order.sharesRemaining);
     const pricePerShare = order.triggerPrice;
     const cost = fillShares * pricePerShare;
-    const fee = cost * PLATFORM_FEE_RATE;
+    const fee = cost * P2P_FEE_RATE;
 
     // Check buyer has enough USDC
     const buyer = await tx.user.findUnique({ where: { id: buyerUserId } });
@@ -83,7 +83,7 @@ export async function matchMarketBuy(
     });
 
     // Credit USDC to seller (from locked amount, minus seller fee)
-    const sellerFee = cost * PLATFORM_FEE_RATE;
+    const sellerFee = cost * P2P_FEE_RATE;
     const sellerProceeds = cost - sellerFee;
     await tx.user.update({
       where: { id: order.userId },
@@ -221,7 +221,7 @@ export async function matchMarketSell(
     const fillShares = Math.min(result.remainingShares, order.sharesRemaining);
     const pricePerShare = order.triggerPrice;
     const cost = fillShares * pricePerShare;
-    const sellerFee = cost * PLATFORM_FEE_RATE;
+    const sellerFee = cost * P2P_FEE_RATE;
     const sellerProceeds = cost - sellerFee;
 
     // Credit USDC to seller
@@ -262,7 +262,7 @@ export async function matchMarketSell(
     // Calculate proportional refund of locked amount for partial fills
     const proportionFilled = fillShares / order.shares;
     const lockedUsed = order.lockedAmount * proportionFilled;
-    const buyerFee = cost * PLATFORM_FEE_RATE;
+    const buyerFee = cost * P2P_FEE_RATE;
 
     // If the fill price is less than what was locked, refund excess to buyer
     const excess = lockedUsed - cost - buyerFee;
@@ -279,7 +279,7 @@ export async function matchMarketSell(
         if (f.orderId === order.id) return sum + f.cost;
         return sum;
       }, cost);
-      const totalBuyerFees = actualSpent * PLATFORM_FEE_RATE;
+      const totalBuyerFees = actualSpent * P2P_FEE_RATE;
       const finalRefund = order.lockedAmount - actualSpent - totalBuyerFees;
       if (finalRefund > 0.000001) {
         await tx.user.update({
@@ -408,8 +408,8 @@ export async function matchNewLimitOrder(
       const fillShares = Math.min(remainingShares, sellOrder.sharesRemaining);
       const pricePerShare = sellOrder.triggerPrice; // Execute at seller's ask price
       const cost = fillShares * pricePerShare;
-      const buyerFee = cost * PLATFORM_FEE_RATE;
-      const sellerFee = cost * PLATFORM_FEE_RATE;
+      const buyerFee = cost * P2P_FEE_RATE;
+      const sellerFee = cost * P2P_FEE_RATE;
 
       // Credit seller (shares were already locked when sell order was placed)
       const sellerProceeds = cost - sellerFee;
@@ -541,8 +541,8 @@ export async function matchNewLimitOrder(
       const fillShares = Math.min(remainingShares, buyOrder.sharesRemaining);
       const pricePerShare = order.triggerPrice; // Execute at seller's ask price
       const cost = fillShares * pricePerShare;
-      const sellerFee = cost * PLATFORM_FEE_RATE;
-      const buyerFee = cost * PLATFORM_FEE_RATE;
+      const sellerFee = cost * P2P_FEE_RATE;
+      const buyerFee = cost * P2P_FEE_RATE;
 
       // Credit seller (the one who placed this limit sell)
       const sellerProceeds = cost - sellerFee;

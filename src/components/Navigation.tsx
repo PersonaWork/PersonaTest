@@ -50,6 +50,13 @@ const Navigation = () => {
             >
               Marketplace
             </Link>
+            <Link
+              href="/users"
+              className={`text-sm font-semibold transition-colors ${isActive('/users') || isActive('/user/') ? 'text-white' : 'text-slate-400 hover:text-white'
+                }`}
+            >
+              Users
+            </Link>
             {isAuthenticated && (
               <>
                 <Link
@@ -159,6 +166,9 @@ const Navigation = () => {
             )}
             <Link onClick={() => setMobileOpen(false)} href="/marketplace" className={`block text-sm font-semibold ${isActive('/marketplace') ? 'text-white' : 'text-slate-300'}`}>
               Marketplace
+            </Link>
+            <Link onClick={() => setMobileOpen(false)} href="/users" className={`block text-sm font-semibold ${isActive('/users') ? 'text-white' : 'text-slate-300'}`}>
+              Users
             </Link>
             {isAuthenticated && (
               <>

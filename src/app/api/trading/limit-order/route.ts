@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
         // Calculate USDC to lock
         if (isGraduated) {
           // Simple price * shares + buffer for fees
-          lockedAmount = shares * triggerPrice * (1 + 0.005); // price + 0.5% fee
+          lockedAmount = shares * triggerPrice * (1 + 0.01); // price + 1% P2P fee buffer
         } else {
           // Bonding curve estimated cost at trigger price
           const estimatedPricePerShare = triggerPrice * (1 + (shares / (character.sharesIssued + VIRTUAL_LIQUIDITY)) * BONDING_CURVE_FACTOR);

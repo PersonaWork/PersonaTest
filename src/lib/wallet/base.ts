@@ -29,13 +29,18 @@ export const VIRTUAL_LIQUIDITY = 1000;     // Virtual supply pool — controls e
 export const PRICE_FLOOR = 0.0000001;      // Absolute minimum price to prevent negatives
 
 // ── Platform fees ──────────────────────────────────────────────────
-export const PLATFORM_FEE_RATE = 0.005;   // 0.5% on every buy/sell trade
-export const WITHDRAWAL_FEE = 0.50;        // $0.50 USDC flat fee on withdrawals
+// Bonding curve phase: protocol is counterparty, takes a premium
+export const BONDING_FEE_RATE = 0.02;     // 2% on bonding curve buys/sells
+// Graduated P2P phase: competitive market rate, charged per side
+export const P2P_FEE_RATE = 0.01;         // 1% per side (buyer pays 1%, seller pays 1% = 2% total)
+// Legacy alias — some imports still reference this
+export const PLATFORM_FEE_RATE = BONDING_FEE_RATE;
+export const WITHDRAWAL_FEE = 1.00;        // $1.00 USDC flat fee on withdrawals
 export const FEE_COLLECTOR_ADDRESS = '0x43c661401D7a80ed3260D6252Cc1f431380e0809' as const;
 
-// ── Gas sponsoring ─────────────────────────────────────────────────
-export const GAS_MIN_THRESHOLD = 0.000008; // Fund user if below ~1 USDC transfer worth of gas
-export const GAS_TARGET_BALANCE = 0.00003; // Top up to this amount (~3 USDC transfers worth of gas)
+// ── Gas sponsoring (Base L2 — gas is extremely cheap) ────────────
+export const GAS_MIN_THRESHOLD = 0.000002; // Fund user if below this (~1 Base tx worth)
+export const GAS_TARGET_BALANCE = 0.000008; // Top up to this (~4-5 Base txs worth, ~$0.02)
 
 /** Normalize a private key to ensure it has 0x prefix and no whitespace */
 function normalizeKey(key: string): `0x${string}` {

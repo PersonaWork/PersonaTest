@@ -4,7 +4,7 @@ import { requireAuth } from '@/lib/auth';
 import { successResponse, errorResponse } from '@/lib/api';
 import { matchLimitOrders } from '@/lib/trading/order-matcher';
 import { matchMarketBuy } from '@/lib/trading/p2p-matcher';
-import { PLATFORM_FEE_RATE, BONDING_CURVE_FACTOR, VIRTUAL_LIQUIDITY, PHASE_GRADUATED, MAX_WHALE_PERCENT } from '@/lib/wallet/base';
+import { BONDING_FEE_RATE, BONDING_CURVE_FACTOR, VIRTUAL_LIQUIDITY, PHASE_GRADUATED, MAX_WHALE_PERCENT } from '@/lib/wallet/base';
 import { z } from 'zod';
 
 const BuySchema = z.object({
@@ -87,11 +87,11 @@ export async function POST(request: NextRequest) {
       const currentPrice = character.currentPrice;
       const pricePerShare = currentPrice * (1 + (shares / (character.sharesIssued + VIRTUAL_LIQUIDITY)) * BONDING_CURVE_FACTOR);
       const totalCost = shares * pricePerShare;
-      const fee = totalCost * PLATFORM_FEE_RATE;
+      const fee = totalCost * BONDING_FEE_RATE;
       const totalWithFee = totalCost + fee;
 
       if (user.usdcBalance < totalWithFee) {
-        throw new Error(`Insufficient USDC balance. Need ${totalWithFee.toFixed(6)} USDC (incl. 0.5% fee) but have ${user.usdcBalance.toFixed(6)} USDC`);
+        throw new Error(`Insufficient USDC balance. Need ${totalWithFee.toFixed(6)} USDC (incl. 2% fee) but have ${user.usdcBalance.toFixed(6)} USDC`);
       }
 
       // Deduct USDC from buyer

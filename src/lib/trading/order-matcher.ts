@@ -10,7 +10,7 @@
  * Graduated phase characters use p2p-matcher.ts instead.
  */
 
-import { PLATFORM_FEE_RATE, BONDING_CURVE_FACTOR, PRICE_FLOOR, VIRTUAL_LIQUIDITY, PHASE_GRADUATED } from '@/lib/wallet/base';
+import { BONDING_FEE_RATE, BONDING_CURVE_FACTOR, PRICE_FLOOR, VIRTUAL_LIQUIDITY, PHASE_GRADUATED } from '@/lib/wallet/base';
 
 type TxClient = Parameters<Parameters<import('@prisma/client').PrismaClient['$transaction']>[0]>[0];
 
@@ -100,7 +100,7 @@ async function executeLimitBuy(
 
   const pricePerShare = character.currentPrice * (1 + (order.shares / (character.sharesIssued + VIRTUAL_LIQUIDITY)) * BONDING_CURVE_FACTOR);
   const totalCost = order.shares * pricePerShare;
-  const fee = totalCost * PLATFORM_FEE_RATE;
+  const fee = totalCost * BONDING_FEE_RATE;
   const totalWithFee = totalCost + fee;
 
   if (totalWithFee > order.lockedAmount) return false;
@@ -195,7 +195,7 @@ async function executeLimitSell(
 ): Promise<boolean> {
   const pricePerShare = Math.max(PRICE_FLOOR, character.currentPrice * (1 - (order.shares / (character.sharesIssued + VIRTUAL_LIQUIDITY)) * BONDING_CURVE_FACTOR));
   const totalProceeds = order.shares * pricePerShare;
-  const fee = totalProceeds * PLATFORM_FEE_RATE;
+  const fee = totalProceeds * BONDING_FEE_RATE;
   const proceedsAfterFee = totalProceeds - fee;
 
   // Verify pool has enough liquidity
