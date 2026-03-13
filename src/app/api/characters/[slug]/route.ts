@@ -56,6 +56,11 @@ export async function GET(
         const totalViews = character.posts.reduce((sum, post) => sum + post.views, 0);
 
         // Transform the response
+        // Calculate graduation progress
+        const graduationProgress = character.totalShares > 0
+            ? Math.min(100, (character.sharesIssued / character.totalShares) * 100)
+            : 0;
+
         const transformed = {
             id: character.id,
             name: character.name,
@@ -69,6 +74,10 @@ export async function GET(
             sharesIssued: character.sharesIssued,
             currentPrice: character.currentPrice,
             marketCap: character.marketCap,
+            phase: character.phase,
+            poolBalance: character.poolBalance,
+            graduatedAt: character.graduatedAt,
+            graduationProgress,
             priceChange,
             isLaunched: character.isLaunched,
             launchAt: character.launchAt,

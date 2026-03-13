@@ -14,6 +14,9 @@ async function main() {
             currentPrice: 0.00001,
             sharesIssued: 0,
             marketCap: 0,
+            phase: 'BONDING_CURVE',
+            poolBalance: 0,
+            graduatedAt: null,
         },
         create: {
             name: 'Aria',
@@ -44,6 +47,8 @@ async function main() {
             sharesIssued: 0,
             currentPrice: 0.00001,
             marketCap: 0,
+            phase: 'BONDING_CURVE',
+            poolBalance: 0,
             isLaunched: true,
             tiktokHandle: '@aria_persona',
             instagramHandle: '@aria.persona'

@@ -39,10 +39,13 @@ model Character {
   personality     Json
   actions         Json
   environment     Json
-  totalShares     Int              @default(1000000)
+  totalShares     Int              @default(10000)
   sharesIssued    Int              @default(0)
-  currentPrice    Float            @default(0.10)
+  currentPrice    Float            @default(0.00001)
   marketCap       Float            @default(0)
+  phase           String           @default("BONDING_CURVE") // "BONDING_CURVE" or "GRADUATED"
+  poolBalance     Float            @default(0) // USDC liquidity pool from bonding curve buys
+  graduatedAt     DateTime?        // When character graduated to free market
   launchAt        DateTime?
   isLaunched      Boolean          @default(false)
   tiktokHandle    String?
@@ -60,6 +63,7 @@ model Character {
   @@index([slug])
   @@index([isLaunched])
   @@index([createdAt])
+  @@index([phase])
 }
 
 model Holding {
@@ -179,10 +183,12 @@ model LimitOrder {
   characterId       String
   side              String       // "buy" or "sell"
   shares            Int
+  sharesRemaining   Int          @default(0) // Unfilled portion (for partial fills in graduated phase)
+  filledShares      Int          @default(0) // How many shares filled so far
   triggerPrice      Float
   lockedAmount      Float        // USDC locked (buys), 0 (sells)
   lockedAvgBuyPrice Float?       // saved from holding on sell orders for restoration on cancel
-  status            String       @default("pending") // pending | filled | cancelled | expired
+  status            String       @default("pending") // pending | partial | filled | cancelled | expired
   expiresAt         DateTime?
   filledAt          DateTime?
   cancelledAt       DateTime?
@@ -195,6 +201,7 @@ model LimitOrder {
   transaction       Transaction? @relation(fields: [transactionId], references: [id])
 
   @@index([characterId, status])
+  @@index([characterId, side, status])
   @@index([userId, status])
   @@index([status, expiresAt])
 }

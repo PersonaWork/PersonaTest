@@ -9,13 +9,19 @@ export const USDC_DECIMALS = 6;
 // Platform treasury address on Base — receives deposits, funds withdrawals
 export const TREASURY_ADDRESS = '0x797C0D912A65BCcCC2F52d9328f763DbC067b883' as const;
 
-// ── Trading constants (crypto-style bonding curve) ──────────────
+// ── Two-Phase Trading System ─────────────────────────────────────
+// Phase 1: Bonding curve — protocol is counterparty, builds liquidity pool
+// Phase 2: Graduated — peer-to-peer order book, price set by market
+export const PHASE_BONDING_CURVE = 'BONDING_CURVE';
+export const PHASE_GRADUATED = 'GRADUATED';
+export const DEFAULT_TOTAL_SHARES = 10_000;
+
+// ── Bonding Curve Constants (Phase 1) ───────────────────────────
 export const BONDING_CURVE_FACTOR = 1.5;   // Price impact multiplier
 export const VIRTUAL_LIQUIDITY = 1000;     // Virtual supply pool — controls early volatility
 //   Price impact = shares / (sharesIssued + VIRTUAL_LIQUIDITY) * FACTOR
 //   Early (0 supply): buying 100 shares → 100/1000*1.5 = 15% move
 //   Mature (10k supply): buying 100 shares → 100/11000*1.5 = 1.4% move
-//   No supply cap — shares are minted on buy, burned on sell (like crypto)
 export const PRICE_FLOOR = 0.0000001;      // Absolute minimum price to prevent negatives
 
 // ── Platform fees ──────────────────────────────────────────────────

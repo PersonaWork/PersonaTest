@@ -1,15 +1,17 @@
 /**
- * Limit Order Matching Engine
+ * Limit Order Matching Engine (Phase 1 — Bonding Curve)
  *
  * Called inside existing buy/sell Prisma transactions after price updates.
  * Finds and executes any pending limit orders that are now triggerable.
  * Handles cascading: if executing an order changes the price enough
  * to trigger another order, that one executes too (up to maxCascadeDepth).
+ *
+ * NOTE: This only runs for BONDING_CURVE phase characters.
+ * Graduated phase characters use p2p-matcher.ts instead.
  */
 
-import { PLATFORM_FEE_RATE, BONDING_CURVE_FACTOR, PRICE_FLOOR, VIRTUAL_LIQUIDITY } from '@/lib/wallet/base';
+import { PLATFORM_FEE_RATE, BONDING_CURVE_FACTOR, PRICE_FLOOR, VIRTUAL_LIQUIDITY, PHASE_GRADUATED } from '@/lib/wallet/base';
 
-// Use Prisma's transaction client type
 type TxClient = Parameters<Parameters<import('@prisma/client').PrismaClient['$transaction']>[0]>[0];
 
 interface MatchResult {
@@ -25,16 +27,16 @@ export async function matchLimitOrders(
   let depth = 0;
 
   while (depth < maxCascadeDepth) {
-    // Re-fetch character price (may have changed from previous cascade iteration)
     const character = await tx.character.findUnique({ where: { id: characterId } });
     if (!character) break;
+
+    // Skip graduated characters — they use P2P matching
+    if (character.phase === PHASE_GRADUATED) break;
 
     const currentPrice = character.currentPrice;
     const now = new Date();
 
-    // Find all pending limit orders for this character that should trigger
-    // Limit buy: triggers when currentPrice <= triggerPrice (price dropped to target)
-    // Limit sell: triggers when currentPrice >= triggerPrice (price rose to target)
+    // Find pending limit orders that should trigger
     const pendingOrders = await tx.limitOrder.findMany({
       where: {
         characterId,
@@ -44,7 +46,7 @@ export async function matchLimitOrders(
           { side: 'sell', triggerPrice: { lte: currentPrice } },
         ],
       },
-      orderBy: { createdAt: 'asc' }, // FIFO: oldest orders execute first
+      orderBy: { createdAt: 'asc' },
     });
 
     // Separate expired from valid
@@ -55,22 +57,17 @@ export async function matchLimitOrders(
       (o) => !o.expiresAt || o.expiresAt > now
     );
 
-    // Mark expired ones and refund
     for (const expired of expiredOrders) {
       await expireOrder(tx, expired);
     }
 
     if (validOrders.length === 0) break;
 
-    // Execute one order at a time (price changes after each)
     const order = validOrders[0];
     const filled = await executeOrder(tx, order, character);
     if (filled) {
       filledOrderIds.push(order.id);
     } else {
-      // If we couldn't fill the first qualifying order, skip it and try next
-      // This handles the case where locked amount is insufficient
-      // But we break to avoid infinite loops on the same unfillable order
       break;
     }
 
@@ -83,7 +80,7 @@ export async function matchLimitOrders(
 async function executeOrder(
   tx: TxClient,
   order: { id: string; userId: string; characterId: string; side: string; shares: number; lockedAmount: number },
-  character: { id: string; currentPrice: number; totalShares: number; sharesIssued: number }
+  character: { id: string; currentPrice: number; totalShares: number; sharesIssued: number; poolBalance: number; phase: string }
 ): Promise<boolean> {
   if (order.side === 'buy') {
     return executeLimitBuy(tx, order, character);
@@ -95,23 +92,20 @@ async function executeOrder(
 async function executeLimitBuy(
   tx: TxClient,
   order: { id: string; userId: string; characterId: string; shares: number; lockedAmount: number },
-  character: { id: string; currentPrice: number; totalShares: number; sharesIssued: number }
+  character: { id: string; currentPrice: number; totalShares: number; sharesIssued: number; poolBalance: number; phase: string }
 ): Promise<boolean> {
-  // No supply cap — shares are minted on demand (crypto-style bonding curve)
+  // Check supply cap in bonding curve phase
+  const availableShares = character.totalShares - character.sharesIssued;
+  if (order.shares > availableShares) return false;
 
-  // Calculate actual cost at current bonding curve price (dynamic liquidity denominator)
   const pricePerShare = character.currentPrice * (1 + (order.shares / (character.sharesIssued + VIRTUAL_LIQUIDITY)) * BONDING_CURVE_FACTOR);
   const totalCost = order.shares * pricePerShare;
   const fee = totalCost * PLATFORM_FEE_RATE;
   const totalWithFee = totalCost + fee;
 
-  // Check if locked amount covers the actual cost + fee
-  // If price moved unfavorably, locked funds may be insufficient — skip (don't cancel)
-  if (totalWithFee > order.lockedAmount) {
-    return false;
-  }
+  if (totalWithFee > order.lockedAmount) return false;
 
-  // Funds were already deducted at order creation. Refund any excess after cost + fee.
+  // Refund excess
   const refund = order.lockedAmount - totalWithFee;
   if (refund > 0) {
     await tx.user.update({
@@ -120,10 +114,14 @@ async function executeLimitBuy(
     });
   }
 
-  // Update character price and shares (minting new supply)
+  // Update character price, shares, and pool balance
   const newPrice = character.currentPrice * (1 + (order.shares / (character.sharesIssued + VIRTUAL_LIQUIDITY)) * BONDING_CURVE_FACTOR);
   const newSharesIssued = character.sharesIssued + order.shares;
   const newMarketCap = newPrice * newSharesIssued;
+  const newPoolBalance = character.poolBalance + totalCost;
+
+  // Check for graduation
+  const shouldGraduate = newSharesIssued >= character.totalShares;
 
   await tx.character.update({
     where: { id: character.id },
@@ -131,6 +129,11 @@ async function executeLimitBuy(
       currentPrice: newPrice,
       sharesIssued: newSharesIssued,
       marketCap: newMarketCap,
+      poolBalance: newPoolBalance,
+      ...(shouldGraduate ? {
+        phase: PHASE_GRADUATED,
+        graduatedAt: new Date(),
+      } : {}),
     },
   });
 
@@ -155,11 +158,9 @@ async function executeLimitBuy(
   if (existingHolding) {
     const totalSharesOwned = existingHolding.shares + order.shares;
     const totalCostBasis = (existingHolding.avgBuyPrice * existingHolding.shares) + totalCost;
-    const newAvgPrice = totalCostBasis / totalSharesOwned;
-
     await tx.holding.update({
       where: { userId_characterId: { userId: order.userId, characterId: order.characterId } },
-      data: { shares: totalSharesOwned, avgBuyPrice: newAvgPrice },
+      data: { shares: totalSharesOwned, avgBuyPrice: totalCostBasis / totalSharesOwned },
     });
   } else {
     await tx.holding.create({
@@ -175,7 +176,13 @@ async function executeLimitBuy(
   // Mark order as filled
   await tx.limitOrder.update({
     where: { id: order.id },
-    data: { status: 'filled', filledAt: new Date(), transactionId: txnRecord.id },
+    data: {
+      status: 'filled',
+      filledAt: new Date(),
+      transactionId: txnRecord.id,
+      sharesRemaining: 0,
+      filledShares: order.shares,
+    },
   });
 
   return true;
@@ -184,24 +191,27 @@ async function executeLimitBuy(
 async function executeLimitSell(
   tx: TxClient,
   order: { id: string; userId: string; characterId: string; shares: number; lockedAmount: number },
-  character: { id: string; currentPrice: number; totalShares: number; sharesIssued: number }
+  character: { id: string; currentPrice: number; totalShares: number; sharesIssued: number; poolBalance: number; phase: string }
 ): Promise<boolean> {
-  // Calculate proceeds at current bonding curve price (dynamic liquidity denominator)
   const pricePerShare = Math.max(PRICE_FLOOR, character.currentPrice * (1 - (order.shares / (character.sharesIssued + VIRTUAL_LIQUIDITY)) * BONDING_CURVE_FACTOR));
   const totalProceeds = order.shares * pricePerShare;
   const fee = totalProceeds * PLATFORM_FEE_RATE;
   const proceedsAfterFee = totalProceeds - fee;
 
-  // Shares were already deducted from holding at order creation. Credit USDC minus fee.
+  // Verify pool has enough liquidity
+  if (character.poolBalance < totalProceeds) return false;
+
+  // Credit seller
   await tx.user.update({
     where: { id: order.userId },
     data: { usdcBalance: { increment: proceedsAfterFee } },
   });
 
-  // Update character price (burning supply)
+  // Update character (burning supply, draining pool)
   const newPrice = Math.max(PRICE_FLOOR, character.currentPrice * (1 - (order.shares / (character.sharesIssued + VIRTUAL_LIQUIDITY)) * BONDING_CURVE_FACTOR));
   const newSharesIssued = character.sharesIssued - order.shares;
   const newMarketCap = newPrice * newSharesIssued;
+  const newPoolBalance = character.poolBalance - totalProceeds;
 
   await tx.character.update({
     where: { id: character.id },
@@ -209,10 +219,10 @@ async function executeLimitSell(
       currentPrice: newPrice,
       sharesIssued: newSharesIssued,
       marketCap: newMarketCap,
+      poolBalance: newPoolBalance,
     },
   });
 
-  // Create transaction record
   const txnRecord = await tx.transaction.create({
     data: {
       sellerId: order.userId,
@@ -225,10 +235,15 @@ async function executeLimitSell(
     },
   });
 
-  // Mark order as filled
   await tx.limitOrder.update({
     where: { id: order.id },
-    data: { status: 'filled', filledAt: new Date(), transactionId: txnRecord.id },
+    data: {
+      status: 'filled',
+      filledAt: new Date(),
+      transactionId: txnRecord.id,
+      sharesRemaining: 0,
+      filledShares: order.shares,
+    },
   });
 
   return true;
@@ -247,13 +262,11 @@ async function expireOrder(
   }
 ): Promise<void> {
   if (order.side === 'buy') {
-    // Refund locked USDC
     await tx.user.update({
       where: { id: order.userId },
       data: { usdcBalance: { increment: order.lockedAmount } },
     });
   } else {
-    // Return locked shares to holding
     const existingHolding = await tx.holding.findUnique({
       where: { userId_characterId: { userId: order.userId, characterId: order.characterId } },
     });
@@ -264,7 +277,6 @@ async function expireOrder(
         data: { shares: { increment: order.shares } },
       });
     } else {
-      // Holding was deleted — recreate with saved avgBuyPrice
       await tx.holding.create({
         data: {
           userId: order.userId,

@@ -28,6 +28,10 @@ interface Character {
   marketCap: number;
   totalShares: number;
   sharesIssued: number;
+  phase: string;
+  poolBalance: number;
+  graduatedAt: string | null;
+  graduationProgress: number;
 }
 
 interface Holding {
@@ -46,11 +50,32 @@ interface PendingOrder {
   id: string;
   side: 'buy' | 'sell';
   shares: number;
+  sharesRemaining: number;
+  filledShares: number;
   triggerPrice: number;
   lockedAmount: number;
   status: string;
   expiresAt: string | null;
   createdAt: string;
+}
+
+interface OrderBookLevel {
+  price: number;
+  totalShares: number;
+  orderCount: number;
+}
+
+interface OrderBook {
+  phase: string;
+  currentPrice: number;
+  bids: OrderBookLevel[];
+  asks: OrderBookLevel[];
+  bestBid: number | null;
+  bestAsk: number | null;
+  spread: number | null;
+  spreadPercent: number | null;
+  totalBidVolume: number;
+  totalAskVolume: number;
 }
 
 // Must match server-side constants in src/lib/wallet/base.ts
@@ -66,7 +91,7 @@ function formatPrice(price: number): string {
   return price.toFixed(8);
 }
 
-/** Format a USDC dollar amount (trade costs, balances, etc.) */
+/** Format a USDC dollar amount */
 function formatUsd(amount: number): string {
   if (Math.abs(amount) >= 1) return amount.toFixed(2);
   if (Math.abs(amount) >= 0.01) return amount.toFixed(4);
@@ -96,6 +121,7 @@ export default function TradePage() {
   const [loading, setLoading] = useState(true);
   const [walletStatus, setWalletStatus] = useState<WalletStatus | null>(null);
   const [walletStatusLoading, setWalletStatusLoading] = useState(false);
+  const [orderBook, setOrderBook] = useState<OrderBook | null>(null);
 
   // Trade form states
   const [buyShares, setBuyShares] = useState('');
@@ -112,6 +138,8 @@ export default function TradePage() {
   const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
   const [tradeError, setTradeError] = useState<string | null>(null);
 
+  const isGraduated = character?.phase === 'GRADUATED';
+
   const fetchWalletStatus = useCallback(async () => {
     setWalletStatusLoading(true);
     try {
@@ -127,9 +155,7 @@ export default function TradePage() {
     try {
       const response = await fetch(`/api/characters/${slug}`);
       if (!response.ok) throw new Error('Failed to fetch character');
-
       const json = await response.json();
-      // Unwrap successResponse envelope: { success: true, data: {...} }
       if (json.success && json.data) {
         setCharacter(json.data);
       } else {
@@ -146,7 +172,6 @@ export default function TradePage() {
     try {
       const response = await fetch(`/api/characters/${slug}/transactions`);
       if (!response.ok) return;
-
       const data = await response.json();
       setTransactions(data);
     } catch (error) {
@@ -186,6 +211,19 @@ export default function TradePage() {
     }
   }, [authenticated, character, privyFetch]);
 
+  const fetchOrderBook = useCallback(async () => {
+    if (!character) return;
+    try {
+      const response = await fetch(`/api/characters/${slug}/orderbook`);
+      if (response.ok) {
+        const json = await response.json();
+        setOrderBook(json.data || json);
+      }
+    } catch (error) {
+      console.error('Failed to fetch order book:', error);
+    }
+  }, [slug, character]);
+
   useEffect(() => {
     if (slug) {
       fetchCharacter();
@@ -211,7 +249,12 @@ export default function TradePage() {
     }
   }, [character, authenticated, user?.id, fetchHolding, fetchPendingOrders]);
 
-  // Helper to compute expiry ISO string
+  useEffect(() => {
+    if (character) {
+      fetchOrderBook();
+    }
+  }, [character, fetchOrderBook]);
+
   const getExpiryDate = (expiry: string): string | undefined => {
     if (expiry === '24h') return new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
     if (expiry === '7d') return new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
@@ -219,7 +262,6 @@ export default function TradePage() {
     return undefined;
   };
 
-  // Refresh all data after trade
   const refreshAfterTrade = async () => {
     await Promise.all([
       fetchCharacter(),
@@ -227,10 +269,10 @@ export default function TradePage() {
       fetchHolding(),
       fetchWalletStatus(),
       fetchPendingOrders(),
+      fetchOrderBook(),
     ]);
   };
 
-  /** Execute a trade API call with one automatic retry on 409 (serialization conflict) */
   const tradeWithRetry = async (url: string, body: object): Promise<Response> => {
     const doFetch = () => privyFetch(url, {
       method: 'POST',
@@ -238,7 +280,7 @@ export default function TradePage() {
       body: JSON.stringify(body),
     });
     const res = await doFetch();
-    if (res.status === 409) return doFetch(); // retry once on conflict
+    if (res.status === 409) return doFetch();
     return res;
   };
 
@@ -326,7 +368,7 @@ export default function TradePage() {
         throw new Error(data?.error || 'Failed to place limit order');
       }
 
-      await Promise.all([fetchWalletStatus(), fetchPendingOrders()]);
+      await refreshAfterTrade();
       setBuyShares('');
       setBuyTriggerPrice('');
     } catch (error) {
@@ -363,7 +405,7 @@ export default function TradePage() {
         throw new Error(data?.error || 'Failed to place limit order');
       }
 
-      await Promise.all([fetchHolding(), fetchPendingOrders()]);
+      await refreshAfterTrade();
       setSellShares('');
       setSellTriggerPrice('');
     } catch (error) {
@@ -385,7 +427,7 @@ export default function TradePage() {
         const data = await response.json().catch(() => ({}));
         throw new Error(data?.error || 'Failed to cancel order');
       }
-      await Promise.all([fetchWalletStatus(), fetchPendingOrders(), fetchHolding()]);
+      await refreshAfterTrade();
     } catch (error) {
       console.error('Cancel failed:', error);
       setTradeError(error instanceof Error ? error.message : 'Cancel failed');
@@ -420,15 +462,22 @@ export default function TradePage() {
   const buyTriggerNum = parseFloat(buyTriggerPrice) || 0;
   const sellTriggerNum = parseFloat(sellTriggerPrice) || 0;
 
-  const PLATFORM_FEE_RATE = 0.005; // 0.5% fee
+  const PLATFORM_FEE_RATE = 0.005;
   const liquidityDenom = character.sharesIssued + VIRTUAL_LIQUIDITY;
-  const estimatedBuyCost = buySharesNum * character.currentPrice * (1 + (buySharesNum / liquidityDenom) * BONDING_CURVE_FACTOR);
+
+  const estimatedBuyCost = !isGraduated
+    ? buySharesNum * character.currentPrice * (1 + (buySharesNum / liquidityDenom) * BONDING_CURVE_FACTOR)
+    : buySharesNum * (orderBook?.bestAsk || character.currentPrice);
   const buyFee = estimatedBuyCost * PLATFORM_FEE_RATE;
   const estimatedBuyTotal = estimatedBuyCost + buyFee;
-  const estimatedSellProceeds = sellSharesNum * character.currentPrice * Math.max(0, (1 - (sellSharesNum / liquidityDenom) * BONDING_CURVE_FACTOR));
+  const estimatedSellProceeds = !isGraduated
+    ? sellSharesNum * character.currentPrice * Math.max(0, (1 - (sellSharesNum / liquidityDenom) * BONDING_CURVE_FACTOR))
+    : sellSharesNum * (orderBook?.bestBid || character.currentPrice);
   const sellFee = estimatedSellProceeds * PLATFORM_FEE_RATE;
   const estimatedSellAfterFee = estimatedSellProceeds - sellFee;
-  const limitBuyLocked = buySharesNum * buyTriggerNum * (1 + (buySharesNum / liquidityDenom) * BONDING_CURVE_FACTOR);
+  const limitBuyLocked = isGraduated
+    ? buySharesNum * buyTriggerNum * (1 + PLATFORM_FEE_RATE)
+    : buySharesNum * buyTriggerNum * (1 + (buySharesNum / liquidityDenom) * BONDING_CURVE_FACTOR);
 
   const chartData = transactions.map(t => ({
     time: new Date(t.createdAt).toLocaleDateString(),
@@ -442,17 +491,21 @@ export default function TradePage() {
     { value: '30d', label: '30d' },
   ];
 
+  const availableShares = character.totalShares - character.sharesIssued;
+
   return (
     <div className="min-h-screen pb-20">
-      {/* Background Effect */}
+      {/* Background */}
       <div className="absolute top-0 left-0 right-0 h-[500px] overflow-hidden -z-10 pointer-events-none">
         <div className="absolute inset-0 bg-gradient-to-b from-[#0a0a0f]/40 via-[#0a0a0f]/80 to-[#0a0a0f] z-10" />
-        <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-indigo-600/10 rounded-full blur-[120px]" />
+        <div className={`absolute top-0 left-1/4 w-[600px] h-[600px] rounded-full blur-[120px] ${
+          isGraduated ? 'bg-emerald-600/10' : 'bg-indigo-600/10'
+        }`} />
       </div>
 
       <div className="max-w-6xl mx-auto px-6 pt-10">
 
-        {/* Header & Tabs */}
+        {/* Header */}
         <div className="mb-6 flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div className="flex items-center gap-4">
             <Link href={`/character/${slug}`} className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-700 transition-colors">
@@ -461,8 +514,19 @@ export default function TradePage() {
               </svg>
             </Link>
             <div>
-              <h1 className="text-3xl font-black text-white leading-tight">Trade {character.name}</h1>
-              <p className="text-sm font-medium text-slate-400">Manage your investment</p>
+              <div className="flex items-center gap-3">
+                <h1 className="text-3xl font-black text-white leading-tight">Trade {character.name}</h1>
+                <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                  isGraduated
+                    ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20'
+                    : 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/20'
+                }`}>
+                  {isGraduated ? 'Free Market' : 'Bonding Curve'}
+                </span>
+              </div>
+              <p className="text-sm font-medium text-slate-400">
+                {isGraduated ? 'Peer-to-peer trading — price set by supply & demand' : 'Building liquidity — price rises with demand'}
+              </p>
             </div>
           </div>
 
@@ -479,23 +543,60 @@ export default function TradePage() {
           </div>
         </div>
 
-        {/* Global Market Stats */}
-        <div className="flex items-center gap-6 mb-8 bg-slate-900/40 p-5 rounded-2xl border border-slate-800/80">
+        {/* Market Stats */}
+        <div className="flex flex-wrap items-center gap-6 mb-6 bg-slate-900/40 p-5 rounded-2xl border border-slate-800/80">
           <div>
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 mt-0.5">Current Price</p>
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Price</p>
             <p className="text-3xl font-black text-white">${formatPrice(character.currentPrice)}</p>
           </div>
-          <div className="w-px h-12 bg-slate-800/80"></div>
+          <div className="w-px h-12 bg-slate-800/80" />
           <div>
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 mt-0.5">Market Cap</p>
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Market Cap</p>
             <p className="text-2xl font-bold text-white">{formatMarketCap(character.marketCap)}</p>
           </div>
-          <div className="w-px h-12 bg-slate-800/80 hidden sm:block"></div>
+          <div className="w-px h-12 bg-slate-800/80 hidden sm:block" />
           <div className="hidden sm:block">
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 mt-0.5">Circulating Supply</p>
-            <p className="text-2xl font-bold text-white">{character.sharesIssued.toLocaleString()} shares</p>
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">
+              {isGraduated ? 'Total Supply' : 'Shares Issued'}
+            </p>
+            <p className="text-2xl font-bold text-white">
+              {character.sharesIssued.toLocaleString()}
+              {!isGraduated && <span className="text-slate-500 text-base"> / {character.totalShares.toLocaleString()}</span>}
+            </p>
           </div>
+          {isGraduated && orderBook && (
+            <>
+              <div className="w-px h-12 bg-slate-800/80 hidden md:block" />
+              <div className="hidden md:block">
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Spread</p>
+                <p className="text-2xl font-bold text-white">
+                  {orderBook.spreadPercent != null ? `${orderBook.spreadPercent.toFixed(2)}%` : '--'}
+                </p>
+              </div>
+            </>
+          )}
         </div>
+
+        {/* Graduation Progress (bonding curve only) */}
+        {!isGraduated && (
+          <div className="mb-6 bg-slate-900/40 p-4 rounded-xl border border-slate-800/80">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Graduation Progress</p>
+              <p className="text-xs font-bold text-indigo-400">
+                {character.graduationProgress?.toFixed(1) || '0.0'}% &mdash; {availableShares.toLocaleString()} shares left
+              </p>
+            </div>
+            <div className="h-2.5 bg-slate-800 rounded-full overflow-hidden">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-indigo-600 to-violet-500 transition-all duration-500"
+                style={{ width: `${Math.min(100, character.graduationProgress || 0)}%` }}
+              />
+            </div>
+            <p className="text-[11px] text-slate-500 mt-2">
+              When all {character.totalShares.toLocaleString()} shares are issued, trading graduates to a free peer-to-peer market
+            </p>
+          </div>
+        )}
 
         {/* Error Banner */}
         {tradeError && (
@@ -511,29 +612,99 @@ export default function TradePage() {
         )}
 
         <div className="grid lg:grid-cols-2 gap-8">
-          {/* Price Chart */}
-          <Card className="bg-slate-900/60 backdrop-blur-md border-slate-800/80 shadow-2xl" hover={false}>
-            <div className="p-6">
-              <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
-                <svg className="w-5 h-5 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                </svg>
-                Price History
-              </h2>
-              <PriceChart data={chartData} />
-            </div>
-          </Card>
-
-          {/* Trading Panel */}
+          {/* Left: Chart + Order Book */}
           <div className="space-y-6">
-            {/* Funding Gate */}
+            <Card className="bg-slate-900/60 backdrop-blur-md border-slate-800/80 shadow-2xl" hover={false}>
+              <div className="p-6">
+                <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
+                  <svg className="w-5 h-5 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                  </svg>
+                  Price History
+                </h2>
+                <PriceChart data={chartData} />
+              </div>
+            </Card>
+
+            {/* Order Book */}
+            {(isGraduated || (orderBook && (orderBook.totalBidVolume > 0 || orderBook.totalAskVolume > 0))) && orderBook && (
+              <Card className="bg-slate-900/60 backdrop-blur-md border-slate-800/80 shadow-2xl" hover={false}>
+                <div className="p-6">
+                  <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                    <svg className="w-5 h-5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7" />
+                    </svg>
+                    Order Book
+                  </h2>
+
+                  <div className="grid grid-cols-3 gap-4 text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2 px-2">
+                    <span>Price</span>
+                    <span className="text-center">Shares</span>
+                    <span className="text-right">Orders</span>
+                  </div>
+
+                  {/* Asks (reversed so lowest near spread) */}
+                  <div className="space-y-0.5 mb-2">
+                    {orderBook.asks.length > 0 ? (
+                      [...orderBook.asks].reverse().slice(0, 8).map((level, i) => (
+                        <div key={`ask-${i}`} className="grid grid-cols-3 gap-4 px-2 py-1.5 rounded-md bg-red-500/5 hover:bg-red-500/10 transition-colors">
+                          <span className="text-sm font-semibold text-red-400">${formatPrice(level.price)}</span>
+                          <span className="text-sm font-medium text-slate-300 text-center">{level.totalShares.toLocaleString()}</span>
+                          <span className="text-sm text-slate-500 text-right">{level.orderCount}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-xs text-slate-500 text-center py-2">No sell orders</p>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-center gap-2 py-2 border-y border-slate-800/60">
+                    <span className="text-xs font-bold text-white">${formatPrice(character.currentPrice)}</span>
+                    {orderBook.spread != null && (
+                      <span className="text-[10px] text-slate-500">
+                        Spread: ${formatPrice(orderBook.spread)} ({orderBook.spreadPercent?.toFixed(2)}%)
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Bids */}
+                  <div className="space-y-0.5 mt-2">
+                    {orderBook.bids.length > 0 ? (
+                      orderBook.bids.slice(0, 8).map((level, i) => (
+                        <div key={`bid-${i}`} className="grid grid-cols-3 gap-4 px-2 py-1.5 rounded-md bg-emerald-500/5 hover:bg-emerald-500/10 transition-colors">
+                          <span className="text-sm font-semibold text-emerald-400">${formatPrice(level.price)}</span>
+                          <span className="text-sm font-medium text-slate-300 text-center">{level.totalShares.toLocaleString()}</span>
+                          <span className="text-sm text-slate-500 text-right">{level.orderCount}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-xs text-slate-500 text-center py-2">No buy orders</p>
+                    )}
+                  </div>
+
+                  <div className="flex justify-between mt-3 pt-3 border-t border-slate-800/60">
+                    <span className="text-[10px] font-bold text-emerald-400/60 uppercase">
+                      Bid Vol: {orderBook.totalBidVolume.toLocaleString()}
+                    </span>
+                    <span className="text-[10px] font-bold text-red-400/60 uppercase">
+                      Ask Vol: {orderBook.totalAskVolume.toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+              </Card>
+            )}
+          </div>
+
+          {/* Right: Trading Panel */}
+          <div className="space-y-6">
+            {/* Balance */}
             {authenticated && (
               <Card hover={false} className="bg-slate-900/40 border-slate-800/80">
                 <div className="p-5">
-                  <div className="flex items-start justify-between gap-4 scale-[0.95] origin-top-left md:scale-100">
+                  <div className="flex items-start justify-between gap-4">
                     <div>
                       <div className="flex items-center gap-2 mb-1">
-                        <div className="w-1.5 h-1.5 rounded-full bg-purple-500"></div>
+                        <div className="w-1.5 h-1.5 rounded-full bg-purple-500" />
                         <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-0.5">USDC Balance</p>
                       </div>
                       <p className="text-sm font-semibold text-slate-300">
@@ -545,7 +716,7 @@ export default function TradePage() {
                       </p>
                       {walletStatus && walletStatus.lockedUsdc > 0 && (
                         <p className="text-xs text-amber-400/70 mt-1">
-                          ${formatUsd(walletStatus.lockedUsdc)} locked in limit orders
+                          ${formatUsd(walletStatus.lockedUsdc)} locked in orders
                         </p>
                       )}
                     </div>
@@ -560,12 +731,11 @@ export default function TradePage() {
                       </Link>
                     </div>
                   </div>
-
                   {walletStatus && !walletStatus.canBuy && (
                     <div className="mt-4 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 flex gap-3 items-start">
                       <div className="text-amber-500 mt-0.5">!</div>
                       <p className="text-xs font-semibold text-amber-200/80 leading-relaxed">
-                        Deposit USDC to your platform balance to start buying shares.
+                        Deposit USDC to start buying shares.
                       </p>
                     </div>
                   )}
@@ -573,7 +743,7 @@ export default function TradePage() {
               </Card>
             )}
 
-            {/* Order Mode Toggle */}
+            {/* Market / Limit Toggle */}
             <div className="flex bg-slate-900/50 rounded-xl p-1 border border-slate-800/50">
               <button
                 onClick={() => setOrderMode('market')}
@@ -597,6 +767,14 @@ export default function TradePage() {
               </button>
             </div>
 
+            {isGraduated && orderMode === 'market' && (
+              <div className="p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/15">
+                <p className="text-xs text-emerald-300/80 leading-relaxed">
+                  <span className="font-bold">Free market trading.</span> Market orders fill against the order book. Use limit orders to set your price.
+                </p>
+              </div>
+            )}
+
             {/* Buy Panel */}
             <Card>
               <div className="p-6">
@@ -607,6 +785,9 @@ export default function TradePage() {
                   <div>
                     <label className="block text-sm font-medium text-slate-300 mb-2">
                       Number of shares
+                      {!isGraduated && orderMode === 'market' && availableShares < character.totalShares && (
+                        <span className="text-xs text-slate-500 ml-2">({availableShares.toLocaleString()} available)</span>
+                      )}
                     </label>
                     <div className="flex gap-2">
                       <input
@@ -614,14 +795,19 @@ export default function TradePage() {
                         value={buyShares}
                         onChange={(e) => setBuyShares(e.target.value)}
                         min="1"
+                        {...(!isGraduated && orderMode === 'market' ? { max: availableShares } : {})}
                         className="flex-1 px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                         placeholder="Enter amount"
                       />
-                      {walletStatus && character && (
+                      {walletStatus && character && orderMode === 'market' && (
                         <button
                           onClick={() => {
-                            const maxByBalance = Math.floor(walletStatus.platformBalance / (character.currentPrice * 1.005));
-                            if (maxByBalance > 0) setBuyShares(maxByBalance.toString());
+                            const est = isGraduated
+                              ? (orderBook?.bestAsk || character.currentPrice)
+                              : character.currentPrice * 1.1;
+                            const maxBal = Math.floor(walletStatus.platformBalance / (est * 1.005));
+                            const max = !isGraduated ? Math.min(maxBal, availableShares) : maxBal;
+                            if (max > 0) setBuyShares(max.toString());
                           }}
                           className="px-3 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-xs font-bold text-slate-300 hover:text-white transition-colors"
                         >
@@ -631,12 +817,11 @@ export default function TradePage() {
                     </div>
                   </div>
 
-                  {/* Limit order: trigger price */}
                   {orderMode === 'limit' && (
                     <>
                       <div>
                         <label className="block text-sm font-medium text-slate-300 mb-2">
-                          Trigger Price (USDC)
+                          {isGraduated ? 'Bid Price (USDC)' : 'Trigger Price (USDC)'}
                         </label>
                         <input
                           type="number"
@@ -644,27 +829,28 @@ export default function TradePage() {
                           value={buyTriggerPrice}
                           onChange={(e) => setBuyTriggerPrice(e.target.value)}
                           className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                          placeholder={`Below $${formatPrice(character.currentPrice)}`}
+                          placeholder={isGraduated ? `e.g. $${formatPrice(character.currentPrice)}` : `Below $${formatPrice(character.currentPrice)}`}
                         />
-                        <p className="text-xs text-slate-500 mt-1">Order fills when price drops to this level</p>
+                        <p className="text-xs text-slate-500 mt-1">
+                          {isGraduated
+                            ? 'Max price per share. May fill instantly if sellers exist.'
+                            : 'Order fills when price drops to this level'}
+                        </p>
                       </div>
-
                       <div>
-                        <label className="block text-sm font-medium text-slate-300 mb-2">
-                          Expiration
-                        </label>
+                        <label className="block text-sm font-medium text-slate-300 mb-2">Expiration</label>
                         <div className="flex gap-2">
-                          {expiryOptions.map((option) => (
+                          {expiryOptions.map((opt) => (
                             <button
-                              key={option.value}
-                              onClick={() => setBuyExpiry(option.value)}
+                              key={opt.value}
+                              onClick={() => setBuyExpiry(opt.value)}
                               className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all ${
-                                buyExpiry === option.value
+                                buyExpiry === opt.value
                                   ? 'bg-indigo-600/30 text-indigo-300 border border-indigo-500/30'
                                   : 'bg-slate-800/50 text-slate-400 hover:bg-slate-700 hover:text-white border border-transparent'
                               }`}
                             >
-                              {option.label}
+                              {opt.label}
                             </button>
                           ))}
                         </div>
@@ -672,43 +858,43 @@ export default function TradePage() {
                     </>
                   )}
 
-                  {/* Market order estimate */}
                   {orderMode === 'market' && buySharesNum > 0 && (
                     <div className="p-4 bg-slate-900/50 rounded-lg">
                       <div className="flex justify-between text-sm mb-2">
-                        <span className="text-slate-400">Subtotal:</span>
+                        <span className="text-slate-400">{isGraduated ? 'Est. cost:' : 'Subtotal:'}</span>
                         <span className="text-white font-semibold">${formatUsd(estimatedBuyCost)} USDC</span>
                       </div>
                       <div className="flex justify-between text-sm mb-2">
                         <span className="text-slate-400">Fee (0.5%):</span>
                         <span className="text-slate-300 font-medium">${formatUsd(buyFee)} USDC</span>
                       </div>
-                      <div className="flex justify-between text-sm mb-2 pt-2 border-t border-slate-800">
-                        <span className="text-slate-300 font-semibold">Total cost:</span>
+                      <div className="flex justify-between text-sm pt-2 border-t border-slate-800">
+                        <span className="text-slate-300 font-semibold">Total:</span>
                         <span className="text-white font-bold">${formatUsd(estimatedBuyTotal)} USDC</span>
                       </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-slate-400">Est. price impact:</span>
-                        <span className="text-emerald-400 font-semibold">
-                          +{((buySharesNum / liquidityDenom) * BONDING_CURVE_FACTOR * 100).toFixed(2)}%
-                        </span>
-                      </div>
+                      {!isGraduated && (
+                        <div className="flex justify-between text-sm mt-2">
+                          <span className="text-slate-400">Price impact:</span>
+                          <span className="text-emerald-400 font-semibold">
+                            +{((buySharesNum / liquidityDenom) * BONDING_CURVE_FACTOR * 100).toFixed(2)}%
+                          </span>
+                        </div>
+                      )}
                     </div>
                   )}
 
-                  {/* Limit order estimate */}
                   {orderMode === 'limit' && buySharesNum > 0 && buyTriggerNum > 0 && (
                     <div className="p-4 bg-slate-900/50 rounded-lg">
                       <div className="flex justify-between text-sm mb-2">
                         <span className="text-slate-400">USDC to lock:</span>
                         <span className="text-white font-semibold">${formatUsd(limitBuyLocked)} USDC</span>
                       </div>
-                      <div className="flex justify-between text-sm mb-2">
-                        <span className="text-slate-400">Triggers at:</span>
-                        <span className="text-amber-400 font-semibold">${formatPrice(buyTriggerNum)} or below</span>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-400">{isGraduated ? 'Bid:' : 'Triggers at:'}</span>
+                        <span className="text-amber-400 font-semibold">${formatPrice(buyTriggerNum)}</span>
                       </div>
-                      {buyTriggerNum >= character.currentPrice && (
-                        <p className="text-xs text-red-400 mt-1">Trigger price must be below current price (${formatPrice(character.currentPrice)})</p>
+                      {!isGraduated && buyTriggerNum >= character.currentPrice && (
+                        <p className="text-xs text-red-400 mt-2">Must be below current price (${formatPrice(character.currentPrice)})</p>
                       )}
                     </div>
                   )}
@@ -718,17 +904,15 @@ export default function TradePage() {
                     disabled={
                       !buySharesNum || isProcessing ||
                       (orderMode === 'market' && walletStatus ? !walletStatus.canBuy : false) ||
-                      (orderMode === 'limit' && (!buyTriggerNum || buyTriggerNum >= character.currentPrice))
+                      (orderMode === 'market' && !isGraduated && buySharesNum > availableShares) ||
+                      (orderMode === 'limit' && !buyTriggerNum) ||
+                      (orderMode === 'limit' && !isGraduated && buyTriggerNum >= character.currentPrice)
                     }
                     className="w-full"
                     size="lg"
                     variant="primary"
                   >
-                    {isProcessing
-                      ? 'Processing...'
-                      : orderMode === 'market'
-                        ? `Buy ${buySharesNum || 0} shares`
-                        : 'Place Limit Buy'}
+                    {isProcessing ? 'Processing...' : orderMode === 'market' ? `Buy ${buySharesNum || 0} shares` : 'Place Limit Buy'}
                   </Button>
                 </div>
               </div>
@@ -743,7 +927,7 @@ export default function TradePage() {
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-slate-300 mb-2">
-                      Number of shares (available: {holding?.shares || 0})
+                      Shares to sell (you own: {holding?.shares || 0})
                     </label>
                     <div className="flex gap-2">
                       <input
@@ -766,12 +950,11 @@ export default function TradePage() {
                     </div>
                   </div>
 
-                  {/* Limit order: trigger price */}
                   {orderMode === 'limit' && (
                     <>
                       <div>
                         <label className="block text-sm font-medium text-slate-300 mb-2">
-                          Trigger Price (USDC)
+                          {isGraduated ? 'Ask Price (USDC)' : 'Trigger Price (USDC)'}
                         </label>
                         <input
                           type="number"
@@ -779,27 +962,28 @@ export default function TradePage() {
                           value={sellTriggerPrice}
                           onChange={(e) => setSellTriggerPrice(e.target.value)}
                           className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                          placeholder={`Above $${formatPrice(character.currentPrice)}`}
+                          placeholder={isGraduated ? `e.g. $${formatPrice(character.currentPrice)}` : `Above $${formatPrice(character.currentPrice)}`}
                         />
-                        <p className="text-xs text-slate-500 mt-1">Order fills when price rises to this level</p>
+                        <p className="text-xs text-slate-500 mt-1">
+                          {isGraduated
+                            ? 'Min price per share. May fill instantly if buyers exist.'
+                            : 'Order fills when price rises to this level'}
+                        </p>
                       </div>
-
                       <div>
-                        <label className="block text-sm font-medium text-slate-300 mb-2">
-                          Expiration
-                        </label>
+                        <label className="block text-sm font-medium text-slate-300 mb-2">Expiration</label>
                         <div className="flex gap-2">
-                          {expiryOptions.map((option) => (
+                          {expiryOptions.map((opt) => (
                             <button
-                              key={option.value}
-                              onClick={() => setSellExpiry(option.value)}
+                              key={opt.value}
+                              onClick={() => setSellExpiry(opt.value)}
                               className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all ${
-                                sellExpiry === option.value
+                                sellExpiry === opt.value
                                   ? 'bg-indigo-600/30 text-indigo-300 border border-indigo-500/30'
                                   : 'bg-slate-800/50 text-slate-400 hover:bg-slate-700 hover:text-white border border-transparent'
                               }`}
                             >
-                              {option.label}
+                              {opt.label}
                             </button>
                           ))}
                         </div>
@@ -807,49 +991,43 @@ export default function TradePage() {
                     </>
                   )}
 
-                  {/* Market sell estimate */}
                   {orderMode === 'market' && sellSharesNum > 0 && (
                     <div className="p-4 bg-slate-900/50 rounded-lg">
                       <div className="flex justify-between text-sm mb-2">
-                        <span className="text-slate-400">Gross proceeds:</span>
+                        <span className="text-slate-400">{isGraduated ? 'Est. proceeds:' : 'Gross proceeds:'}</span>
                         <span className="text-white font-semibold">${formatUsd(estimatedSellProceeds)} USDC</span>
                       </div>
                       <div className="flex justify-between text-sm mb-2">
                         <span className="text-slate-400">Fee (0.5%):</span>
                         <span className="text-slate-300 font-medium">-${formatUsd(sellFee)} USDC</span>
                       </div>
-                      <div className="flex justify-between text-sm mb-2 pt-2 border-t border-slate-800">
+                      <div className="flex justify-between text-sm pt-2 border-t border-slate-800">
                         <span className="text-slate-300 font-semibold">You receive:</span>
                         <span className="text-white font-bold">${formatUsd(estimatedSellAfterFee)} USDC</span>
                       </div>
-                      <div className="flex justify-between text-sm mb-2">
-                        <span className="text-slate-400">Remaining shares:</span>
-                        <span className="text-white font-semibold">
-                          {(holding?.shares || 0) - sellSharesNum}
-                        </span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-slate-400">Est. price impact:</span>
-                        <span className="text-red-400 font-semibold">
-                          -{((sellSharesNum / liquidityDenom) * BONDING_CURVE_FACTOR * 100).toFixed(2)}%
-                        </span>
-                      </div>
+                      {!isGraduated && (
+                        <div className="flex justify-between text-sm mt-2">
+                          <span className="text-slate-400">Price impact:</span>
+                          <span className="text-red-400 font-semibold">
+                            -{((sellSharesNum / liquidityDenom) * BONDING_CURVE_FACTOR * 100).toFixed(2)}%
+                          </span>
+                        </div>
+                      )}
                     </div>
                   )}
 
-                  {/* Limit sell estimate */}
                   {orderMode === 'limit' && sellSharesNum > 0 && sellTriggerNum > 0 && (
                     <div className="p-4 bg-slate-900/50 rounded-lg">
                       <div className="flex justify-between text-sm mb-2">
                         <span className="text-slate-400">Shares to lock:</span>
-                        <span className="text-white font-semibold">{sellSharesNum} shares</span>
+                        <span className="text-white font-semibold">{sellSharesNum}</span>
                       </div>
-                      <div className="flex justify-between text-sm mb-2">
-                        <span className="text-slate-400">Triggers at:</span>
-                        <span className="text-emerald-400 font-semibold">${formatPrice(sellTriggerNum)} or above</span>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-400">{isGraduated ? 'Ask:' : 'Triggers at:'}</span>
+                        <span className="text-emerald-400 font-semibold">${formatPrice(sellTriggerNum)}</span>
                       </div>
-                      {sellTriggerNum <= character.currentPrice && (
-                        <p className="text-xs text-red-400 mt-1">Trigger price must be above current price (${formatPrice(character.currentPrice)})</p>
+                      {!isGraduated && sellTriggerNum <= character.currentPrice && (
+                        <p className="text-xs text-red-400 mt-2">Must be above current price (${formatPrice(character.currentPrice)})</p>
                       )}
                     </div>
                   )}
@@ -859,31 +1037,28 @@ export default function TradePage() {
                     disabled={
                       !sellSharesNum || isProcessing ||
                       (orderMode === 'market' && (!holding || sellSharesNum > holding.shares)) ||
-                      (orderMode === 'limit' && (!sellTriggerNum || sellTriggerNum <= character.currentPrice || !holding || sellSharesNum > holding.shares))
+                      (orderMode === 'limit' && (!sellTriggerNum || !holding || sellSharesNum > holding.shares)) ||
+                      (orderMode === 'limit' && !isGraduated && sellTriggerNum <= character.currentPrice)
                     }
                     className="w-full"
                     size="lg"
                     variant="danger"
                   >
-                    {isProcessing
-                      ? 'Processing...'
-                      : orderMode === 'market'
-                        ? `Sell ${sellSharesNum || 0} shares`
-                        : 'Place Limit Sell'}
+                    {isProcessing ? 'Processing...' : orderMode === 'market' ? `Sell ${sellSharesNum || 0} shares` : 'Place Limit Sell'}
                   </Button>
                 </div>
               </div>
             </Card>
 
-            {/* Pending Limit Orders */}
+            {/* Pending Orders */}
             {pendingOrders.length > 0 && (
               <Card hover={false} className="bg-slate-900/60 border-slate-800/80">
                 <div className="p-6">
-                  <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                  <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
                     <svg className="w-5 h-5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                    Pending Orders
+                    Your Orders
                     <span className="text-xs font-bold bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-full ml-1">
                       {pendingOrders.length}
                     </span>
@@ -894,25 +1069,23 @@ export default function TradePage() {
                         <div>
                           <div className="flex items-center gap-2 mb-1">
                             <span className={`px-2 py-0.5 rounded text-xs font-bold uppercase ${
-                              order.side === 'buy'
-                                ? 'bg-emerald-500/10 text-emerald-400'
-                                : 'bg-red-500/10 text-red-400'
+                              order.side === 'buy' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'
                             }`}>
                               {order.side}
                             </span>
                             <span className="text-sm font-semibold text-white">
-                              {order.shares.toLocaleString()} shares
+                              {order.shares.toLocaleString()} @ ${formatPrice(order.triggerPrice)}
                             </span>
+                            {order.status === 'partial' && (
+                              <span className="text-[10px] font-bold bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded">
+                                {order.filledShares}/{order.shares} filled
+                              </span>
+                            )}
                           </div>
-                          <p className="text-xs text-slate-400">
-                            Trigger: ${formatPrice(order.triggerPrice)}
-                            {order.expiresAt && ` \u00b7 Expires ${new Date(order.expiresAt).toLocaleDateString()}`}
+                          <p className="text-xs text-slate-500">
+                            {order.side === 'buy' && `Locked: $${formatUsd(order.lockedAmount)}`}
+                            {order.expiresAt && ` · Exp ${new Date(order.expiresAt).toLocaleDateString()}`}
                           </p>
-                          {order.side === 'buy' && (
-                            <p className="text-xs text-slate-500">
-                              Locked: ${formatUsd(order.lockedAmount)} USDC
-                            </p>
-                          )}
                         </div>
                         <Button
                           size="sm"
@@ -920,7 +1093,7 @@ export default function TradePage() {
                           onClick={() => handleCancelOrder(order.id)}
                           disabled={cancellingOrderId === order.id}
                         >
-                          {cancellingOrderId === order.id ? 'Cancelling...' : 'Cancel'}
+                          {cancellingOrderId === order.id ? '...' : 'Cancel'}
                         </Button>
                       </div>
                     ))}
@@ -929,46 +1102,40 @@ export default function TradePage() {
               </Card>
             )}
 
-            {/* Your Holdings */}
+            {/* Position */}
             {holding ? (
               <Card hover={false} className="bg-slate-900/80 border-slate-700 shadow-xl overflow-hidden relative">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 blur-[40px] pointer-events-none rounded-bl-full" />
                 <div className="p-6 relative z-10">
-                  <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
+                  <h2 className="text-lg font-bold text-white mb-5 flex items-center gap-2">
                     <svg className="w-5 h-5 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
                     </svg>
                     Your Position
                   </h2>
-                  <div className="space-y-4">
+                  <div className="space-y-3">
                     <div className="flex justify-between items-center py-2 border-b border-slate-800">
-                      <span className="text-sm font-medium text-slate-400">Shares Owned</span>
+                      <span className="text-sm text-slate-400">Shares</span>
                       <span className="text-lg font-bold text-white">{holding.shares.toLocaleString()}</span>
                     </div>
                     <div className="flex justify-between items-center py-2 border-b border-slate-800">
-                      <span className="text-sm font-medium text-slate-400">Avg Entry Price</span>
+                      <span className="text-sm text-slate-400">Avg Entry</span>
                       <span className="text-lg font-semibold text-slate-200">${formatPrice(holding.avgBuyPrice)}</span>
                     </div>
                     <div className="flex justify-between items-center py-2 border-b border-slate-800">
-                      <span className="text-sm font-medium text-slate-400">Current Capital</span>
-                      <span className="text-lg font-bold text-white">
-                        ${formatUsd(holding.shares * character.currentPrice)}
-                      </span>
+                      <span className="text-sm text-slate-400">Value</span>
+                      <span className="text-lg font-bold text-white">${formatUsd(holding.shares * character.currentPrice)}</span>
                     </div>
                     <div className="flex justify-between items-center pt-2">
-                      <span className="text-sm font-bold text-slate-400">Unrealized P&L</span>
+                      <span className="text-sm font-bold text-slate-400">P&L</span>
                       <div className="text-right">
-                        <span className={`text-xl font-black ${(character.currentPrice - holding.avgBuyPrice) >= 0
-                          ? 'text-emerald-400'
-                          : 'text-red-400'
-                          }`}>
+                        <span className={`text-xl font-black ${(character.currentPrice - holding.avgBuyPrice) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                           ${formatUsd((character.currentPrice - holding.avgBuyPrice) * holding.shares)}
                         </span>
-                        <div className={`text-xs font-bold ${(character.currentPrice - holding.avgBuyPrice) >= 0
-                          ? 'text-emerald-400/80 bg-emerald-500/10'
-                          : 'text-red-400/80 bg-red-500/10'
-                          } inline-block px-1.5 rounded mt-0.5 ml-1`}>
-                          {((character.currentPrice - holding.avgBuyPrice) / holding.avgBuyPrice * 100).toFixed(1)}%
+                        <div className={`text-xs font-bold ${(character.currentPrice - holding.avgBuyPrice) >= 0 ? 'text-emerald-400/80 bg-emerald-500/10' : 'text-red-400/80 bg-red-500/10'} inline-block px-1.5 rounded mt-0.5 ml-1`}>
+                          {holding.avgBuyPrice > 0
+                            ? `${((character.currentPrice - holding.avgBuyPrice) / holding.avgBuyPrice * 100).toFixed(1)}%`
+                            : '--'}
                         </div>
                       </div>
                     </div>
@@ -984,7 +1151,7 @@ export default function TradePage() {
                     </svg>
                   </div>
                   <h3 className="text-slate-300 font-bold mb-1">No Position</h3>
-                  <p className="text-xs text-slate-500">Buy shares to monitor your returns</p>
+                  <p className="text-xs text-slate-500">Buy shares to start your investment</p>
                 </div>
               </Card>
             )}
