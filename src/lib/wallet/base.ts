@@ -16,6 +16,10 @@ export const PHASE_BONDING_CURVE = 'BONDING_CURVE';
 export const PHASE_GRADUATED = 'GRADUATED';
 export const DEFAULT_TOTAL_SHARES = 10_000;
 
+// ── Anti-Whale Protection (Phase 1) ──────────────────────────────
+export const MAX_WHALE_PERCENT = 0.01;   // 1% of total shares per user during bonding curve
+//   e.g. 10,000 total → max 100 shares per wallet at launch
+
 // ── Bonding Curve Constants (Phase 1) ───────────────────────────
 export const BONDING_CURVE_FACTOR = 1.5;   // Price impact multiplier
 export const VIRTUAL_LIQUIDITY = 1000;     // Virtual supply pool — controls early volatility

@@ -14,6 +14,7 @@ model User {
   email         String        @unique
   username      String        @unique
   displayName   String?
+  hasSetUsername Boolean       @default(false)
   walletAddress String?       @unique
   usdcBalance     Float         @default(0)
   lastGasFundedAt DateTime?

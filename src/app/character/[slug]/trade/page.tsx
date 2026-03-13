@@ -520,6 +520,13 @@ export default function TradePage() {
 
   const availableShares = character.totalShares - character.sharesIssued;
 
+  // Anti-whale: max 1% of total shares per user during bonding curve
+  const maxPerUser = Math.floor(character.totalShares * 0.01);
+  const currentlyOwned = holding?.shares || 0;
+  const whaleCapRemaining = Math.max(0, maxPerUser - currentlyOwned);
+  // During bonding curve, cap at minimum of available supply and whale limit
+  const effectiveBuyCap = !isGraduated ? Math.min(availableShares, whaleCapRemaining) : Infinity;
+
   return (
     <div className="min-h-screen pb-20">
       {/* Background */}
@@ -812,8 +819,10 @@ export default function TradePage() {
                   <div>
                     <label className="block text-sm font-medium text-slate-300 mb-2">
                       Number of shares
-                      {!isGraduated && orderMode === 'market' && availableShares < character.totalShares && (
-                        <span className="text-xs text-slate-500 ml-2">({availableShares.toLocaleString()} available)</span>
+                      {!isGraduated && orderMode === 'market' && (
+                        <span className="text-xs text-slate-500 ml-2">
+                          (max {effectiveBuyCap.toLocaleString()}{whaleCapRemaining < availableShares ? ' — 1% whale limit' : ''})
+                        </span>
                       )}
                     </label>
                     <input
@@ -821,7 +830,7 @@ export default function TradePage() {
                       value={buyShares}
                       onChange={(e) => setBuyShares(e.target.value)}
                       min="1"
-                      {...(!isGraduated && orderMode === 'market' ? { max: availableShares } : {})}
+                      {...(!isGraduated && orderMode === 'market' ? { max: effectiveBuyCap } : {})}
                       className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                       placeholder="Enter amount"
                     />
@@ -830,7 +839,7 @@ export default function TradePage() {
                         ? (orderBook?.bestAsk || character.currentPrice)
                         : character.currentPrice * 1.1;
                       const maxBal = Math.floor(walletStatus.platformBalance / (est * 1.005));
-                      const maxBuy = !isGraduated ? Math.min(maxBal, availableShares) : maxBal;
+                      const maxBuy = !isGraduated ? Math.min(maxBal, effectiveBuyCap) : maxBal;
                       return (
                         <div className="flex gap-1.5 mt-2">
                           {[25, 50, 75, 100].map(pct => {
@@ -937,7 +946,7 @@ export default function TradePage() {
                     disabled={
                       !buySharesNum || isProcessing ||
                       (orderMode === 'market' && walletStatus ? !walletStatus.canBuy : false) ||
-                      (orderMode === 'market' && !isGraduated && buySharesNum > availableShares) ||
+                      (orderMode === 'market' && !isGraduated && buySharesNum > effectiveBuyCap) ||
                       (orderMode === 'limit' && !buyTriggerNum) ||
                       (orderMode === 'limit' && !isGraduated && buyTriggerNum >= character.currentPrice)
                     }

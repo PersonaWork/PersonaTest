@@ -1,19 +1,32 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { useState } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui';
 import { useAuth } from '@/lib/auth/auth-context';
 
 const Navigation = () => {
   const pathname = usePathname();
+  const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const { isAuthenticated, isLoading, login, logout, user, balance } = useAuth();
+  const { isAuthenticated, isLoading, login, logout, user, balance, portfolioValue, needsOnboarding } = useAuth();
 
   const isActive = (path: string) => {
     if (path === '/') return pathname === '/';
     return pathname.startsWith(path);
+  };
+
+  // Redirect to onboarding if user hasn't set username (but not if already there)
+  useEffect(() => {
+    if (isAuthenticated && needsOnboarding && pathname !== '/onboarding') {
+      router.push('/onboarding');
+    }
+  }, [isAuthenticated, needsOnboarding, pathname, router]);
+
+  const formatValue = (val: number) => {
+    if (val >= 1000) return `${(val / 1000).toFixed(1)}k`;
+    return val.toFixed(2);
   };
 
   return (
@@ -71,16 +84,27 @@ const Navigation = () => {
                 <div className="w-20 h-9 rounded-lg bg-slate-800 animate-pulse" />
               ) : isAuthenticated ? (
                 <>
-                  {balance !== null && (
-                    <Link href="/fund" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800/80 border border-slate-700/50 hover:border-indigo-500/30 transition-colors">
-                      <span className="text-xs font-bold text-slate-400">$</span>
-                      <span className="text-sm font-bold text-white">{balance.toFixed(2)}</span>
-                    </Link>
-                  )}
+                  {/* Portfolio Value + Wallet Balance */}
+                  <div className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-slate-800/80 border border-slate-700/50">
+                    {portfolioValue !== null && (
+                      <Link href="/portfolio" className="flex items-center gap-1 pr-2 border-r border-slate-700/50 hover:text-indigo-300 transition-colors">
+                        <svg className="w-3.5 h-3.5 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                        </svg>
+                        <span className="text-xs font-bold text-slate-400">${formatValue(portfolioValue)}</span>
+                      </Link>
+                    )}
+                    {balance !== null && (
+                      <Link href="/fund" className="flex items-center gap-1 pl-1 hover:text-emerald-300 transition-colors">
+                        <span className="text-xs font-bold text-slate-500">$</span>
+                        <span className="text-sm font-bold text-white">{balance.toFixed(2)}</span>
+                      </Link>
+                    )}
+                  </div>
                   {user && (
-                    <span className="text-sm text-slate-400 font-medium">
+                    <Link href={`/user/${user.username}`} className="text-sm text-slate-400 font-medium hover:text-white transition-colors">
                       {user.username}
-                    </span>
+                    </Link>
                   )}
                   <Button variant="ghost" size="sm" onClick={logout}>
                     Sign Out
@@ -116,6 +140,23 @@ const Navigation = () => {
       {mobileOpen && (
         <div className="md:hidden border-t border-slate-800 bg-slate-950/80 backdrop-blur-sm">
           <div className="px-6 py-4 space-y-3">
+            {/* Mobile balance display */}
+            {isAuthenticated && (
+              <div className="flex items-center gap-3 pb-3 border-b border-slate-800">
+                {portfolioValue !== null && (
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-slate-500">Portfolio</span>
+                    <span className="text-sm font-bold text-white">${formatValue(portfolioValue)}</span>
+                  </div>
+                )}
+                {balance !== null && (
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-slate-500">Wallet</span>
+                    <span className="text-sm font-bold text-white">${balance.toFixed(2)}</span>
+                  </div>
+                )}
+              </div>
+            )}
             <Link onClick={() => setMobileOpen(false)} href="/marketplace" className={`block text-sm font-semibold ${isActive('/marketplace') ? 'text-white' : 'text-slate-300'}`}>
               Marketplace
             </Link>

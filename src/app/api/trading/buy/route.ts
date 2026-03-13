@@ -4,7 +4,7 @@ import { requireAuth } from '@/lib/auth';
 import { successResponse, errorResponse } from '@/lib/api';
 import { matchLimitOrders } from '@/lib/trading/order-matcher';
 import { matchMarketBuy } from '@/lib/trading/p2p-matcher';
-import { PLATFORM_FEE_RATE, BONDING_CURVE_FACTOR, VIRTUAL_LIQUIDITY, PHASE_GRADUATED } from '@/lib/wallet/base';
+import { PLATFORM_FEE_RATE, BONDING_CURVE_FACTOR, VIRTUAL_LIQUIDITY, PHASE_GRADUATED, MAX_WHALE_PERCENT } from '@/lib/wallet/base';
 import { z } from 'zod';
 
 const BuySchema = z.object({
@@ -67,6 +67,19 @@ export async function POST(request: NextRequest) {
           availableShares === 0
             ? 'All shares have been issued. This character has graduated to free market trading — use limit orders.'
             : `Only ${availableShares} shares available. ${character.sharesIssued}/${character.totalShares} already issued.`
+        );
+      }
+
+      // Anti-whale protection — max 1% of total shares per user during bonding curve
+      const maxPerUser = Math.floor(character.totalShares * MAX_WHALE_PERCENT);
+      const currentlyOwned = existingHolding?.shares || 0;
+      const afterBuy = currentlyOwned + shares;
+      if (afterBuy > maxPerUser) {
+        const canStillBuy = Math.max(0, maxPerUser - currentlyOwned);
+        throw new Error(
+          canStillBuy === 0
+            ? `Anti-whale limit: You already own ${currentlyOwned} shares (max ${maxPerUser} per user during launch phase).`
+            : `Anti-whale limit: You can buy up to ${canStillBuy} more shares (max ${maxPerUser} per user during launch phase). You own ${currentlyOwned}.`
         );
       }
 
@@ -175,7 +188,8 @@ export async function POST(request: NextRequest) {
     if (error.message?.startsWith('Insufficient USDC balance') ||
         error.message?.startsWith('All shares have been issued') ||
         error.message?.startsWith('Only ') ||
-        error.message?.startsWith('No sellers available')) {
+        error.message?.startsWith('No sellers available') ||
+        error.message?.startsWith('Anti-whale limit')) {
       return errorResponse(error.message, 400);
     }
     const status = typeof error?.statusCode === 'number' ? error.statusCode : 500;

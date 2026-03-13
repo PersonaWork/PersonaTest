@@ -5,20 +5,32 @@ import Link from 'next/link';
 import { Button, Card, Input } from '@/components/ui';
 import { usePrivy } from '@privy-io/react-auth';
 import { usePrivyAuthedFetch } from '@/lib/auth/privy-client';
+import { useAuth } from '@/lib/auth/auth-context';
+
+const USERNAME_REGEX = /^[a-zA-Z0-9_]+$/;
 
 export default function SettingsPage() {
     const { ready, authenticated, user, logout, linkEmail, linkWallet, linkGoogle } = usePrivy();
+    const { refreshUser } = useAuth();
     const privyFetch = usePrivyAuthedFetch();
     const [isSaving, setIsSaving] = useState(false);
     const [saveSuccess, setSaveSuccess] = useState(false);
     const [displayName, setDisplayName] = useState('');
+    const [username, setUsername] = useState('');
+    const [usernameError, setUsernameError] = useState('');
+    const [originalUsername, setOriginalUsername] = useState('');
 
     const loadProfile = useCallback(async () => {
         try {
             const res = await privyFetch('/api/users/me');
             const data = await res.json();
-            if (res.ok && data.data?.displayName) {
-                setDisplayName(data.data.displayName);
+            if (res.ok) {
+                const profile = data.data || data;
+                if (profile.displayName) setDisplayName(profile.displayName);
+                if (profile.username) {
+                    setUsername(profile.username);
+                    setOriginalUsername(profile.username);
+                }
             }
         } catch {
             // ignore
@@ -31,18 +43,53 @@ export default function SettingsPage() {
         }
     }, [ready, authenticated, loadProfile]);
 
+    const validateUsername = (val: string) => {
+        if (val.length < 3) return 'Must be at least 3 characters';
+        if (val.length > 20) return 'Must be 20 characters or less';
+        if (!USERNAME_REGEX.test(val)) return 'Only letters, numbers, and underscores';
+        return '';
+    };
+
+    const handleUsernameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const val = e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '');
+        setUsername(val);
+        setUsernameError(val ? validateUsername(val) : '');
+    };
+
     const handleSave = async () => {
         setIsSaving(true);
         setSaveSuccess(false);
+        setUsernameError('');
+
         try {
+            const body: Record<string, string> = {};
+            if (displayName) body.displayName = displayName;
+            if (username !== originalUsername) {
+                const err = validateUsername(username);
+                if (err) {
+                    setUsernameError(err);
+                    setIsSaving(false);
+                    return;
+                }
+                body.username = username;
+            }
+
             const res = await privyFetch('/api/users/me', {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ displayName }),
+                body: JSON.stringify(body),
             });
+
             if (res.ok) {
                 setSaveSuccess(true);
+                setOriginalUsername(username);
+                await refreshUser();
                 setTimeout(() => setSaveSuccess(false), 3000);
+            } else {
+                const data = await res.json();
+                if (data.error?.includes('taken')) {
+                    setUsernameError('Username is already taken');
+                }
             }
         } catch {
             // ignore
@@ -95,7 +142,7 @@ export default function SettingsPage() {
             <div className="max-w-4xl mx-auto px-6 pt-12">
                 <div className="mb-12">
                     <h1 className="text-4xl md:text-5xl font-black text-white mb-3 tracking-tight">Settings</h1>
-                    <p className="text-xl text-slate-400 font-medium">Manage your linked accounts and preferences</p>
+                    <p className="text-xl text-slate-400 font-medium">Manage your profile and linked accounts</p>
                 </div>
 
                 <div className="grid md:grid-cols-3 gap-8">
@@ -118,6 +165,64 @@ export default function SettingsPage() {
                     {/* Main Content Area */}
                     <div className="md:col-span-2 space-y-6">
 
+                        {/* Profile Details */}
+                        <Card className="p-6 md:p-8 bg-slate-900/60 backdrop-blur-xl border border-slate-700/50 shadow-2xl" hover={false}>
+                            <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
+                                <svg className="w-5 h-5 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                </svg>
+                                Profile
+                            </h2>
+                            <div className="space-y-5">
+                                <div>
+                                    <label className="block text-sm font-bold text-slate-400 mb-2">Username</label>
+                                    <div className="relative">
+                                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 font-bold">@</span>
+                                        <Input
+                                            value={username}
+                                            onChange={handleUsernameChange}
+                                            className="pl-9 bg-slate-950/50"
+                                            placeholder="your_username"
+                                        />
+                                    </div>
+                                    {usernameError && (
+                                        <p className="text-xs text-red-400 mt-1 font-medium">{usernameError}</p>
+                                    )}
+                                    {username !== originalUsername && username.length >= 3 && !usernameError && (
+                                        <p className="text-xs text-amber-400 mt-1 font-medium">Username will be updated on save</p>
+                                    )}
+                                    <p className="text-xs text-slate-600 mt-1">Your unique handle on Persona. Others can find you at /user/{username || 'username'}</p>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-slate-400 mb-2">Display Name</label>
+                                    <Input
+                                        placeholder="Anonymous Investor"
+                                        className="bg-slate-950/50"
+                                        value={displayName}
+                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDisplayName(e.target.value)}
+                                    />
+                                </div>
+                                <div className="pt-2 flex items-center gap-4">
+                                    <Button
+                                        onClick={handleSave}
+                                        isLoading={isSaving}
+                                        disabled={!!usernameError}
+                                        className="shadow-indigo-500/20 shadow-lg px-8"
+                                    >
+                                        Save Changes
+                                    </Button>
+                                    {saveSuccess && (
+                                        <span className="text-sm font-bold text-emerald-400 animate-in fade-in flex items-center gap-2">
+                                            <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                            </svg>
+                                            Saved
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                        </Card>
+
                         {/* Linked Accounts */}
                         <Card className="p-6 md:p-8 bg-slate-900/60 backdrop-blur-xl border border-slate-700/50 shadow-2xl" hover={false}>
                             <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
@@ -127,7 +232,7 @@ export default function SettingsPage() {
                                 Linked Accounts
                             </h2>
                             <p className="text-slate-400 text-sm mb-8">
-                                Connect multiple accounts to ensure you don&apos;t lose access to your portfolio. Privy handles all connections securely.
+                                Connect multiple accounts to ensure you don&apos;t lose access to your portfolio.
                             </p>
 
                             <div className="space-y-4">
@@ -193,35 +298,6 @@ export default function SettingsPage() {
                                         <Button variant="secondary" size="sm" onClick={linkWallet}>Connect</Button>
                                     ) : (
                                         <span className="px-3 py-1 bg-emerald-500/10 text-emerald-400 text-xs font-bold rounded-lg border border-emerald-500/20">Connected</span>
-                                    )}
-                                </div>
-                            </div>
-                        </Card>
-
-                        {/* Profile Details */}
-                        <Card className="p-6 md:p-8 bg-slate-900/60 backdrop-blur-xl border border-slate-700/50 shadow-2xl" hover={false}>
-                            <h2 className="text-xl font-bold text-white mb-6">Profile Details</h2>
-                            <div className="space-y-5">
-                                <div>
-                                    <label className="block text-sm font-bold text-slate-400 mb-2">Display Name</label>
-                                    <Input
-                                        placeholder="Anonymous Investor"
-                                        className="bg-slate-950/50"
-                                        value={displayName}
-                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDisplayName(e.target.value)}
-                                    />
-                                </div>
-                                <div className="pt-2 flex items-center gap-4">
-                                    <Button onClick={handleSave} isLoading={isSaving} className="shadow-indigo-500/20 shadow-lg px-8">
-                                        Save Changes
-                                    </Button>
-                                    {saveSuccess && (
-                                        <span className="text-sm font-bold text-emerald-400 animate-in fade-in flex items-center gap-2">
-                                            <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
-                                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                                            </svg>
-                                            Saved
-                                        </span>
                                     )}
                                 </div>
                             </div>

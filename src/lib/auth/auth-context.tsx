@@ -16,7 +16,9 @@ interface DbUser {
   privyId: string | null;
   email: string;
   username: string;
+  displayName: string | null;
   walletAddress: string | null;
+  hasSetUsername: boolean;
 }
 
 interface AuthContextType {
@@ -28,12 +30,18 @@ interface AuthContextType {
   isAuthenticated: boolean;
   /** Platform USDC balance */
   balance: number | null;
+  /** Total portfolio value (sum of all holdings) */
+  portfolioValue: number | null;
+  /** Whether user needs to set their username */
+  needsOnboarding: boolean;
   /** Open Privy login modal */
   login: () => void;
   /** Log out and clear state */
   logout: () => Promise<void>;
   /** Force refresh balance from server */
   refreshBalance: () => Promise<void>;
+  /** Force refresh user data from server */
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -41,9 +49,12 @@ const AuthContext = createContext<AuthContextType>({
   isLoading: true,
   isAuthenticated: false,
   balance: null,
+  portfolioValue: null,
+  needsOnboarding: false,
   login: () => { },
   logout: async () => { },
   refreshBalance: async () => { },
+  refreshUser: async () => { },
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -59,6 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const [dbUser, setDbUser] = useState<DbUser | null>(null);
   const [balance, setBalance] = useState<number | null>(null);
+  const [portfolioValue, setPortfolioValue] = useState<number | null>(null);
   const [syncing, setSyncing] = useState(false);
   const syncingRef = useRef(false);
   const balanceIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -92,7 +104,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (res.ok) {
         const data = await res.json();
-        setDbUser(data.data?.user || data.user || null);
+        const u = data.data?.user || data.user || null;
+        if (u) {
+          setDbUser({
+            id: u.id,
+            privyId: u.privyId,
+            email: u.email,
+            username: u.username,
+            displayName: u.displayName || null,
+            walletAddress: u.walletAddress || null,
+            hasSetUsername: u.hasSetUsername ?? false,
+          });
+        }
       }
     } catch (err) {
       console.error('Failed to sync user:', err);
@@ -119,6 +142,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [authenticated, getAccessToken]);
 
+  const fetchPortfolioValue = useCallback(async () => {
+    if (!authenticated || !dbUser?.id) return;
+    try {
+      const token = await getAccessToken();
+      if (!token) return;
+      const res = await fetch(`/api/users/${dbUser.id}/holdings`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const holdings = data.data || data || [];
+        const total = holdings.reduce((sum: number, h: { totalValue: number }) => sum + h.totalValue, 0);
+        setPortfolioValue(total);
+      }
+    } catch {
+      // silent
+    }
+  }, [authenticated, dbUser?.id, getAccessToken]);
+
+  const refreshUser = useCallback(async () => {
+    if (!authenticated) return;
+    try {
+      const token = await getAccessToken();
+      if (!token) return;
+      const res = await fetch('/api/users/me', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const u = data.data || data;
+        setDbUser(prev => prev ? {
+          ...prev,
+          username: u.username,
+          displayName: u.displayName || null,
+          hasSetUsername: u.hasSetUsername ?? false,
+        } : prev);
+      }
+    } catch {
+      // silent
+    }
+  }, [authenticated, getAccessToken]);
+
   useEffect(() => {
     if (ready && authenticated && privyUser && !dbUser && !syncingRef.current) {
       syncUser();
@@ -126,26 +191,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (ready && !authenticated) {
       setDbUser(null);
       setBalance(null);
+      setPortfolioValue(null);
     }
   }, [ready, authenticated, privyUser, dbUser, syncUser]);
 
-  // Fetch balance after user syncs, then poll every 15s
+  // Fetch balance + portfolio after user syncs, then poll every 15s
   useEffect(() => {
     if (dbUser && authenticated) {
       fetchBalance();
-      balanceIntervalRef.current = setInterval(fetchBalance, 15000);
+      fetchPortfolioValue();
+      balanceIntervalRef.current = setInterval(() => {
+        fetchBalance();
+        fetchPortfolioValue();
+      }, 15000);
     }
     return () => {
       if (balanceIntervalRef.current) clearInterval(balanceIntervalRef.current);
     };
-  }, [dbUser, authenticated, fetchBalance]);
+  }, [dbUser, authenticated, fetchBalance, fetchPortfolioValue]);
 
   const logout = useCallback(async () => {
     await privyLogout();
     setDbUser(null);
     setBalance(null);
+    setPortfolioValue(null);
     if (balanceIntervalRef.current) clearInterval(balanceIntervalRef.current);
   }, [privyLogout]);
+
+  const needsOnboarding = !!(dbUser && !dbUser.hasSetUsername);
 
   return (
     <AuthContext.Provider
@@ -154,9 +227,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isLoading: !ready || syncing,
         isAuthenticated: authenticated,
         balance,
+        portfolioValue,
+        needsOnboarding,
         login,
         logout,
         refreshBalance: fetchBalance,
+        refreshUser,
       }}
     >
       {children}

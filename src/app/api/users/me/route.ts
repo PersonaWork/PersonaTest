@@ -4,8 +4,16 @@ import { requireAuth } from '@/lib/auth';
 import { successResponse, errorResponse } from '@/lib/api';
 import { z } from 'zod';
 
+const USERNAME_REGEX = /^[a-zA-Z0-9_]+$/;
+
 const UpdateSchema = z.object({
   displayName: z.string().min(1).max(50).optional(),
+  username: z
+    .string()
+    .min(3, 'Username must be at least 3 characters')
+    .max(20, 'Username must be 20 characters or less')
+    .regex(USERNAME_REGEX, 'Username can only contain letters, numbers, and underscores')
+    .optional(),
   preferences: z.record(z.string(), z.unknown()).optional(),
 });
 
@@ -25,6 +33,7 @@ export async function GET(request: NextRequest) {
       displayName: user.displayName,
       walletAddress: user.walletAddress,
       usdcBalance: user.usdcBalance,
+      hasSetUsername: user.hasSetUsername,
       preferences: user.preferences,
       createdAt: user.createdAt,
     });
@@ -48,9 +57,26 @@ export async function PATCH(request: NextRequest) {
     }
 
     const updateData: Record<string, unknown> = {};
+
     if (parsed.data.displayName !== undefined) {
       updateData.displayName = parsed.data.displayName;
     }
+
+    if (parsed.data.username !== undefined) {
+      const newUsername = parsed.data.username.toLowerCase();
+
+      // Check if username is taken by another user
+      const existing = await prisma.user.findUnique({ where: { username: newUsername } });
+      const currentUser = await prisma.user.findUnique({ where: { privyId: claims.userId } });
+
+      if (existing && existing.id !== currentUser?.id) {
+        return errorResponse('Username is already taken', 409);
+      }
+
+      updateData.username = newUsername;
+      updateData.hasSetUsername = true;
+    }
+
     if (parsed.data.preferences !== undefined) {
       updateData.preferences = parsed.data.preferences;
     }
@@ -65,6 +91,7 @@ export async function PATCH(request: NextRequest) {
       email: user.email,
       username: user.username,
       displayName: user.displayName,
+      hasSetUsername: user.hasSetUsername,
     });
   } catch (err: unknown) {
     const error = err as { message?: string; statusCode?: number };
