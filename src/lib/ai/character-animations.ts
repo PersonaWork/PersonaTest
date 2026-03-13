@@ -30,20 +30,20 @@ export function selectAnimationFromMessage(
 }
 
 // Generate animation type for trading events
-export function getTradingAnimation(tradeType: 'buy' | 'sell', characterName: string): AnimationType {
+export function getTradingAnimation(tradeType: 'buy' | 'sell', _characterName: string): AnimationType {
     if (tradeType === 'buy') {
-        return characterName.toLowerCase() === 'rex' ? 'celebrating' : 'excited';
+        return 'celebrating';
     }
     return 'thinking';
 }
 
 // Generate animation type for milestones
-export function getMilestoneAnimation(milestone: string, characterName: string): AnimationType {
+export function getMilestoneAnimation(milestone: string, _characterName: string): AnimationType {
     switch (milestone) {
         case 'first_shareholder':
             return 'celebrating';
         case 'price_target':
-            return characterName.toLowerCase() === 'jax' ? 'hyping' : 'excited';
+            return 'hyping';
         case 'revenue_goal':
             return 'celebrating';
         default:

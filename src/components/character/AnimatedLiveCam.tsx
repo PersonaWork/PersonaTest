@@ -134,19 +134,41 @@ export default function AnimatedLiveCam({
     }
   };
 
+  const hasVideo = currentClipUrl && currentClipUrl.length > 0;
+
   return (
     <div className="relative w-full aspect-video rounded-3xl overflow-hidden glass-card shadow-2xl bg-slate-900 border-none">
-      <video
-        ref={videoRef}
-        key={currentClipUrl}
-        src={currentClipUrl}
-        autoPlay
-        muted
-        loop={currentType === 'idle'}
-        playsInline
-        onEnded={handleVideoEnd}
-        className="w-full h-full object-cover"
-      />
+      {hasVideo ? (
+        <video
+          ref={videoRef}
+          key={currentClipUrl}
+          src={currentClipUrl}
+          autoPlay
+          muted
+          loop={currentType === 'idle'}
+          playsInline
+          onEnded={handleVideoEnd}
+          className="w-full h-full object-cover"
+        />
+      ) : (
+        <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-950 via-indigo-950/30 to-slate-950 relative overflow-hidden">
+          {/* Animated grid */}
+          <div className="absolute inset-0 opacity-10" style={{
+            backgroundImage: 'linear-gradient(rgba(99,102,241,0.3) 1px, transparent 1px), linear-gradient(90deg, rgba(99,102,241,0.3) 1px, transparent 1px)',
+            backgroundSize: '40px 40px',
+          }} />
+          <div className="absolute w-64 h-64 rounded-full bg-indigo-500/20 blur-3xl animate-pulse" />
+          <div className="relative z-10 flex flex-col items-center gap-4">
+            <div className="w-20 h-20 rounded-full bg-indigo-500/20 border-2 border-indigo-500/40 flex items-center justify-center animate-pulse">
+              <svg className="w-10 h-10 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z" />
+              </svg>
+            </div>
+            <p className="text-white/80 font-bold text-lg">Camera Initializing...</p>
+            <p className="text-indigo-400/60 text-sm">Live feed coming soon</p>
+          </div>
+        </div>
+      )}
 
       {/* Overlay UI */}
       <div className="absolute inset-0 p-6 pointer-events-none flex flex-col justify-between">

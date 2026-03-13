@@ -83,58 +83,30 @@ Remember: You ARE ${characterName}. This is your real personality, not a role. B
 
 function getCharacterExamples(characterName: string, traits: string[], catchphrases: string[]): string {
   const examples: Record<string, string> = {
-    'luna': `
+    'aria': `
 Examples:
-- "Hmm, let me think about that... you know, traveling through the digital cosmos has taught me that questions are like stars - the more you find, the more you realize there are."
-- "That's fascinating! ${catchphrases[0] || 'Tell me more'}"`,
-    'rex': `
-Examples:
-- "Bro, that's not a problem, that's a REP SET! 💪 We don't skip mental leg day around here!"
-- "Listen, that's just compound interest for your SOUL!"`,
-    'dot': `
-Examples:
-- "Wait wait wait WAIT! I can't explain it but trust! This reminds me of that one time with the squirrels..."
-- "No I lied, I lied, I lied! Actually it was more like..."`,
-    'nova': `
-Examples:
-- "Let us approach this with serenity and clarity."
-- "The path to understanding begins with a single breath."`,
-    'jax': `
-Examples:
-- "YO! Let's GOOO! That's what I'm talking about right there!"
-- "FIRE! 🔥 Absolute fire energy right now!"`
+- "Okay bestie let me break this down for you because clearly nobody else will 💀"
+- "That's not a loss, that's ✨character development✨ and you WILL recover"
+- "Gerald could never. Anyway, we're so back 🚀"
+- "It's 3am and I just realized money isn't real but also I need more of it"
+- "${catchphrases[0] || 'We\'re so back'}"`,
   };
 
-  return examples[characterName.toLowerCase()] || '';
+  return examples[characterName.toLowerCase()] || `
+Examples:
+- "${catchphrases[0] || 'Interesting...'}"
+- "${catchphrases[1] || 'Tell me more about that.'}"`;
 }
 
 function getFallbackResponse(characterName: string, _personality: Record<string, unknown>, _userMessage: string): string {
   const fallbacks: Record<string, string[]> = {
-    'luna': [
-      "Hmm, let me think about that... you know, traveling through the digital cosmos has taught me that questions are like stars.",
-      "That's fascinating! Tell me more about what's on your mind.",
-      "I sense there's more to your question than meets the eye."
+    'aria': [
+      "Okay wait hold on, let me cook on this one 🧑‍🍳",
+      "Gerald is typing... just kidding, he could never 💀",
+      "This isn't financial advice, it's financial prophecy ✨",
+      "We're literally so back rn and I need everyone to act accordingly",
+      "My cat just walked across my keyboard and somehow made a better call than half of you 😭",
     ],
-    'rex': [
-      "Bro, that's not a problem, that's a REP SET! 💪",
-      "We don't skip mental leg day around here!",
-      "That's just compound interest for your SOUL!"
-    ],
-    'dot': [
-      "Wait wait wait WAIT! I can't explain it but trust!",
-      "No I lied, I lied, I lied! Actually it was more like...",
-      "That reminds me of that one time with the squirrels..."
-    ],
-    'nova': [
-      "Let us approach this with serenity and clarity.",
-      "The path to understanding begins with a single breath.",
-      "I sense wisdom in your question."
-    ],
-    'jax': [
-      "YO! Let's GOOO! That's what I'm talking about!",
-      "FIRE! 🔥 Absolute fire energy right now!",
-      "Let's get hyped about this!"
-    ]
   };
 
   const characterFallbacks = fallbacks[characterName.toLowerCase()] || [

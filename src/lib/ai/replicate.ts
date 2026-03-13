@@ -16,21 +16,24 @@ function getReplicateClient(): Replicate {
 
 /**
  * Animation prompts for each animation type.
- * These describe what the character should be doing in the generated video.
+ * These describe what Aria should be doing in the generated video.
+ * Aria: Young woman, neon-lit penthouse, chaotic trader energy, expressive, stylish.
  */
+const ARIA_STYLE = 'a stylish young woman with glowing neon highlights in her hair, sitting at a desk surrounded by holographic trading screens and monitors in a dark neon-lit penthouse, energy drink cans on desk, moody cinematic lighting, cyberpunk aesthetic';
+
 const ANIMATION_PROMPTS: Record<string, string> = {
-  idle: 'A character sitting calmly, slightly swaying, blinking naturally, relaxed ambient mood, soft lighting',
-  greeting: 'A character waving hello enthusiastically, warm smile, welcoming gesture',
-  talking: 'A character talking animatedly, hand gestures while speaking, engaged expression',
-  excited: 'A character jumping with excitement, wide eyes, pumping fists, energetic movement',
-  celebrating: 'A character celebrating a victory, throwing confetti, dancing joyfully',
-  thinking: 'A character in deep thought, hand on chin, looking up, contemplative expression',
-  laughing: 'A character laughing heartily, head tilted back, genuine amusement',
-  scheming: 'A character rubbing hands together with a mischievous grin, plotting something',
-  meditating: 'A character sitting in meditation pose, eyes closed, peaceful aura, floating particles',
-  teaching: 'A character pointing at an invisible board, explaining something, professor-like gestures',
-  hyping: 'A character hyping up a crowd, arms raised high, shouting with energy',
-  dancing: 'A character doing a fun dance, rhythmic movement, grooving to music',
+  idle: `${ARIA_STYLE}, leaning back in her chair casually scrolling through charts, occasionally glancing at camera with a slight smirk, ambient neon glow, relaxed confident energy`,
+  greeting: `${ARIA_STYLE}, looking at camera and giving a cool wave with a big confident grin, leaning forward like she's about to drop a secret, welcoming energy`,
+  talking: `${ARIA_STYLE}, talking animatedly to camera with expressive hand gestures, pointing at charts behind her, engaged and passionate, like she's explaining the most important thing ever`,
+  excited: `${ARIA_STYLE}, eyes going wide as she sees something on screen, jumping up from chair, pumping her fist, pure electric excitement, screens flashing green behind her`,
+  celebrating: `${ARIA_STYLE}, standing up throwing her arms in the air victoriously, huge smile, charts showing green candles in background, triumphant energy, confetti-like particles`,
+  thinking: `${ARIA_STYLE}, leaning back with hand on chin, squinting at a complex chart, deep in thought, screens casting blue light on her face, contemplative genius energy`,
+  laughing: `${ARIA_STYLE}, leaning forward laughing hard at something on screen, genuine amusement, almost falling out of chair, infectious joyful energy`,
+  scheming: `${ARIA_STYLE}, rubbing hands together with a mischievous grin, eyes narrowing like she just found an alpha play, devious purple neon lighting, plotting energy`,
+  meditating: `${ARIA_STYLE}, eyes closed in mock-meditation pose at her desk, screens dimmed behind her, peaceful but with a slight smirk, zen trader energy, soft ambient glow`,
+  teaching: `${ARIA_STYLE}, pointing at a holographic chart while looking at camera, professor-like explaining gesture, confident teacher energy, charts and data floating around her`,
+  hyping: `${ARIA_STYLE}, standing up from desk hyping up an imaginary crowd, arms raised high, shouting with pure energy, screens flashing behind her, maximum hype energy`,
+  dancing: `${ARIA_STYLE}, vibing and dancing at her desk to music, head bobbing, grooving with green candles on screens behind her, pure positive trading energy`,
 };
 
 /**

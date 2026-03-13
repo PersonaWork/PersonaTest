@@ -14,7 +14,7 @@ const clients = new Set<ReadableStreamDefaultController>();
  * Server-Sent Events endpoint for live cam action events
  * 
  * The frontend connects via EventSource and receives events like:
- * { action: "laugh", character: "luna", clipUrl: "...", audioUrl: "...", isRare: false }
+ * { action: "laugh", character: "aria", clipUrl: "...", audioUrl: "...", isRare: false }
  */
 export async function GET(request: NextRequest) {
     const characterSlug = request.nextUrl.searchParams.get('character');

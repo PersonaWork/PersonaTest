@@ -238,7 +238,15 @@ export default function CharacterPage() {
               <div className="p-1">
                 <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Current Price</p>
                 <div className="flex items-baseline gap-3 mb-6">
-                  <p className="text-4xl font-black text-white">${(character.currentPrice ?? 0).toFixed(2)}</p>
+                  <p className="text-4xl font-black text-white">
+                    ${(() => {
+                      const p = character.currentPrice ?? 0;
+                      if (p >= 1) return p.toFixed(2);
+                      if (p >= 0.01) return p.toFixed(4);
+                      if (p >= 0.0001) return p.toFixed(6);
+                      return p.toFixed(8);
+                    })()}
+                  </p>
                   <p className={`text-sm font-bold px-2 py-1 rounded-md ${isPositive ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>
                     {isPositive ? '+' : ''}{priceChange.toFixed(2)}%
                   </p>
@@ -247,7 +255,12 @@ export default function CharacterPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="p-4 rounded-xl bg-slate-950/50 border border-slate-800/50">
                     <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1 mt-0.5">Market Cap</p>
-                    <p className="text-xl font-bold text-white">${(character.marketCap / 1000).toFixed(1)}K</p>
+                    <p className="text-xl font-bold text-white">
+                      {character.marketCap === 0 ? '$0.00'
+                        : character.marketCap >= 1_000_000 ? `$${(character.marketCap / 1_000_000).toFixed(2)}M`
+                        : character.marketCap >= 1_000 ? `$${(character.marketCap / 1_000).toFixed(1)}K`
+                        : `$${character.marketCap.toFixed(2)}`}
+                    </p>
                   </div>
                   <div className="p-4 rounded-xl bg-slate-950/50 border border-slate-800/50">
                     <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1 mt-0.5">Holders</p>

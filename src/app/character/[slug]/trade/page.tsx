@@ -93,6 +93,7 @@ function formatPrice(price: number): string {
 
 /** Format a USDC dollar amount */
 function formatUsd(amount: number): string {
+  if (amount === 0) return '0.00';
   if (Math.abs(amount) >= 1) return amount.toFixed(2);
   if (Math.abs(amount) >= 0.01) return amount.toFixed(4);
   if (Math.abs(amount) >= 0.0001) return amount.toFixed(6);
@@ -101,6 +102,7 @@ function formatUsd(amount: number): string {
 
 /** Format market cap in a human-readable way */
 function formatMarketCap(cap: number): string {
+  if (cap === 0) return '$0.00';
   if (cap >= 1_000_000) return `$${(cap / 1_000_000).toFixed(2)}M`;
   if (cap >= 1_000) return `$${(cap / 1_000).toFixed(2)}K`;
   if (cap >= 1) return `$${cap.toFixed(2)}`;

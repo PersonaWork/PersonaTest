@@ -5,11 +5,8 @@ const elevenlabs = new ElevenLabsClient({
 })
 
 // Character voice mappings
-const CHARACTER_VOICES = {
-  'luna': 'zY0NiG61kNwoIJvKtYe1',
-  'rex': 'uUJ3WiXG3FVW4fbdcG2s',
-  'nova': 'IO6iOM9shwUY9mAN0sMi',
-  'dot': 'zY0NiG61kNwoIJvKtYe1', // Using Luna's voice for Dot as fallback
+const CHARACTER_VOICES: Record<string, string> = {
+  'aria': process.env.ARIA_VOICE_ID || 'KUzPe92RSM0pccaVxERU',
 }
 
 export async function generateCharacterVoice(
@@ -20,7 +17,7 @@ export async function generateCharacterVoice(
   try {
     // Map character name to voice ID
     const characterSlug = characterName.toLowerCase();
-    const voiceId = CHARACTER_VOICES[characterSlug as keyof typeof CHARACTER_VOICES] || 'rachel';
+    const voiceId = CHARACTER_VOICES[characterSlug] || CHARACTER_VOICES['aria'];
 
     // Map character styles to voice settings
     const voiceSettings = {
