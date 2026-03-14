@@ -26,10 +26,35 @@ interface AnimatedLiveCamProps {
 
 /* ─── Constants ─── */
 
-// Crossfade duration in ms — how long both videos overlap
 const CROSSFADE_MS = 1200;
-// How early (in seconds) before a video ends we start loading the next
 const PRELOAD_BUFFER_S = 1.5;
+
+// Chance (0-1) that the next clip after idle is an action clip
+const ACTION_CHANCE = 0.35;
+
+// Map clip type prefixes to display labels
+const TYPE_LABELS: Record<string, string> = {
+  'talk': 'Talking',
+  'excited': 'Hyped',
+  'laugh': 'Laughing',
+  'think': 'Thinking',
+  'scheme': 'Scheming',
+  'celebrate': 'Celebrating',
+  'react': 'Reacting',
+  'vibe': 'Vibing',
+  'dance': 'Dancing',
+};
+
+function getLabelForType(clipType: string): string | null {
+  for (const [prefix, label] of Object.entries(TYPE_LABELS)) {
+    if (clipType.startsWith(prefix)) return label;
+  }
+  return null;
+}
+
+function isIdleType(clipType: string): boolean {
+  return clipType === 'idle' || clipType.startsWith('idle-');
+}
 
 /* ─── Voice Lines ─── */
 
@@ -72,14 +97,20 @@ export default function AnimatedLiveCam({
 }: AnimatedLiveCamProps) {
   // ── Video state ──
   const [idleClips, setIdleClips] = useState<AnimationClip[]>([]);
+  const [actionClips, setActionClips] = useState<AnimationClip[]>([]);
   const [activeSlot, setActiveSlot] = useState<'A' | 'B'>('A');
   const [clipUrlA, setClipUrlA] = useState('');
   const [clipUrlB, setClipUrlB] = useState('');
   const [opacityA, setOpacityA] = useState(1);
   const [opacityB, setOpacityB] = useState(0);
   const [videoReady, setVideoReady] = useState(false);
-  const lastClipIndexRef = useRef(-1);
+  const [currentLabel, setCurrentLabel] = useState<string | null>(null);
+
+  const lastIdleIndexRef = useRef(-1);
+  const lastActionIndexRef = useRef(-1);
+  const lastWasActionRef = useRef(false);
   const crossfadingRef = useRef(false);
+  const clipCountRef = useRef(0); // track how many clips have played
 
   const videoRefA = useRef<HTMLVideoElement>(null);
   const videoRefB = useRef<HTMLVideoElement>(null);
@@ -99,18 +130,56 @@ export default function AnimatedLiveCam({
 
   const particles = useMemo(() => generateParticles(12), []);
 
-  // ── Pick a random clip (different from last) ──
-  const pickRandomClip = useCallback((): AnimationClip | null => {
+  // ── Pick next clip ──
+  // Logic: after an action clip, always go back to idle.
+  // After an idle clip, ACTION_CHANCE to play an action, else idle again.
+  // Never play the same clip twice in a row.
+  const pickNextClip = useCallback((): { clip: AnimationClip; type: string } | null => {
     if (idleClips.length === 0) return null;
+
+    clipCountRef.current++;
+
+    // First 2 clips are always idle (let the stream settle in)
+    const forceIdle = clipCountRef.current <= 2;
+
+    // After an action clip, always return to idle
+    if (lastWasActionRef.current || forceIdle || actionClips.length === 0) {
+      let idx = Math.floor(Math.random() * idleClips.length);
+      if (idx === lastIdleIndexRef.current && idleClips.length > 1) {
+        idx = (idx + 1) % idleClips.length;
+      }
+      lastIdleIndexRef.current = idx;
+      lastWasActionRef.current = false;
+      setCurrentLabel(null);
+      return { clip: idleClips[idx], type: 'idle' };
+    }
+
+    // Roll for action
+    if (Math.random() < ACTION_CHANCE) {
+      let idx = Math.floor(Math.random() * actionClips.length);
+      if (idx === lastActionIndexRef.current && actionClips.length > 1) {
+        idx = (idx + 1) % actionClips.length;
+      }
+      lastActionIndexRef.current = idx;
+      lastWasActionRef.current = true;
+      const clip = actionClips[idx];
+      const label = getLabelForType(clip.id);
+      setCurrentLabel(label);
+      return { clip, type: clip.id };
+    }
+
+    // Default: idle
     let idx = Math.floor(Math.random() * idleClips.length);
-    if (idx === lastClipIndexRef.current && idleClips.length > 1) {
+    if (idx === lastIdleIndexRef.current && idleClips.length > 1) {
       idx = (idx + 1) % idleClips.length;
     }
-    lastClipIndexRef.current = idx;
-    return idleClips[idx];
-  }, [idleClips]);
+    lastIdleIndexRef.current = idx;
+    lastWasActionRef.current = false;
+    setCurrentLabel(null);
+    return { clip: idleClips[idx], type: 'idle' };
+  }, [idleClips, actionClips]);
 
-  // ── Fetch idle clips on mount ──
+  // ── Fetch all clips on mount ──
   useEffect(() => {
     async function fetchClips() {
       try {
@@ -120,55 +189,59 @@ export default function AnimatedLiveCam({
         const data = json.success ? json.data : json;
         if (!data?.clips) return;
 
-        // Gather all idle-type clips (idle, idle-breathe-1, idle-breathe-2, etc.)
-        const allIdle: AnimationClip[] = [];
+        const idle: AnimationClip[] = [];
+        const action: AnimationClip[] = [];
+
         for (const [type, clips] of Object.entries(data.clips)) {
-          if (type === 'idle' || type.startsWith('idle-')) {
-            allIdle.push(...(clips as AnimationClip[]));
+          const clipArray = clips as AnimationClip[];
+          if (isIdleType(type)) {
+            idle.push(...clipArray);
+          } else {
+            // Tag each clip with its type in the id for label lookup
+            action.push(...clipArray.map((c) => ({ ...c, id: type })));
           }
         }
 
-        if (allIdle.length > 0) {
-          setIdleClips(allIdle);
+        if (idle.length > 0) {
+          setIdleClips(idle);
+          setActionClips(action);
           // Start first clip
-          const first = allIdle[Math.floor(Math.random() * allIdle.length)];
-          lastClipIndexRef.current = allIdle.indexOf(first);
+          const first = idle[Math.floor(Math.random() * idle.length)];
+          lastIdleIndexRef.current = idle.indexOf(first);
           setClipUrlA(first.videoUrl);
           setVideoReady(true);
         }
       } catch {
-        // Clips not available — show portrait fallback
+        // No clips available
       }
     }
     fetchClips();
   }, [slug]);
 
-  // ── Crossfade Logic ──
-  // When the active video nears its end, start the next clip in the other slot
+  // ── Crossfade ──
   const startCrossfade = useCallback(() => {
-    if (crossfadingRef.current || idleClips.length < 2) return;
+    if (crossfadingRef.current) return;
+    const totalClips = idleClips.length + actionClips.length;
+    if (totalClips < 2) return;
+
     crossfadingRef.current = true;
 
-    const nextClip = pickRandomClip();
-    if (!nextClip) { crossfadingRef.current = false; return; }
+    const next = pickNextClip();
+    if (!next) { crossfadingRef.current = false; return; }
 
     if (activeSlot === 'A') {
-      // Load into B, fade B in
-      setClipUrlB(nextClip.videoUrl);
-      // Small delay for video to start loading
+      setClipUrlB(next.clip.videoUrl);
       setTimeout(() => {
         videoRefB.current?.play().catch(() => {});
         setOpacityB(1);
         setOpacityA(0);
-        // After crossfade completes, switch active slot
         setTimeout(() => {
           setActiveSlot('B');
           crossfadingRef.current = false;
         }, CROSSFADE_MS);
       }, 100);
     } else {
-      // Load into A, fade A in
-      setClipUrlA(nextClip.videoUrl);
+      setClipUrlA(next.clip.videoUrl);
       setTimeout(() => {
         videoRefA.current?.play().catch(() => {});
         setOpacityA(1);
@@ -179,31 +252,30 @@ export default function AnimatedLiveCam({
         }, CROSSFADE_MS);
       }, 100);
     }
-  }, [activeSlot, idleClips, pickRandomClip]);
+  }, [activeSlot, idleClips, actionClips, pickNextClip]);
 
-  // ── TimeUpdate handler — triggers crossfade before clip ends ──
+  // ── TimeUpdate — trigger crossfade near end ──
   const handleTimeUpdate = useCallback((e: React.SyntheticEvent<HTMLVideoElement>) => {
     const video = e.currentTarget;
     if (!video.duration || crossfadingRef.current) return;
     const remaining = video.duration - video.currentTime;
-    if (remaining <= PRELOAD_BUFFER_S && idleClips.length >= 2) {
+    if (remaining <= PRELOAD_BUFFER_S && (idleClips.length + actionClips.length) >= 2) {
       startCrossfade();
     }
-  }, [startCrossfade, idleClips]);
+  }, [startCrossfade, idleClips, actionClips]);
 
-  // ── If only 1 clip, just loop it ──
+  // ── Single clip loop fallback ──
   const handleVideoEnd = useCallback((slot: 'A' | 'B') => {
-    if (idleClips.length < 2) {
-      // Single clip — just loop
+    if ((idleClips.length + actionClips.length) < 2) {
       const ref = slot === 'A' ? videoRefA : videoRefB;
       if (ref.current) {
         ref.current.currentTime = 0;
         ref.current.play().catch(() => {});
       }
     }
-  }, [idleClips]);
+  }, [idleClips, actionClips]);
 
-  // ── Load voice line manifest ──
+  // ── Voice manifest ──
   useEffect(() => {
     fetch('/audio/aria/manifest.json')
       .then((r) => r.ok ? r.json() : null)
@@ -211,7 +283,7 @@ export default function AnimatedLiveCam({
       .catch(() => {});
   }, []);
 
-  // ── Simulated viewer count ──
+  // ── Viewer count ──
   useEffect(() => {
     const interval = setInterval(() => {
       setViewerCount((prev) => Math.max(100, prev + Math.floor(Math.random() * 21) - 10));
@@ -219,14 +291,12 @@ export default function AnimatedLiveCam({
     return () => clearInterval(interval);
   }, []);
 
-  // ── Play a voice line ──
+  // ── Play voice line ──
   const playVoiceLine = useCallback(() => {
     if (isSpeaking || !audioEnabled || voiceLines.length === 0) return;
 
     let idx = Math.floor(Math.random() * voiceLines.length);
-    if (idx === lastLineIndex && voiceLines.length > 1) {
-      idx = (idx + 1) % voiceLines.length;
-    }
+    if (idx === lastLineIndex && voiceLines.length > 1) idx = (idx + 1) % voiceLines.length;
     setLastLineIndex(idx);
     const line = voiceLines[idx];
     const audio = new Audio(line.file);
@@ -235,34 +305,27 @@ export default function AnimatedLiveCam({
     setIsSpeaking(true);
     setCurrentCaption(line.text);
 
-    // Web Audio API for visualization
     try {
-      if (!audioContextRef.current) {
-        audioContextRef.current = new AudioContext();
-      }
+      if (!audioContextRef.current) audioContextRef.current = new AudioContext();
       const ctx = audioContextRef.current;
       const source = ctx.createMediaElementSource(audio);
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 64;
       source.connect(analyser);
       analyser.connect(ctx.destination);
-
       const updateLevel = () => {
         const data = new Uint8Array(analyser.frequencyBinCount);
         analyser.getByteFrequencyData(data);
-        const avg = data.reduce((a, b) => a + b, 0) / data.length;
-        setAudioLevel(avg / 255);
+        setAudioLevel(data.reduce((a, b) => a + b, 0) / data.length / 255);
         animFrameRef.current = requestAnimationFrame(updateLevel);
       };
       updateLevel();
     } catch {
-      // Fallback: simulate
       const fake = setInterval(() => setAudioLevel(0.3 + Math.random() * 0.5), 100);
       audio.onended = () => clearInterval(fake);
     }
 
     audio.play().catch(() => {
-      // Autoplay blocked — simulate
       const fake = setInterval(() => setAudioLevel(0.2 + Math.random() * 0.6), 100);
       setTimeout(() => { clearInterval(fake); setIsSpeaking(false); setAudioLevel(0); setCurrentCaption(''); }, 6000);
     });
@@ -274,11 +337,7 @@ export default function AnimatedLiveCam({
       speakingTimeoutRef.current = setTimeout(() => setCurrentCaption(''), 1500);
     };
 
-    audio.onerror = () => {
-      setIsSpeaking(false);
-      setAudioLevel(0);
-      setCurrentCaption('');
-    };
+    audio.onerror = () => { setIsSpeaking(false); setAudioLevel(0); setCurrentCaption(''); };
   }, [isSpeaking, audioEnabled, voiceLines, lastLineIndex]);
 
   // ── Periodic voice lines ──
@@ -286,10 +345,7 @@ export default function AnimatedLiveCam({
     if (!audioEnabled) return;
     const initial = setTimeout(() => playVoiceLine(), 8000);
     const interval = setInterval(() => {
-      if (!isSpeaking) {
-        const delay = Math.random() * 25000;
-        setTimeout(() => playVoiceLine(), delay);
-      }
+      if (!isSpeaking) setTimeout(() => playVoiceLine(), Math.random() * 25000);
     }, 35000);
     return () => { clearTimeout(initial); clearInterval(interval); };
   }, [audioEnabled, playVoiceLine, isSpeaking]);
@@ -299,15 +355,14 @@ export default function AnimatedLiveCam({
     setTimeout(() => playVoiceLine(), 500);
   };
 
-  /* ─── Render ─── */
+  /* ═══════════════════ Render ═══════════════════ */
 
   return (
     <div className="relative w-full h-full overflow-hidden bg-slate-950">
 
-      {/* ═══ Video Layer: Crossfading Dual Player ═══ */}
+      {/* ═══ Video Layer ═══ */}
       {videoReady ? (
         <div className="absolute inset-0">
-          {/* Video A */}
           <video
             ref={videoRefA}
             key={`A-${clipUrlA}`}
@@ -318,12 +373,8 @@ export default function AnimatedLiveCam({
             onTimeUpdate={activeSlot === 'A' ? handleTimeUpdate : undefined}
             onEnded={() => handleVideoEnd('A')}
             className="absolute inset-0 w-full h-full object-cover"
-            style={{
-              opacity: opacityA,
-              transition: `opacity ${CROSSFADE_MS}ms ease-in-out`,
-            }}
+            style={{ opacity: opacityA, transition: `opacity ${CROSSFADE_MS}ms ease-in-out` }}
           />
-          {/* Video B */}
           {clipUrlB && (
             <video
               ref={videoRefB}
@@ -334,31 +385,20 @@ export default function AnimatedLiveCam({
               onTimeUpdate={activeSlot === 'B' ? handleTimeUpdate : undefined}
               onEnded={() => handleVideoEnd('B')}
               className="absolute inset-0 w-full h-full object-cover"
-              style={{
-                opacity: opacityB,
-                transition: `opacity ${CROSSFADE_MS}ms ease-in-out`,
-              }}
+              style={{ opacity: opacityB, transition: `opacity ${CROSSFADE_MS}ms ease-in-out` }}
             />
           )}
         </div>
       ) : (
         /* ═══ Fallback: Animated Portrait ═══ */
         <div className="absolute inset-0">
-          {/* Background */}
           <div className="absolute inset-0 bg-gradient-to-b from-slate-950 via-indigo-950/40 to-slate-950" />
-          <div
-            className="absolute bottom-0 left-0 right-0 h-1/2 opacity-15"
-            style={{
-              backgroundImage: 'linear-gradient(rgba(99,102,241,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(99,102,241,0.5) 1px, transparent 1px)',
-              backgroundSize: '50px 50px',
-              transform: 'perspective(400px) rotateX(55deg)',
-              transformOrigin: 'bottom center',
-            }}
-          />
+          <div className="absolute bottom-0 left-0 right-0 h-1/2 opacity-15" style={{
+            backgroundImage: 'linear-gradient(rgba(99,102,241,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(99,102,241,0.5) 1px, transparent 1px)',
+            backgroundSize: '50px 50px', transform: 'perspective(400px) rotateX(55deg)', transformOrigin: 'bottom center',
+          }} />
           <div className="absolute top-[15%] left-[15%] w-80 h-80 bg-indigo-600/20 rounded-full blur-[100px]" style={{ animation: 'cam-glow-pulse 5s ease-in-out infinite' }} />
           <div className="absolute bottom-[20%] right-[10%] w-72 h-72 bg-purple-600/15 rounded-full blur-[80px]" style={{ animation: 'cam-glow-pulse 7s ease-in-out infinite 1s' }} />
-
-          {/* Portrait */}
           <div className="absolute inset-0 flex items-center justify-center">
             <div style={{ animation: 'cam-breathe 5s ease-in-out infinite' }}>
               {portraitUrl ? (
@@ -372,46 +412,28 @@ export default function AnimatedLiveCam({
               )}
             </div>
           </div>
-
-          {/* Particles */}
           <div className="absolute inset-0 pointer-events-none overflow-hidden">
             {particles.map((p) => (
-              <div
-                key={p.id}
-                className={`absolute rounded-full ${p.hue}`}
-                style={{
-                  left: `${p.left}%`,
-                  top: `${p.top}%`,
-                  width: p.size,
-                  height: p.size,
-                  animation: `cam-particle-drift ${p.duration}s ease-in-out infinite`,
-                  animationDelay: `${p.delay}s`,
-                }}
-              />
+              <div key={p.id} className={`absolute rounded-full ${p.hue}`} style={{
+                left: `${p.left}%`, top: `${p.top}%`, width: p.size, height: p.size,
+                animation: `cam-particle-drift ${p.duration}s ease-in-out infinite`, animationDelay: `${p.delay}s`,
+              }} />
             ))}
           </div>
         </div>
       )}
 
-      {/* ═══ Caption Overlay (when speaking) ═══ */}
+      {/* ═══ Caption Overlay ═══ */}
       {currentCaption && (
-        <div
-          className="absolute bottom-24 left-0 right-0 flex justify-center px-6 z-20"
-          style={{ animation: 'cam-caption-in 0.4s ease-out' }}
-        >
+        <div className="absolute bottom-24 left-0 right-0 flex justify-center px-6 z-20" style={{ animation: 'cam-caption-in 0.4s ease-out' }}>
           <div className="bg-black/60 backdrop-blur-md rounded-2xl px-5 py-3 max-w-md border border-white/5">
             <div className="flex items-start gap-2">
               {isSpeaking && (
                 <div className="flex items-center gap-0.5 mt-1 shrink-0">
                   {[0, 1, 2, 3].map((i) => (
-                    <div
-                      key={i}
-                      className="w-0.5 bg-indigo-400 rounded-full"
-                      style={{
-                        height: `${6 + audioLevel * 12 + Math.random() * 4}px`,
-                        transition: 'height 0.1s ease-out',
-                      }}
-                    />
+                    <div key={i} className="w-0.5 bg-indigo-400 rounded-full" style={{
+                      height: `${6 + audioLevel * 12 + Math.random() * 4}px`, transition: 'height 0.1s ease-out',
+                    }} />
                   ))}
                 </div>
               )}
@@ -430,6 +452,15 @@ export default function AnimatedLiveCam({
               <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
               <span className="text-[11px] font-black text-slate-900 uppercase tracking-tight">Live</span>
             </div>
+
+            {/* Action label */}
+            {currentLabel && (
+              <div className="px-3 py-1 rounded-full bg-purple-600/90 backdrop-blur-sm text-[10px] font-black text-white uppercase tracking-wider self-start shadow-lg shadow-purple-500/30 animate-pulse" style={{ animationDuration: '1.5s' }}>
+                {currentLabel}
+              </div>
+            )}
+
+            {/* Speaking indicator */}
             {isSpeaking && (
               <div className="px-3 py-1 rounded-full bg-indigo-600/90 backdrop-blur-sm text-[10px] font-black text-white uppercase tracking-wider self-start shadow-lg shadow-indigo-500/30">
                 <span className="flex items-center gap-1.5">
@@ -452,15 +483,11 @@ export default function AnimatedLiveCam({
             >
               {audioEnabled ? (
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-                  <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
-                  <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" /><path d="M15.54 8.46a5 5 0 0 1 0 7.07" /><path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
                 </svg>
               ) : (
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-                  <line x1="23" y1="9" x2="17" y2="15" />
-                  <line x1="17" y1="9" x2="23" y2="15" />
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" /><line x1="23" y1="9" x2="17" y2="15" /><line x1="17" y1="9" x2="23" y2="15" />
                 </svg>
               )}
             </button>
@@ -487,9 +514,7 @@ export default function AnimatedLiveCam({
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-white/40 text-[10px] font-bold tracking-widest uppercase bg-black/30 backdrop-blur-sm px-3 py-1 rounded-lg border border-white/5">
-              HD
-            </span>
+            <span className="text-white/40 text-[10px] font-bold tracking-widest uppercase bg-black/30 backdrop-blur-sm px-3 py-1 rounded-lg border border-white/5">HD</span>
             <div className="flex gap-0.5">
               {[0, 1, 2].map((i) => (
                 <div key={i} className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" style={{ animationDelay: `${i * 200}ms` }} />
@@ -508,9 +533,7 @@ export default function AnimatedLiveCam({
             style={{ animationDuration: '2s' }}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-              <line x1="23" y1="9" x2="17" y2="15" />
-              <line x1="17" y1="9" x2="23" y2="15" />
+              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" /><line x1="23" y1="9" x2="17" y2="15" /><line x1="17" y1="9" x2="23" y2="15" />
             </svg>
             Tap to hear {characterName} speak
           </button>
