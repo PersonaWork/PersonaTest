@@ -5,11 +5,11 @@ const nextConfig = {
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: 'replicate.delivery',
+        hostname: 'fal.media',
       },
       {
         protocol: 'https',
-        hostname: 'pbxt.replicate.delivery',
+        hostname: '**.fal.media',
       },
       {
         protocol: 'https',

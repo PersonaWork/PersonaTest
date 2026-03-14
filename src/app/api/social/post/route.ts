@@ -4,7 +4,7 @@ import { generateCharacterVoice } from '@/lib/ai/elevenlabs';
 import { postCharacterContent } from '@/lib/social/ayrshare';
 import { getTrendingTopics } from '@/lib/social/apify';
 import { generateCharacterResponse } from '@/lib/ai/openai';
-import { generateAnimationClip } from '@/lib/ai/replicate';
+import { generateAnimationClip } from '@/lib/ai/fal';
 import { successResponse, errorResponse } from '@/lib/api';
 import { requireAuth } from '@/lib/auth';
 
@@ -14,7 +14,7 @@ import { requireAuth } from '@/lib/auth';
  *
  * Pipeline:
  * 1. Generate script from trends + AI (if not provided)
- * 2. Generate video with Replicate minimax/video-01
+ * 2. Generate video with Google Veo 3 via fal.ai
  * 3. Generate voiceover with ElevenLabs (audio buffer — needs storage for full use)
  * 4. Post with Ayrshare
  * 5. Create Post record in DB
@@ -63,18 +63,20 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Step 2: Generate video with Replicate (if not provided)
+    // Step 2: Generate video with fal.ai Veo 3 (if not provided)
     let finalVideoUrl = videoUrl;
     if (!finalVideoUrl) {
       try {
-        finalVideoUrl = await generateAnimationClip(
-          character.name,
-          'talking',
-          character.description
+        const portraitUrl = character.thumbnailUrl || '/images/aria/portrait.png';
+        const result = await generateAnimationClip(
+          portraitUrl,
+          'talk-hype',
+          character.name
         );
+        finalVideoUrl = result.videoUrl;
       } catch (error) {
-        console.error('Failed to generate video with Replicate:', error);
-        return errorResponse('Video generation failed. Ensure REPLICATE_API_TOKEN is set.', 500);
+        console.error('Failed to generate video with fal.ai:', error);
+        return errorResponse('Video generation failed. Ensure FAL_KEY is set.', 500);
       }
     }
 

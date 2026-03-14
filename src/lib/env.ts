@@ -8,7 +8,7 @@ const serverSchema = z.object({
   PLATFORM_TREASURY_ADDRESS:   z.string().optional(),
   TREASURY_PRIVATE_KEY:        z.string().optional(),
   OPENAI_API_KEY:              z.string().optional(),
-  REPLICATE_API_TOKEN:         z.string().optional(),
+  FAL_KEY:                     z.string().optional(),
   ELEVENLABS_API_KEY:          z.string().optional(),
   AYRSHARE_API_KEY:            z.string().optional(),
   APIFY_API_TOKEN:             z.string().optional(),

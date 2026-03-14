@@ -2,16 +2,17 @@ import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
 import { successResponse, errorResponse } from '@/lib/api';
-import { generateAnimationClip, ANIMATION_TYPES } from '@/lib/ai/replicate';
+import { generateAnimationClip, ANIMATION_TYPES } from '@/lib/ai/fal';
 import { z } from 'zod';
 
 const GenerateSchema = z.object({
   types: z.array(z.string()).min(1, 'At least one animation type is required'),
+  imageUrl: z.string().url('imageUrl must be a valid URL'),
 });
 
 /**
  * POST /api/characters/[slug]/generate-animations
- * Batch-generate animation clips using Replicate minimax/video-01.
+ * Batch-generate animation clips using Google Veo 3.1 via fal.ai.
  * Admin-only — not called during normal browsing.
  */
 export async function POST(
@@ -28,7 +29,7 @@ export async function POST(
       return errorResponse(parsed.error.issues[0].message, 400);
     }
 
-    const { types } = parsed.data;
+    const { types, imageUrl } = parsed.data;
 
     // Validate animation types
     const invalidTypes = types.filter((t) => !ANIMATION_TYPES.includes(t));
@@ -47,22 +48,16 @@ export async function POST(
       return errorResponse('Character not found', 404);
     }
 
-    const personality = character.personality as Record<string, unknown> | null;
-    const traits = Array.isArray(personality?.traits)
-      ? (personality.traits as string[]).join(', ')
-      : '';
-    const characterDescription = traits || character.description.slice(0, 100);
-
     const results: { type: string; videoUrl: string; id: string }[] = [];
     const errors: { type: string; error: string }[] = [];
 
     // Generate clips sequentially to avoid rate limits
     for (const type of types) {
       try {
-        const videoUrl = await generateAnimationClip(
-          character.name,
+        const { videoUrl, duration } = await generateAnimationClip(
+          imageUrl,
           type,
-          characterDescription
+          character.name
         );
 
         const clip = await prisma.animationClip.create({
@@ -70,7 +65,7 @@ export async function POST(
             characterId: character.id,
             type,
             videoUrl,
-            duration: 5.0,
+            duration,
           },
         });
 
