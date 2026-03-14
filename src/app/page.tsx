@@ -132,8 +132,12 @@ export default async function HomePage() {
                             <p className="text-sm font-bold text-white">{c.name}</p>
                             <p className="text-xs text-slate-500">${(c.currentPrice ?? 0).toFixed(2)} USDC</p>
                           </div>
-                          <div className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center text-xl">
-                            {c.name[0]}
+                          <div className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center overflow-hidden relative">
+                            {c.thumbnailUrl ? (
+                              <img src={c.thumbnailUrl} alt={c.name} className="w-full h-full object-cover" />
+                            ) : (
+                              <span className="text-xl">{c.name[0]}</span>
+                            )}
                           </div>
                         </div>
                         <div className="mt-3 flex items-center gap-2 text-xs text-slate-400">
@@ -243,8 +247,12 @@ export default async function HomePage() {
           <div className="grid md:grid-cols-3 gap-8 mb-12">
             {featuredCharacters.map((c) => (
               <Card key={c.slug} className="p-6 text-center" hover>
-                <div className="w-20 h-20 bg-slate-800 rounded-full mx-auto mb-4 flex items-center justify-center text-3xl">
-                  {c.name[0]}
+                <div className="w-20 h-20 bg-slate-800 rounded-full mx-auto mb-4 overflow-hidden relative shadow-lg shadow-indigo-500/10">
+                  {c.thumbnailUrl ? (
+                    <img src={c.thumbnailUrl} alt={c.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-3xl">{c.name[0]}</div>
+                  )}
                 </div>
                 <h3 className="text-xl font-bold text-white mb-2">{c.name}</h3>
                 <p className="text-slate-400 mb-2 line-clamp-2">

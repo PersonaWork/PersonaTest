@@ -1,0 +1,62 @@
+[
+  {
+    "id": "welcome",
+    "text": "Oh hey! Welcome to the stream, you're just in time because things are about to get chaotic and I am absolutely here for it.",
+    "file": "/audio/aria/welcome.mp3"
+  },
+  {
+    "id": "charts-spicy",
+    "text": "Okay okay okay, the charts are looking absolutely spicy right now and I need everyone to act accordingly.",
+    "file": "/audio/aria/charts-spicy.mp3"
+  },
+  {
+    "id": "alpha-drop",
+    "text": "Not gonna lie, I just had the craziest alpha download and I literally cannot keep this to myself.",
+    "file": "/audio/aria/alpha-drop.mp3"
+  },
+  {
+    "id": "gerald",
+    "text": "Gerald thinks he can out-trade me. Gerald. Please. That man couldn't trade his way out of a paper bag.",
+    "file": "/audio/aria/gerald.mp3"
+  },
+  {
+    "id": "main-character",
+    "text": "It's giving main character energy today and honestly? We deserve this. We've been through so much.",
+    "file": "/audio/aria/main-character.mp3"
+  },
+  {
+    "id": "buy-more",
+    "text": "Hear me out, hear me out. What if we just... bought more? Revolutionary strategy, I know.",
+    "file": "/audio/aria/buy-more.mp3"
+  },
+  {
+    "id": "vibes",
+    "text": "The vibes in here are absolutely immaculate right now. We're so back. We were never gone actually.",
+    "file": "/audio/aria/vibes.mp3"
+  },
+  {
+    "id": "staring",
+    "text": "I've been staring at this chart for like three hours and honestly? I think I've achieved some form of financial enlightenment.",
+    "file": "/audio/aria/staring.mp3"
+  },
+  {
+    "id": "prophecy",
+    "text": "This is not financial advice. This is financial prophecy. There is a very important difference.",
+    "file": "/audio/aria/prophecy.mp3"
+  },
+  {
+    "id": "three-am",
+    "text": "It's giving three AM thoughts right now but like, what if money isn't even real? Anyway, we need more of it.",
+    "file": "/audio/aria/three-am.mp3"
+  },
+  {
+    "id": "so-back",
+    "text": "We are so unbelievably back right now. Like I cannot stress enough how back we are.",
+    "file": "/audio/aria/so-back.mp3"
+  },
+  {
+    "id": "cat",
+    "text": "My cat just walked across my keyboard and somehow made a better trade than half the people in my mentions. I can't even be mad.",
+    "file": "/audio/aria/cat.mp3"
+  }
+]

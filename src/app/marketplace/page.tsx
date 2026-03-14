@@ -108,7 +108,7 @@ export default function MarketplacePage() {
                                         <div className={`p-[2px] rounded-2xl bg-gradient-to-r ${ring} shadow-lg shadow-indigo-500/10 group-hover:shadow-indigo-500/20 transition-shadow`}>
                                             <div className="relative w-24 h-24 rounded-2xl bg-slate-900/70 border border-white/5 overflow-hidden flex items-center justify-center">
                                                 {c.thumbnailUrl ? (
-                                                    <Image src={c.thumbnailUrl} alt={c.name} fill className="object-cover" />
+                                                    <Image src={c.thumbnailUrl} alt={c.name} fill className="object-cover" sizes="96px" />
                                                 ) : (
                                                     <span className="text-2xl font-black text-white">{c.name.charAt(0)}</span>
                                                 )}

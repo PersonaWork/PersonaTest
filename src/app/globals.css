@@ -757,3 +757,53 @@ input[type='number'] {
 .glow-pink {
   box-shadow: 0 0 30px rgba(236, 72, 153, 0.3);
 }
+
+/* ===== Animated LiveCam Keyframes ===== */
+
+@keyframes cam-breathe {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-6px) scale(1.015); }
+}
+
+@keyframes cam-float {
+  0%, 100% { transform: translateY(0); opacity: 0.4; }
+  50% { transform: translateY(-20px); opacity: 0.8; }
+}
+
+@keyframes cam-float-slow {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-12px) rotate(1deg); }
+}
+
+@keyframes cam-float-reverse {
+  0%, 100% { transform: translateY(-10px) rotate(0deg); }
+  50% { transform: translateY(4px) rotate(-1deg); }
+}
+
+@keyframes cam-glow-pulse {
+  0%, 100% { opacity: 0.15; transform: scale(1); }
+  50% { opacity: 0.3; transform: scale(1.05); }
+}
+
+@keyframes cam-screen-flicker {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.5; }
+  75% { opacity: 0.25; }
+}
+
+@keyframes cam-particle-drift {
+  0% { transform: translateY(0) translateX(0); opacity: 0; }
+  10% { opacity: 0.6; }
+  90% { opacity: 0.6; }
+  100% { transform: translateY(-100px) translateX(20px); opacity: 0; }
+}
+
+@keyframes cam-audio-ring {
+  0% { transform: scale(1); opacity: 0.6; }
+  100% { transform: scale(1.5); opacity: 0; }
+}
+
+@keyframes cam-caption-in {
+  0% { opacity: 0; transform: translateY(10px); }
+  100% { opacity: 1; transform: translateY(0); }
+}

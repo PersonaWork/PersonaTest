@@ -154,8 +154,8 @@ export default function CharacterPage() {
               <div className="flex items-center gap-5">
                 <div className="relative shrink-0">
                   <div className="w-20 h-20 rounded-2xl bg-slate-800 border-2 border-slate-700 shadow-xl overflow-hidden relative">
-                    {character.thumbnailUrl ? (
-                      <Image src={character.thumbnailUrl} alt={character.name} fill className="object-cover" />
+                    {(character.thumbnailUrl || '/images/aria/portrait.png') ? (
+                      <Image src={character.thumbnailUrl || '/images/aria/portrait.png'} alt={character.name} fill className="object-cover" sizes="80px" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-3xl font-black text-white">{character.name[0]}</div>
                     )}
@@ -204,16 +204,11 @@ export default function CharacterPage() {
 
             {/* Live Camera Feed */}
             <Card className="h-[600px] overflow-hidden border-slate-700/50 shadow-2xl relative" padding="none" hover={false}>
-              <div className="absolute top-4 left-4 z-10 flex items-center gap-2">
-                <div className="px-3 py-1.5 rounded-full bg-black/50 backdrop-blur-md border border-white/10 text-xs font-bold text-white uppercase tracking-widest">
-                  Live Feed
-                </div>
-              </div>
               <AnimatedLiveCam
                 slug={character.slug}
                 characterName={character.name}
                 personality={character.personality}
-                idleClipUrl={(character.environment as { idleClipUrl?: string })?.idleClipUrl || ''}
+                portraitUrl={character.thumbnailUrl || '/images/aria/portrait.png'}
               />
             </Card>
 

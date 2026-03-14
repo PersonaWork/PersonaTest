@@ -52,6 +52,7 @@ const CharacterCard = memo(function CharacterCard({ character, showStats = true 
                                         alt={character.name}
                                         fill
                                         className="object-cover"
+                                        sizes="112px"
                                     />
                                 ) : (
                                     <div className="w-full h-full flex items-center justify-center text-4xl text-white">
