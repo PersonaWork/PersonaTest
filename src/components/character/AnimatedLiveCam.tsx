@@ -26,23 +26,29 @@ interface AnimatedLiveCamProps {
 
 /* ─── Constants ─── */
 
+/** Duration of the opacity crossfade between clips (ms) */
 const CROSSFADE_MS = 1200;
-const PRELOAD_BUFFER_S = 1.5;
 
-// Chance (0-1) that the next clip after idle is an action clip
+/** Start preloading the next clip this many seconds before current ends */
+const PRELOAD_AHEAD_S = 3.5;
+
+/** Max time to wait for incoming video to buffer before forcing crossfade (ms) */
+const PRELOAD_TIMEOUT_MS = 6000;
+
+/** Chance (0–1) that the next clip after idle is an action clip */
 const ACTION_CHANCE = 0.35;
 
-// Map clip type prefixes to display labels
+/** Map clip type prefixes to display labels */
 const TYPE_LABELS: Record<string, string> = {
-  'talk': 'Talking',
-  'excited': 'Hyped',
-  'laugh': 'Laughing',
-  'think': 'Thinking',
-  'scheme': 'Scheming',
-  'celebrate': 'Celebrating',
-  'react': 'Reacting',
-  'vibe': 'Vibing',
-  'dance': 'Dancing',
+  talk: 'Talking',
+  excited: 'Hyped',
+  laugh: 'Laughing',
+  think: 'Thinking',
+  scheme: 'Scheming',
+  celebrate: 'Celebrating',
+  react: 'Reacting',
+  vibe: 'Vibing',
+  dance: 'Dancing',
 };
 
 function getLabelForType(clipType: string): string | null {
@@ -87,7 +93,9 @@ function generateParticles(count: number) {
   }));
 }
 
-/* ─── Component ─── */
+/* ═══════════════════════════════════════════════════════════════
+   Component
+   ═══════════════════════════════════════════════════════════════ */
 
 export default function AnimatedLiveCam({
   slug,
@@ -95,27 +103,15 @@ export default function AnimatedLiveCam({
   personality: _personality,
   portraitUrl,
 }: AnimatedLiveCamProps) {
-  // ── Video state ──
+  /* ─── Clip data (React state for initial fetch) ─── */
   const [idleClips, setIdleClips] = useState<AnimationClip[]>([]);
   const [actionClips, setActionClips] = useState<AnimationClip[]>([]);
-  const [activeSlot, setActiveSlot] = useState<'A' | 'B'>('A');
-  const [clipUrlA, setClipUrlA] = useState('');
-  const [clipUrlB, setClipUrlB] = useState('');
-  const [opacityA, setOpacityA] = useState(1);
-  const [opacityB, setOpacityB] = useState(0);
+
+  /* ─── UI state ─── */
   const [videoReady, setVideoReady] = useState(false);
   const [currentLabel, setCurrentLabel] = useState<string | null>(null);
 
-  const lastIdleIndexRef = useRef(-1);
-  const lastActionIndexRef = useRef(-1);
-  const lastWasActionRef = useRef(false);
-  const crossfadingRef = useRef(false);
-  const clipCountRef = useRef(0); // track how many clips have played
-
-  const videoRefA = useRef<HTMLVideoElement>(null);
-  const videoRefB = useRef<HTMLVideoElement>(null);
-
-  // ── Voice state ──
+  /* ─── Voice state ─── */
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [audioLevel, setAudioLevel] = useState(0);
   const [viewerCount, setViewerCount] = useState(1247);
@@ -124,70 +120,209 @@ export default function AnimatedLiveCam({
   const [voiceLines, setVoiceLines] = useState<VoiceLineManifest[]>(FALLBACK_VOICE_LINES);
   const [lastLineIndex, setLastLineIndex] = useState(-1);
 
+  /* ─── Imperative refs (video controlled entirely via refs, not React state) ─── */
+  const videoRefA = useRef<HTMLVideoElement>(null);
+  const videoRefB = useRef<HTMLVideoElement>(null);
+  const activeSlotRef = useRef<'A' | 'B'>('A');
+  const crossfadingRef = useRef(false);
+  const clipCountRef = useRef(0);
+  const lastIdleIndexRef = useRef(-1);
+  const lastActionIndexRef = useRef(-1);
+  const lastWasActionRef = useRef(false);
+  const mountedRef = useRef(true);
+
+  // Mirror clip arrays in refs so imperative callbacks never see stale data
+  const idleClipsRef = useRef<AnimationClip[]>([]);
+  const actionClipsRef = useRef<AnimationClip[]>([]);
+  useEffect(() => { idleClipsRef.current = idleClips; }, [idleClips]);
+  useEffect(() => { actionClipsRef.current = actionClips; }, [actionClips]);
+
   const audioContextRef = useRef<AudioContext | null>(null);
   const animFrameRef = useRef<number>(0);
   const speakingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const particles = useMemo(() => generateParticles(12), []);
 
-  // ── Pick next clip ──
-  // Logic: after an action clip, always go back to idle.
-  // After an idle clip, ACTION_CHANCE to play an action, else idle again.
-  // Never play the same clip twice in a row.
+  /* ─── Cleanup ─── */
+  useEffect(() => () => { mountedRef.current = false; }, []);
+
+  /* ─── Set initial opacity via refs (not JSX, so React won't reset it) ─── */
+  useEffect(() => {
+    if (videoRefA.current) videoRefA.current.style.opacity = '0';
+    if (videoRefB.current) videoRefB.current.style.opacity = '0';
+  }, []);
+
+  /* ─── Pick next clip ─── */
   const pickNextClip = useCallback((): { clip: AnimationClip; type: string } | null => {
-    if (idleClips.length === 0) return null;
+    const idle = idleClipsRef.current;
+    const action = actionClipsRef.current;
+    if (idle.length === 0) return null;
 
     clipCountRef.current++;
-
-    // First 2 clips are always idle (let the stream settle in)
     const forceIdle = clipCountRef.current <= 2;
 
-    // After an action clip, always return to idle
-    if (lastWasActionRef.current || forceIdle || actionClips.length === 0) {
-      let idx = Math.floor(Math.random() * idleClips.length);
-      if (idx === lastIdleIndexRef.current && idleClips.length > 1) {
-        idx = (idx + 1) % idleClips.length;
-      }
+    // After an action → always idle. First 2 clips → always idle.
+    if (lastWasActionRef.current || forceIdle || action.length === 0) {
+      let idx = Math.floor(Math.random() * idle.length);
+      if (idx === lastIdleIndexRef.current && idle.length > 1)
+        idx = (idx + 1) % idle.length;
       lastIdleIndexRef.current = idx;
       lastWasActionRef.current = false;
-      setCurrentLabel(null);
-      return { clip: idleClips[idx], type: 'idle' };
+      return { clip: idle[idx], type: 'idle' };
     }
 
     // Roll for action
     if (Math.random() < ACTION_CHANCE) {
-      let idx = Math.floor(Math.random() * actionClips.length);
-      if (idx === lastActionIndexRef.current && actionClips.length > 1) {
-        idx = (idx + 1) % actionClips.length;
-      }
+      let idx = Math.floor(Math.random() * action.length);
+      if (idx === lastActionIndexRef.current && action.length > 1)
+        idx = (idx + 1) % action.length;
       lastActionIndexRef.current = idx;
       lastWasActionRef.current = true;
-      const clip = actionClips[idx];
-      const label = getLabelForType(clip.id);
-      setCurrentLabel(label);
+      const clip = action[idx];
       return { clip, type: clip.id };
     }
 
-    // Default: idle
-    let idx = Math.floor(Math.random() * idleClips.length);
-    if (idx === lastIdleIndexRef.current && idleClips.length > 1) {
-      idx = (idx + 1) % idleClips.length;
-    }
+    // Default: another idle
+    let idx = Math.floor(Math.random() * idle.length);
+    if (idx === lastIdleIndexRef.current && idle.length > 1)
+      idx = (idx + 1) % idle.length;
     lastIdleIndexRef.current = idx;
     lastWasActionRef.current = false;
-    setCurrentLabel(null);
-    return { clip: idleClips[idx], type: 'idle' };
-  }, [idleClips, actionClips]);
+    return { clip: idle[idx], type: 'idle' };
+  }, []);
 
-  // ── Fetch all clips on mount ──
+  /* ─── Crossfade: preload → play → fade opacity → swap slot ─── */
+  const startCrossfade = useCallback(() => {
+    if (crossfadingRef.current || !mountedRef.current) return;
+    const idle = idleClipsRef.current;
+    const action = actionClipsRef.current;
+    if (idle.length + action.length < 2) return;
+
+    crossfadingRef.current = true;
+    const next = pickNextClip();
+    if (!next) { crossfadingRef.current = false; return; }
+
+    const isA = activeSlotRef.current === 'A';
+    const incoming = isA ? videoRefB.current : videoRefA.current;
+    const outgoing = isA ? videoRefA.current : videoRefB.current;
+    if (!incoming || !outgoing) { crossfadingRef.current = false; return; }
+
+    // Update UI label
+    setCurrentLabel(next.type === 'idle' ? null : getLabelForType(next.type));
+
+    let settled = false;
+    let timeoutId: ReturnType<typeof setTimeout>;
+
+    /** Execute the actual crossfade (called once video is ready OR on timeout) */
+    const doFade = () => {
+      if (settled || !mountedRef.current) return;
+      settled = true;
+      clearTimeout(timeoutId);
+      incoming.removeEventListener('canplay', doFade);
+      incoming.removeEventListener('error', onError);
+
+      // Start playing incoming video (still at opacity 0)
+      incoming.play().catch(() => {});
+
+      // Begin CSS opacity crossfade
+      requestAnimationFrame(() => {
+        if (!mountedRef.current) return;
+        incoming.style.opacity = '1';
+        outgoing.style.opacity = '0';
+
+        // After CSS transition finishes, swap active slot and release outgoing
+        setTimeout(() => {
+          if (!mountedRef.current) return;
+          activeSlotRef.current = isA ? 'B' : 'A';
+          outgoing.pause();
+          crossfadingRef.current = false;
+        }, CROSSFADE_MS + 100);
+      });
+    };
+
+    const onError = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeoutId);
+      incoming.removeEventListener('canplay', doFade);
+      incoming.removeEventListener('error', onError);
+      crossfadingRef.current = false;
+    };
+
+    // Listen for the incoming video to be ready
+    incoming.addEventListener('canplay', doFade, { once: true });
+    incoming.addEventListener('error', onError, { once: true });
+
+    // Timeout fallback: if buffer takes too long, crossfade anyway
+    timeoutId = setTimeout(() => {
+      if (!settled) doFade();
+    }, PRELOAD_TIMEOUT_MS);
+
+    // Kick off load
+    incoming.src = next.clip.videoUrl;
+    incoming.load();
+  }, [pickNextClip]);
+
+  /* ─── Attach video event listeners (imperative, not React props) ─── */
   useEffect(() => {
+    const a = videoRefA.current;
+    const b = videoRefB.current;
+    if (!a || !b) return;
+
+    const onTimeUpdate = (e: Event) => {
+      const video = e.target as HTMLVideoElement;
+      if (!video.duration || crossfadingRef.current) return;
+
+      // Only the active slot triggers a crossfade
+      const isActive =
+        (activeSlotRef.current === 'A' && video === a) ||
+        (activeSlotRef.current === 'B' && video === b);
+      if (!isActive) return;
+
+      if (video.duration - video.currentTime <= PRELOAD_AHEAD_S) {
+        startCrossfade();
+      }
+    };
+
+    const onEnded = (e: Event) => {
+      const video = e.target as HTMLVideoElement;
+      const total = idleClipsRef.current.length + actionClipsRef.current.length;
+
+      // Single clip: just loop it
+      if (total < 2) {
+        video.currentTime = 0;
+        video.play().catch(() => {});
+        return;
+      }
+
+      // Emergency fallback: if crossfade didn't trigger, force it now
+      if (!crossfadingRef.current) startCrossfade();
+    };
+
+    a.addEventListener('timeupdate', onTimeUpdate);
+    b.addEventListener('timeupdate', onTimeUpdate);
+    a.addEventListener('ended', onEnded);
+    b.addEventListener('ended', onEnded);
+
+    return () => {
+      a.removeEventListener('timeupdate', onTimeUpdate);
+      b.removeEventListener('timeupdate', onTimeUpdate);
+      a.removeEventListener('ended', onEnded);
+      b.removeEventListener('ended', onEnded);
+    };
+  }, [startCrossfade]);
+
+  /* ─── Fetch clips on mount ─── */
+  useEffect(() => {
+    let cancelled = false;
+
     async function fetchClips() {
       try {
         const res = await fetch(`/api/characters/${slug}/animations`);
-        if (!res.ok) return;
+        if (!res.ok || cancelled) return;
         const json = await res.json();
         const data = json.success ? json.data : json;
-        if (!data?.clips) return;
+        if (!data?.clips || cancelled) return;
 
         const idle: AnimationClip[] = [];
         const action: AnimationClip[] = [];
@@ -197,85 +332,50 @@ export default function AnimatedLiveCam({
           if (isIdleType(type)) {
             idle.push(...clipArray);
           } else {
-            // Tag each clip with its type in the id for label lookup
             action.push(...clipArray.map((c) => ({ ...c, id: type })));
           }
         }
 
-        if (idle.length > 0) {
-          setIdleClips(idle);
-          setActionClips(action);
-          // Start first clip
-          const first = idle[Math.floor(Math.random() * idle.length)];
-          lastIdleIndexRef.current = idle.indexOf(first);
-          setClipUrlA(first.videoUrl);
+        if (idle.length === 0 || cancelled) return;
+
+        setIdleClips(idle);
+        setActionClips(action);
+
+        // Start the first clip on video A
+        const first = idle[Math.floor(Math.random() * idle.length)];
+        lastIdleIndexRef.current = idle.indexOf(first);
+
+        const a = videoRefA.current;
+        if (!a || cancelled) return;
+
+        const onFirstReady = () => {
+          if (cancelled) return;
+          a.removeEventListener('canplay', onFirstReady);
+          a.removeEventListener('error', onFirstError);
+          a.style.opacity = '1';
+          a.play().catch(() => {});
           setVideoReady(true);
-        }
+        };
+
+        const onFirstError = () => {
+          a.removeEventListener('canplay', onFirstReady);
+          a.removeEventListener('error', onFirstError);
+        };
+
+        a.addEventListener('canplay', onFirstReady, { once: true });
+        a.addEventListener('error', onFirstError, { once: true });
+        a.src = first.videoUrl;
+        a.load();
       } catch {
-        // No clips available
+        // Silently fail — portrait fallback stays visible
       }
     }
+
     fetchClips();
+    return () => { cancelled = true; };
   }, [slug]);
 
-  // ── Crossfade ──
-  const startCrossfade = useCallback(() => {
-    if (crossfadingRef.current) return;
-    const totalClips = idleClips.length + actionClips.length;
-    if (totalClips < 2) return;
-
-    crossfadingRef.current = true;
-
-    const next = pickNextClip();
-    if (!next) { crossfadingRef.current = false; return; }
-
-    if (activeSlot === 'A') {
-      setClipUrlB(next.clip.videoUrl);
-      setTimeout(() => {
-        videoRefB.current?.play().catch(() => {});
-        setOpacityB(1);
-        setOpacityA(0);
-        setTimeout(() => {
-          setActiveSlot('B');
-          crossfadingRef.current = false;
-        }, CROSSFADE_MS);
-      }, 100);
-    } else {
-      setClipUrlA(next.clip.videoUrl);
-      setTimeout(() => {
-        videoRefA.current?.play().catch(() => {});
-        setOpacityA(1);
-        setOpacityB(0);
-        setTimeout(() => {
-          setActiveSlot('A');
-          crossfadingRef.current = false;
-        }, CROSSFADE_MS);
-      }, 100);
-    }
-  }, [activeSlot, idleClips, actionClips, pickNextClip]);
-
-  // ── TimeUpdate — trigger crossfade near end ──
-  const handleTimeUpdate = useCallback((e: React.SyntheticEvent<HTMLVideoElement>) => {
-    const video = e.currentTarget;
-    if (!video.duration || crossfadingRef.current) return;
-    const remaining = video.duration - video.currentTime;
-    if (remaining <= PRELOAD_BUFFER_S && (idleClips.length + actionClips.length) >= 2) {
-      startCrossfade();
-    }
-  }, [startCrossfade, idleClips, actionClips]);
-
-  // ── Single clip loop fallback ──
-  const handleVideoEnd = useCallback((slot: 'A' | 'B') => {
-    if ((idleClips.length + actionClips.length) < 2) {
-      const ref = slot === 'A' ? videoRefA : videoRefB;
-      if (ref.current) {
-        ref.current.currentTime = 0;
-        ref.current.play().catch(() => {});
-      }
-    }
-  }, [idleClips, actionClips]);
-
-  // ── Voice manifest ──
+  /* ─── Voice manifest ─── */
   useEffect(() => {
     fetch('/audio/aria/manifest.json')
       .then((r) => r.ok ? r.json() : null)
@@ -283,7 +383,7 @@ export default function AnimatedLiveCam({
       .catch(() => {});
   }, []);
 
-  // ── Viewer count ──
+  /* ─── Viewer count ─── */
   useEffect(() => {
     const interval = setInterval(() => {
       setViewerCount((prev) => Math.max(100, prev + Math.floor(Math.random() * 21) - 10));
@@ -291,7 +391,7 @@ export default function AnimatedLiveCam({
     return () => clearInterval(interval);
   }, []);
 
-  // ── Play voice line ──
+  /* ─── Play voice line ─── */
   const playVoiceLine = useCallback(() => {
     if (isSpeaking || !audioEnabled || voiceLines.length === 0) return;
 
@@ -340,7 +440,7 @@ export default function AnimatedLiveCam({
     audio.onerror = () => { setIsSpeaking(false); setAudioLevel(0); setCurrentCaption(''); };
   }, [isSpeaking, audioEnabled, voiceLines, lastLineIndex]);
 
-  // ── Periodic voice lines ──
+  /* ─── Periodic voice lines ─── */
   useEffect(() => {
     if (!audioEnabled) return;
     const initial = setTimeout(() => playVoiceLine(), 8000);
@@ -360,37 +460,36 @@ export default function AnimatedLiveCam({
   return (
     <div className="relative w-full h-full overflow-hidden bg-slate-950">
 
-      {/* ═══ Video Layer ═══ */}
-      {videoReady ? (
-        <div className="absolute inset-0">
-          <video
-            ref={videoRefA}
-            key={`A-${clipUrlA}`}
-            src={clipUrlA}
-            autoPlay
-            muted
-            playsInline
-            onTimeUpdate={activeSlot === 'A' ? handleTimeUpdate : undefined}
-            onEnded={() => handleVideoEnd('A')}
-            className="absolute inset-0 w-full h-full object-cover"
-            style={{ opacity: opacityA, transition: `opacity ${CROSSFADE_MS}ms ease-in-out` }}
-          />
-          {clipUrlB && (
-            <video
-              ref={videoRefB}
-              key={`B-${clipUrlB}`}
-              src={clipUrlB}
-              muted
-              playsInline
-              onTimeUpdate={activeSlot === 'B' ? handleTimeUpdate : undefined}
-              onEnded={() => handleVideoEnd('B')}
-              className="absolute inset-0 w-full h-full object-cover"
-              style={{ opacity: opacityB, transition: `opacity ${CROSSFADE_MS}ms ease-in-out` }}
-            />
-          )}
-        </div>
-      ) : (
-        /* ═══ Fallback: Animated Portrait ═══ */
+      {/* ═══ Video Layer ═══
+          Two persistent <video> elements — NEVER unmounted or keyed.
+          Opacity is controlled imperatively via refs for seamless crossfading.
+          Container is hidden until the first clip loads. */}
+      <div
+        className="absolute inset-0"
+        style={{ visibility: videoReady ? 'visible' : 'hidden' }}
+      >
+        <video
+          ref={videoRefA}
+          muted
+          playsInline
+          crossOrigin="anonymous"
+          preload="auto"
+          className="absolute inset-0 w-full h-full object-cover"
+          style={{ transition: `opacity ${CROSSFADE_MS}ms ease-in-out` }}
+        />
+        <video
+          ref={videoRefB}
+          muted
+          playsInline
+          crossOrigin="anonymous"
+          preload="auto"
+          className="absolute inset-0 w-full h-full object-cover"
+          style={{ transition: `opacity ${CROSSFADE_MS}ms ease-in-out` }}
+        />
+      </div>
+
+      {/* ═══ Fallback: Animated Portrait (shown until first clip loads) ═══ */}
+      {!videoReady && (
         <div className="absolute inset-0">
           <div className="absolute inset-0 bg-gradient-to-b from-slate-950 via-indigo-950/40 to-slate-950" />
           <div className="absolute bottom-0 left-0 right-0 h-1/2 opacity-15" style={{
