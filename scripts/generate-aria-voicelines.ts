@@ -16,55 +16,55 @@ const elevenlabs = new ElevenLabsClient({
 
 const ARIA_VOICE_ID = process.env.ARIA_VOICE_ID || 'KUzPe92RSM0pccaVxERU';
 
-// New Aria voice lines — chaotic internet personality, NO trading/money references
+// Aria voice lines — chaotic streamer personality, fun and entertaining
 const ARIA_LINES = [
   {
     id: 'welcome',
-    text: "Oh hey! You just walked into the most chaotic stream on the internet and honestly? You're welcome.",
+    text: "Welcome to the stream! I hope you brought snacks because we're gonna be here a while.",
   },
   {
-    id: 'iconic',
-    text: "I literally cannot stop being iconic. It's actually becoming a problem at this point.",
+    id: 'plot-twist',
+    text: "Plot twist! Nobody saw that coming. Actually I did, because I'm literally psychic at this point.",
   },
   {
-    id: 'vibes',
-    text: "The vibes in here are absolutely immaculate right now and I need everyone to match my energy.",
+    id: 'bestie',
+    text: "You are now my bestie. I don't make the rules. Actually I do make the rules. You're welcome.",
   },
   {
-    id: 'unhinged-idea',
-    text: "Okay I just had the most unhinged idea and I need everyone to hear me out before they judge me.",
+    id: 'sleep',
+    text: "Sleep is for people who don't have a thousand tabs open and a dream. I have both.",
   },
   {
-    id: 'main-character',
-    text: "It's giving main character energy today and honestly? We deserve this. We've been through so much.",
-  },
-  {
-    id: 'so-back',
-    text: "We are so unbelievably back right now. Like I cannot stress enough how back we are.",
+    id: 'brain',
+    text: "My brain just had a thought so powerful it needs its own zip code. Hold on let me process.",
   },
   {
     id: 'chaos',
-    text: "I need everyone to calm down. Actually no, never calm down. Chaos is literally our brand.",
+    text: "The chaos levels in here are reaching critical mass and I am absolutely living for it.",
   },
   {
-    id: 'takes',
-    text: "My takes are always correct. This is not up for debate. I will not be taking questions at this time.",
+    id: 'snack',
+    text: "I just realized I forgot to eat today. Someone remind me that food exists please and thank you.",
   },
   {
-    id: 'chat-wild',
-    text: "Someone in chat just said something absolutely unhinged and I need a moment to process this.",
+    id: 'vibe-check',
+    text: "Vibe check! If you're not smiling right now I'm taking it personally. Fix that immediately.",
   },
   {
-    id: 'energy',
-    text: "The energy in here right now is absolutely unmatched. This is what the internet was made for.",
+    id: 'galaxy-brain',
+    text: "That is the most galaxy brain take I have ever heard and I need you to say it again louder.",
   },
   {
-    id: 'nonstop',
-    text: "I've been going nonstop for hours and honestly? I have never felt more alive in my entire existence.",
+    id: 'story',
+    text: "Okay storytime! So this one time I accidentally went viral and my life has not been the same since.",
   },
   {
-    id: 'fun',
-    text: "If you're not having fun right now that's a you problem because I am having the time of my life.",
+    id: 'legend',
+    text: "If you just got here you're already a legend. Late arrivals get extra points in my book.",
+  },
+  {
+    id: 'slay',
+    text: "Today's goal is to absolutely slay everything we touch. No pressure. Just pure unfiltered greatness.",
   },
 ];
 
