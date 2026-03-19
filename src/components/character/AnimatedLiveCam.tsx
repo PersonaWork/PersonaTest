@@ -26,13 +26,16 @@ interface AnimatedLiveCamProps {
 
 /* ─── Constants ─── */
 
-/** Duration of the opacity crossfade between clips (ms) */
-const CROSSFADE_MS = 1200;
+/** Duration of the swap between clips (ms) — near-instant for seamless cuts.
+ *  Clips are designed to start/end at the same neutral pose so we can
+ *  hard-cut without any visible transition. A tiny crossfade (60ms) prevents
+ *  single-frame flashes but is imperceptible to the eye. */
+const CROSSFADE_MS = 60;
 
 /** Start preloading the next clip this many seconds before current ends */
 const PRELOAD_AHEAD_S = 3.5;
 
-/** Max time to wait for incoming video to buffer before forcing crossfade (ms) */
+/** Max time to wait for incoming video to buffer before forcing swap (ms) */
 const PRELOAD_TIMEOUT_MS = 6000;
 
 /** Chance (0–1) that the next clip after idle is an action clip */
@@ -65,18 +68,18 @@ function isIdleType(clipType: string): boolean {
 /* ─── Voice Lines ─── */
 
 const FALLBACK_VOICE_LINES: VoiceLineManifest[] = [
-  { id: 'welcome', text: "Oh hey! Welcome to the stream, you're just in time because things are about to get chaotic.", file: '/audio/aria/welcome.mp3' },
-  { id: 'charts-spicy', text: "The charts are looking absolutely spicy right now and I need everyone to act accordingly.", file: '/audio/aria/charts-spicy.mp3' },
-  { id: 'gerald', text: "Gerald thinks he can out-trade me. Gerald. Please.", file: '/audio/aria/gerald.mp3' },
-  { id: 'vibes', text: "The vibes in here are absolutely immaculate. We're so back.", file: '/audio/aria/vibes.mp3' },
-  { id: 'prophecy', text: "This is not financial advice. This is financial prophecy.", file: '/audio/aria/prophecy.mp3' },
-  { id: 'so-back', text: "We are so unbelievably back right now.", file: '/audio/aria/so-back.mp3' },
-  { id: 'cat', text: "My cat just walked across my keyboard and somehow made a better trade than half of you.", file: '/audio/aria/cat.mp3' },
-  { id: 'alpha-drop', text: "I just had the craziest alpha download and I literally cannot keep this to myself.", file: '/audio/aria/alpha-drop.mp3' },
-  { id: 'main-character', text: "It's giving main character energy today and honestly? We deserve this.", file: '/audio/aria/main-character.mp3' },
-  { id: 'buy-more', text: "What if we just... bought more? Revolutionary strategy, I know.", file: '/audio/aria/buy-more.mp3' },
-  { id: 'staring', text: "I've been staring at this chart for three hours and I think I've achieved enlightenment.", file: '/audio/aria/staring.mp3' },
-  { id: 'three-am', text: "What if money isn't even real? Anyway, we need more of it.", file: '/audio/aria/three-am.mp3' },
+  { id: 'welcome', text: "Oh hey! You just walked into the most chaotic stream on the internet and honestly? You're welcome.", file: '/audio/aria/welcome.mp3' },
+  { id: 'iconic', text: "I literally cannot stop being iconic. It's actually becoming a problem at this point.", file: '/audio/aria/iconic.mp3' },
+  { id: 'vibes', text: "The vibes in here are absolutely immaculate right now and I need everyone to match my energy.", file: '/audio/aria/vibes.mp3' },
+  { id: 'unhinged-idea', text: "Okay I just had the most unhinged idea and I need everyone to hear me out before they judge me.", file: '/audio/aria/unhinged-idea.mp3' },
+  { id: 'main-character', text: "It's giving main character energy today and honestly? We deserve this. We've been through so much.", file: '/audio/aria/main-character.mp3' },
+  { id: 'so-back', text: "We are so unbelievably back right now. Like I cannot stress enough how back we are.", file: '/audio/aria/so-back.mp3' },
+  { id: 'chaos', text: "I need everyone to calm down. Actually no, never calm down. Chaos is literally our brand.", file: '/audio/aria/chaos.mp3' },
+  { id: 'takes', text: "My takes are always correct. This is not up for debate. I will not be taking questions at this time.", file: '/audio/aria/takes.mp3' },
+  { id: 'chat-wild', text: "Someone in chat just said something absolutely unhinged and I need a moment to process this.", file: '/audio/aria/chat-wild.mp3' },
+  { id: 'energy', text: "The energy in here right now is absolutely unmatched. This is what the internet was made for.", file: '/audio/aria/energy.mp3' },
+  { id: 'nonstop', text: "I've been going nonstop for hours and honestly? I have never felt more alive in my entire existence.", file: '/audio/aria/nonstop.mp3' },
+  { id: 'fun', text: "If you're not having fun right now that's a you problem because I am having the time of my life.", file: '/audio/aria/fun.mp3' },
 ];
 
 /* ─── Particles ─── */

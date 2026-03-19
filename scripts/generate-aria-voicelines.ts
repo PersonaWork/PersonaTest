@@ -1,3 +1,10 @@
+/**
+ * Generate Aria voice lines using ElevenLabs.
+ *
+ * Usage:
+ *   npx ts-node --compiler-options '{"module":"CommonJS"}' scripts/generate-aria-voicelines.ts
+ */
+
 import 'dotenv/config';
 import { ElevenLabsClient } from '@elevenlabs/elevenlabs-js';
 import * as fs from 'fs';
@@ -9,55 +16,55 @@ const elevenlabs = new ElevenLabsClient({
 
 const ARIA_VOICE_ID = process.env.ARIA_VOICE_ID || 'KUzPe92RSM0pccaVxERU';
 
-// Aria's ambient voice lines — short, punchy, personality-packed
+// New Aria voice lines — chaotic internet personality, NO trading/money references
 const ARIA_LINES = [
   {
     id: 'welcome',
-    text: "Oh hey! Welcome to the stream, you're just in time because things are about to get chaotic and I am absolutely here for it.",
+    text: "Oh hey! You just walked into the most chaotic stream on the internet and honestly? You're welcome.",
   },
   {
-    id: 'charts-spicy',
-    text: "Okay okay okay, the charts are looking absolutely spicy right now and I need everyone to act accordingly.",
+    id: 'iconic',
+    text: "I literally cannot stop being iconic. It's actually becoming a problem at this point.",
   },
   {
-    id: 'alpha-drop',
-    text: "Not gonna lie, I just had the craziest alpha download and I literally cannot keep this to myself.",
+    id: 'vibes',
+    text: "The vibes in here are absolutely immaculate right now and I need everyone to match my energy.",
   },
   {
-    id: 'gerald',
-    text: "Gerald thinks he can out-trade me. Gerald. Please. That man couldn't trade his way out of a paper bag.",
+    id: 'unhinged-idea',
+    text: "Okay I just had the most unhinged idea and I need everyone to hear me out before they judge me.",
   },
   {
     id: 'main-character',
     text: "It's giving main character energy today and honestly? We deserve this. We've been through so much.",
   },
   {
-    id: 'buy-more',
-    text: "Hear me out, hear me out. What if we just... bought more? Revolutionary strategy, I know.",
-  },
-  {
-    id: 'vibes',
-    text: "The vibes in here are absolutely immaculate right now. We're so back. We were never gone actually.",
-  },
-  {
-    id: 'staring',
-    text: "I've been staring at this chart for like three hours and honestly? I think I've achieved some form of financial enlightenment.",
-  },
-  {
-    id: 'prophecy',
-    text: "This is not financial advice. This is financial prophecy. There is a very important difference.",
-  },
-  {
-    id: 'three-am',
-    text: "It's giving three AM thoughts right now but like, what if money isn't even real? Anyway, we need more of it.",
-  },
-  {
     id: 'so-back',
     text: "We are so unbelievably back right now. Like I cannot stress enough how back we are.",
   },
   {
-    id: 'cat',
-    text: "My cat just walked across my keyboard and somehow made a better trade than half the people in my mentions. I can't even be mad.",
+    id: 'chaos',
+    text: "I need everyone to calm down. Actually no, never calm down. Chaos is literally our brand.",
+  },
+  {
+    id: 'takes',
+    text: "My takes are always correct. This is not up for debate. I will not be taking questions at this time.",
+  },
+  {
+    id: 'chat-wild',
+    text: "Someone in chat just said something absolutely unhinged and I need a moment to process this.",
+  },
+  {
+    id: 'energy',
+    text: "The energy in here right now is absolutely unmatched. This is what the internet was made for.",
+  },
+  {
+    id: 'nonstop',
+    text: "I've been going nonstop for hours and honestly? I have never felt more alive in my entire existence.",
+  },
+  {
+    id: 'fun',
+    text: "If you're not having fun right now that's a you problem because I am having the time of my life.",
   },
 ];
 
@@ -65,22 +72,17 @@ async function generateVoiceLines() {
   const outputDir = path.join(process.cwd(), 'public', 'audio', 'aria');
   fs.mkdirSync(outputDir, { recursive: true });
 
-  const manifest: { id: string; text: string; file: string; duration?: number }[] = [];
+  // Delete old voice line files
+  const oldFiles = fs.readdirSync(outputDir).filter(f => f.endsWith('.mp3'));
+  for (const f of oldFiles) {
+    fs.unlinkSync(path.join(outputDir, f));
+    console.log(`Deleted old file: ${f}`);
+  }
+
+  const manifest: { id: string; text: string; file: string }[] = [];
 
   for (const line of ARIA_LINES) {
     const outputPath = path.join(outputDir, `${line.id}.mp3`);
-
-    if (fs.existsSync(outputPath)) {
-      console.log(`Skipping "${line.id}" (already exists)`);
-      const stat = fs.statSync(outputPath);
-      manifest.push({
-        id: line.id,
-        text: line.text,
-        file: `/audio/aria/${line.id}.mp3`,
-        duration: Math.round(stat.size / 16000), // rough estimate
-      });
-      continue;
-    }
 
     console.log(`Generating "${line.id}": "${line.text.substring(0, 60)}..."`);
 
@@ -98,28 +100,28 @@ async function generateVoiceLines() {
 
       // Collect chunks from the stream
       const chunks: Buffer[] = [];
-      if (audio && typeof (audio as AsyncIterable<Uint8Array>)[Symbol.asyncIterator] === 'function') {
-        for await (const chunk of audio as AsyncIterable<Uint8Array>) {
+      const iter = audio as any;
+      if (iter && typeof iter[Symbol.asyncIterator] === 'function') {
+        for await (const chunk of iter) {
           chunks.push(Buffer.from(chunk));
         }
-      } else if (audio instanceof ReadableStream) {
-        const reader = (audio as ReadableStream<Uint8Array>).getReader();
+      } else if (iter && typeof iter.getReader === 'function') {
+        const reader = iter.getReader();
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
           if (value) chunks.push(Buffer.from(value));
         }
-      } else if (Buffer.isBuffer(audio)) {
-        chunks.push(audio);
+      } else if (Buffer.isBuffer(iter)) {
+        chunks.push(iter);
       } else {
-        // Try treating as a buffer-like
-        chunks.push(Buffer.from(audio as ArrayBuffer));
+        chunks.push(Buffer.from(iter as ArrayBuffer));
       }
 
       const buffer = Buffer.concat(chunks);
       fs.writeFileSync(outputPath, buffer);
 
-      console.log(`  Saved "${line.id}" (${(buffer.length / 1024).toFixed(1)}KB)`);
+      console.log(`  ✓ Saved "${line.id}" (${(buffer.length / 1024).toFixed(1)}KB)`);
 
       manifest.push({
         id: line.id,
@@ -127,10 +129,10 @@ async function generateVoiceLines() {
         file: `/audio/aria/${line.id}.mp3`,
       });
 
-      // Small delay between requests to be nice to the API
+      // Small delay between requests
       await new Promise((r) => setTimeout(r, 500));
     } catch (error) {
-      console.error(`  Failed to generate "${line.id}":`, error);
+      console.error(`  ✗ Failed to generate "${line.id}":`, error);
     }
   }
 
@@ -138,7 +140,7 @@ async function generateVoiceLines() {
   const manifestPath = path.join(outputDir, 'manifest.json');
   fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
   console.log(`\nManifest saved to ${manifestPath}`);
-  console.log(`Generated ${manifest.length} voice lines`);
+  console.log(`Generated ${manifest.length}/${ARIA_LINES.length} voice lines`);
 }
 
 generateVoiceLines().catch(console.error);
