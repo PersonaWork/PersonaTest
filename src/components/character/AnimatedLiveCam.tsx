@@ -126,7 +126,7 @@ export default function AnimatedLiveCam({
   }, []);
 
   /* ─── Swap video to a clip ─── */
-  const swapToClip = useCallback((clip: AnimationClip, force = false) => {
+  const swapToClip = useCallback((clip: AnimationClip, force = false, onComplete?: () => void) => {
     if (!mountedRef.current) return;
 
     if (swapCancelRef.current) {
@@ -169,6 +169,9 @@ export default function AnimatedLiveCam({
 
       activeSlotRef.current = isA ? 'B' : 'A';
       swapCancelRef.current = null;
+
+      // Fire callback after swap is visually complete
+      if (onComplete) onComplete();
     };
 
     const onErr = () => {
@@ -177,6 +180,8 @@ export default function AnimatedLiveCam({
       incoming.removeEventListener('canplay', doSwap);
       incoming.removeEventListener('error', onErr);
       swapCancelRef.current = null;
+      // Fire callback even on error so callers don't hang
+      if (onComplete) onComplete();
     };
 
     incoming.addEventListener('canplay', doSwap, { once: true });
@@ -240,26 +245,9 @@ export default function AnimatedLiveCam({
     setCurrentCaption(line.text);
     isTalkingRef.current = true;
 
-    // Force-swap to lip-sync clip (visual)
-    swapToClip(talkClip, true);
-
-    // Play mp3 audio — NO crossOrigin (same-origin, avoids CORS issues)
+    // Pre-create audio element so it's ready when swap completes
     const audio = new Audio(line.file);
     activeAudioRef.current = audio;
-
-    // Fake audio level visualizer
-    fakeIntervalRef.current = setInterval(() => {
-      if (mountedRef.current && isTalkingRef.current) {
-        setAudioLevel(0.25 + Math.random() * 0.55);
-      }
-    }, 100);
-
-    audio.play().then(() => {
-      console.log(`[LiveCam] Playing audio: ${line.id}`);
-    }).catch((err) => {
-      console.error(`[LiveCam] Audio play failed:`, err);
-      setTimeout(() => { if (mountedRef.current) returnToIdle(); }, 6000);
-    });
 
     audio.addEventListener('ended', () => {
       if (mountedRef.current) returnToIdle();
@@ -269,6 +257,23 @@ export default function AnimatedLiveCam({
       console.error(`[LiveCam] Audio error for ${line.id}`);
       if (mountedRef.current) returnToIdle();
     }, { once: true });
+
+    // Force-swap to lip-sync clip — audio starts ONLY after swap is visible
+    swapToClip(talkClip, true, () => {
+      // Fake audio level visualizer
+      fakeIntervalRef.current = setInterval(() => {
+        if (mountedRef.current && isTalkingRef.current) {
+          setAudioLevel(0.25 + Math.random() * 0.55);
+        }
+      }, 100);
+
+      audio.play().then(() => {
+        console.log(`[LiveCam] Playing audio: ${line.id}`);
+      }).catch((err) => {
+        console.error(`[LiveCam] Audio play failed:`, err);
+        setTimeout(() => { if (mountedRef.current) returnToIdle(); }, 6000);
+      });
+    });
   }, [isSpeaking, audioEnabled, voiceLines, lastLineIndex, swapToClip, returnToIdle]);
 
   /* ─── Video event listeners ─── */
