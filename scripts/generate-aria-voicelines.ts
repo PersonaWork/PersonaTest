@@ -16,55 +16,55 @@ const elevenlabs = new ElevenLabsClient({
 
 const ARIA_VOICE_ID = process.env.ARIA_VOICE_ID || 'KUzPe92RSM0pccaVxERU';
 
-// Aria voice lines — chaotic streamer personality, fun and entertaining
+// Aria voice lines — chaotic day trader streamer, high energy
 const ARIA_LINES = [
   {
     id: 'welcome',
-    text: "Welcome to the stream! I hope you brought snacks because we're gonna be here a while.",
+    text: "Welcome to the stream! Charts are looking spicy today and I am ready to make some moves.",
   },
   {
-    id: 'plot-twist',
-    text: "Plot twist! Nobody saw that coming. Actually I did, because I'm literally psychic at this point.",
+    id: 'green',
+    text: "Oh we are so green right now. I told you. I literally told all of you this was the play.",
   },
   {
-    id: 'bestie',
-    text: "You are now my bestie. I don't make the rules. Actually I do make the rules. You're welcome.",
+    id: 'dip',
+    text: "Buy the dip they said. It'll be fun they said. And you know what? They were right. Again.",
   },
   {
-    id: 'sleep',
-    text: "Sleep is for people who don't have a thousand tabs open and a dream. I have both.",
+    id: 'candles',
+    text: "These candles are beautiful. I could stare at a green candle all day. It's literally art.",
   },
   {
-    id: 'brain',
-    text: "My brain just had a thought so powerful it needs its own zip code. Hold on let me process.",
+    id: 'calls',
+    text: "My calls have been hitting different lately. I'm not saying I'm a genius but I'm not not saying it.",
   },
   {
-    id: 'chaos',
-    text: "The chaos levels in here are reaching critical mass and I am absolutely living for it.",
+    id: 'chart',
+    text: "Hold on let me pull up this chart real quick because what I'm about to show you is insane.",
   },
   {
-    id: 'snack',
-    text: "I just realized I forgot to eat today. Someone remind me that food exists please and thank you.",
+    id: 'diamond',
+    text: "Diamond hands don't even begin to describe it. I have diamond everything at this point.",
   },
   {
-    id: 'vibe-check',
-    text: "Vibe check! If you're not smiling right now I'm taking it personally. Fix that immediately.",
+    id: 'morning',
+    text: "Pre-market looking absolutely gorgeous today. I woke up and chose profits apparently.",
   },
   {
-    id: 'galaxy-brain',
-    text: "That is the most galaxy brain take I have ever heard and I need you to say it again louder.",
+    id: 'moon',
+    text: "We are going to the moon. Actually forget the moon we're going past it. Next stop Mars.",
   },
   {
-    id: 'story',
-    text: "Okay storytime! So this one time I accidentally went viral and my life has not been the same since.",
+    id: 'setup',
+    text: "The setup is literally perfect right now. If you're not paying attention you're missing out.",
+  },
+  {
+    id: 'vibes',
+    text: "The vibes in here are immaculate. Good trades, good people, good energy. This is what we do.",
   },
   {
     id: 'legend',
-    text: "If you just got here you're already a legend. Late arrivals get extra points in my book.",
-  },
-  {
-    id: 'slay',
-    text: "Today's goal is to absolutely slay everything we touch. No pressure. Just pure unfiltered greatness.",
+    text: "If you just joined, welcome legend. Pull up a chart and get comfortable because we're just getting started.",
   },
 ];
 

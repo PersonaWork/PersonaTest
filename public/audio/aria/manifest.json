@@ -1,62 +1,62 @@
 [
   {
     "id": "welcome",
-    "text": "Welcome to the stream! I hope you brought snacks because we're gonna be here a while.",
+    "text": "Welcome to the stream! Charts are looking spicy today and I am ready to make some moves.",
     "file": "/audio/aria/welcome.mp3"
   },
   {
-    "id": "plot-twist",
-    "text": "Plot twist! Nobody saw that coming. Actually I did, because I'm literally psychic at this point.",
-    "file": "/audio/aria/plot-twist.mp3"
+    "id": "green",
+    "text": "Oh we are so green right now. I told you. I literally told all of you this was the play.",
+    "file": "/audio/aria/green.mp3"
   },
   {
-    "id": "bestie",
-    "text": "You are now my bestie. I don't make the rules. Actually I do make the rules. You're welcome.",
-    "file": "/audio/aria/bestie.mp3"
+    "id": "dip",
+    "text": "Buy the dip they said. It'll be fun they said. And you know what? They were right. Again.",
+    "file": "/audio/aria/dip.mp3"
   },
   {
-    "id": "sleep",
-    "text": "Sleep is for people who don't have a thousand tabs open and a dream. I have both.",
-    "file": "/audio/aria/sleep.mp3"
+    "id": "candles",
+    "text": "These candles are beautiful. I could stare at a green candle all day. It's literally art.",
+    "file": "/audio/aria/candles.mp3"
   },
   {
-    "id": "brain",
-    "text": "My brain just had a thought so powerful it needs its own zip code. Hold on let me process.",
-    "file": "/audio/aria/brain.mp3"
+    "id": "calls",
+    "text": "My calls have been hitting different lately. I'm not saying I'm a genius but I'm not not saying it.",
+    "file": "/audio/aria/calls.mp3"
   },
   {
-    "id": "chaos",
-    "text": "The chaos levels in here are reaching critical mass and I am absolutely living for it.",
-    "file": "/audio/aria/chaos.mp3"
+    "id": "chart",
+    "text": "Hold on let me pull up this chart real quick because what I'm about to show you is insane.",
+    "file": "/audio/aria/chart.mp3"
   },
   {
-    "id": "snack",
-    "text": "I just realized I forgot to eat today. Someone remind me that food exists please and thank you.",
-    "file": "/audio/aria/snack.mp3"
+    "id": "diamond",
+    "text": "Diamond hands don't even begin to describe it. I have diamond everything at this point.",
+    "file": "/audio/aria/diamond.mp3"
   },
   {
-    "id": "vibe-check",
-    "text": "Vibe check! If you're not smiling right now I'm taking it personally. Fix that immediately.",
-    "file": "/audio/aria/vibe-check.mp3"
+    "id": "morning",
+    "text": "Pre-market looking absolutely gorgeous today. I woke up and chose profits apparently.",
+    "file": "/audio/aria/morning.mp3"
   },
   {
-    "id": "galaxy-brain",
-    "text": "That is the most galaxy brain take I have ever heard and I need you to say it again louder.",
-    "file": "/audio/aria/galaxy-brain.mp3"
+    "id": "moon",
+    "text": "We are going to the moon. Actually forget the moon we're going past it. Next stop Mars.",
+    "file": "/audio/aria/moon.mp3"
   },
   {
-    "id": "story",
-    "text": "Okay storytime! So this one time I accidentally went viral and my life has not been the same since.",
-    "file": "/audio/aria/story.mp3"
+    "id": "setup",
+    "text": "The setup is literally perfect right now. If you're not paying attention you're missing out.",
+    "file": "/audio/aria/setup.mp3"
+  },
+  {
+    "id": "vibes",
+    "text": "The vibes in here are immaculate. Good trades, good people, good energy. This is what we do.",
+    "file": "/audio/aria/vibes.mp3"
   },
   {
     "id": "legend",
-    "text": "If you just got here you're already a legend. Late arrivals get extra points in my book.",
+    "text": "If you just joined, welcome legend. Pull up a chart and get comfortable because we're just getting started.",
     "file": "/audio/aria/legend.mp3"
-  },
-  {
-    "id": "slay",
-    "text": "Today's goal is to absolutely slay everything we touch. No pressure. Just pure unfiltered greatness.",
-    "file": "/audio/aria/slay.mp3"
   }
 ]
