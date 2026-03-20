@@ -149,11 +149,11 @@ export default function AnimatedLiveCam({
     if (!incoming || !outgoing) return;
 
     let cancelled = false;
-    let timeoutId: ReturnType<typeof setTimeout>;
+    const timer = { id: undefined as ReturnType<typeof setTimeout> | undefined };
 
     swapCancelRef.current = () => {
       cancelled = true;
-      clearTimeout(timeoutId);
+      clearTimeout(timer.id);
       incoming.removeEventListener('canplaythrough', onCanPlay);
       incoming.removeEventListener('canplay', onCanPlay);
       incoming.removeEventListener('error', onErr);
@@ -173,7 +173,7 @@ export default function AnimatedLiveCam({
 
     const onCanPlay = () => {
       if (cancelled || !mountedRef.current) return;
-      clearTimeout(timeoutId);
+      clearTimeout(timer.id);
       incoming.removeEventListener('canplaythrough', onCanPlay);
       incoming.removeEventListener('canplay', onCanPlay);
       incoming.removeEventListener('error', onErr);
@@ -186,7 +186,7 @@ export default function AnimatedLiveCam({
 
     const onErr = () => {
       if (cancelled) return;
-      clearTimeout(timeoutId);
+      clearTimeout(timer.id);
       incoming.removeEventListener('canplaythrough', onCanPlay);
       incoming.removeEventListener('canplay', onCanPlay);
       incoming.removeEventListener('error', onErr);
@@ -196,7 +196,7 @@ export default function AnimatedLiveCam({
     incoming.addEventListener('canplaythrough', onCanPlay, { once: true });
     incoming.addEventListener('canplay', onCanPlay, { once: true });
     incoming.addEventListener('error', onErr, { once: true });
-    timeoutId = setTimeout(() => {
+    timer.id = setTimeout(() => {
       if (!cancelled) {
         incoming.removeEventListener('canplaythrough', onCanPlay);
         incoming.removeEventListener('canplay', onCanPlay);
