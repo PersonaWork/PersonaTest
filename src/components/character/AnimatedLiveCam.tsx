@@ -86,7 +86,6 @@ export default function AnimatedLiveCam({
   const [viewerCount, setViewerCount] = useState(1247);
   const [currentCaption, setCurrentCaption] = useState('');
   const [audioEnabled, setAudioEnabled] = useState(false);
-  const [voiceLines, setVoiceLines] = useState<VoiceLineManifest[]>(FALLBACK_VOICE_LINES);
   const [lastLineIndex, setLastLineIndex] = useState(-1);
 
   const videoRefA = useRef<HTMLVideoElement>(null);
@@ -315,17 +314,25 @@ export default function AnimatedLiveCam({
    * This guarantees: audio plays (mp3 fallback), lip sync shows (video),
    * and if the video has audio, it takes over seamlessly. */
   const playVoiceLine = useCallback(() => {
-    if (isSpeaking || !audioEnabled || voiceLines.length === 0) return;
+    if (isSpeaking || !audioEnabled || FALLBACK_VOICE_LINES.length === 0) return;
 
-    let idx = Math.floor(Math.random() * voiceLines.length);
-    if (idx === lastLineIndex && voiceLines.length > 1) idx = (idx + 1) % voiceLines.length;
+    let idx = Math.floor(Math.random() * FALLBACK_VOICE_LINES.length);
+    if (idx === lastLineIndex && FALLBACK_VOICE_LINES.length > 1) idx = (idx + 1) % FALLBACK_VOICE_LINES.length;
     setLastLineIndex(idx);
-    const line = voiceLines[idx];
+    let line = FALLBACK_VOICE_LINES[idx];
 
-    const talkClip = talkClipsRef.current.get(line.id);
+    let talkClip = talkClipsRef.current.get(line.id);
     if (!talkClip) {
-      console.warn(`[LiveCam] No talk clip for "${line.id}"`);
-      return;
+      console.warn(`[LiveCam] No talk clip for "${line.id}", trying others...`);
+      // Try to find ANY voice line that has a matching talk clip
+      const available = FALLBACK_VOICE_LINES.filter(v => talkClipsRef.current.has(v.id));
+      if (available.length === 0) {
+        console.error('[LiveCam] No talk clips available at all!');
+        return;
+      }
+      line = available[Math.floor(Math.random() * available.length)];
+      talkClip = talkClipsRef.current.get(line.id)!;
+      console.log(`[LiveCam] Falling back to: ${line.id}`);
     }
 
     console.log(`[LiveCam] Playing voice line: ${line.id}`);
@@ -380,7 +387,7 @@ export default function AnimatedLiveCam({
         console.log(`[LiveCam] Video has audio, muted mp3 fallback`);
       }
     }, 1500);
-  }, [isSpeaking, audioEnabled, voiceLines, lastLineIndex, swapToClip, returnToIdle]);
+  }, [isSpeaking, audioEnabled, lastLineIndex, swapToClip, returnToIdle]);
 
   /* ─── Video event listeners ─── */
   useEffect(() => {
@@ -477,7 +484,7 @@ export default function AnimatedLiveCam({
         if (idle.length === 0 || cancelled) return;
         setIdleClips(idle);
         setTalkClips(talk);
-        console.log(`[LiveCam] ${idle.length} idle, ${talk.size} talk clips`);
+        console.log(`[LiveCam] ${idle.length} idle, ${talk.size} talk clips. Talk IDs:`, Array.from(talk.keys()));
 
         const first = idle[0];
         lastIdleIndexRef.current = 0;
@@ -506,24 +513,10 @@ export default function AnimatedLiveCam({
     return () => { cancelled = true; };
   }, [slug]);
 
-  /* ─── Voice manifest ───
-   * Use hardcoded FALLBACK_VOICE_LINES as the source of truth.
-   * The manifest.json is only used to verify audio files exist
-   * but the voice line TEXT always comes from the component. */
-  useEffect(() => {
-    // Cache-bust the manifest fetch to avoid stale CDN responses
-    fetch(`/audio/aria/manifest.json?v=${Date.now()}`)
-      .then(r => r.ok ? r.json() : null)
-      .then((data: VoiceLineManifest[] | null) => {
-        if (!Array.isArray(data)) return;
-        // Use the hardcoded text (always up-to-date) but keep any
-        // manifest entries that have matching IDs (validates file paths)
-        const manifestIds = new Set(data.map(d => d.id));
-        const merged = FALLBACK_VOICE_LINES.filter(f => manifestIds.has(f.id));
-        if (merged.length > 0) setVoiceLines(merged);
-      })
-      .catch(() => {});
-  }, []);
+  /* ─── Voice lines are hardcoded — no manifest.json dependency.
+   * The deployed manifest may have stale IDs that don't match
+   * the database talk clips. FALLBACK_VOICE_LINES is always
+   * the single source of truth. ─── */
 
   /* ─── Viewer count ─── */
   useEffect(() => {
