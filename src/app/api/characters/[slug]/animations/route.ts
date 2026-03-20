@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { successResponse, errorResponse } from '@/lib/api';
 
-export const revalidate = 60;
+export const revalidate = 0; // No cache — always fresh clips
 
 /**
  * GET /api/characters/[slug]/animations

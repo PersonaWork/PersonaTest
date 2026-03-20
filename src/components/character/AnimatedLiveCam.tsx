@@ -451,11 +451,22 @@ export default function AnimatedLiveCam({
     return () => { cancelled = true; };
   }, [slug]);
 
-  /* ─── Voice manifest ─── */
+  /* ─── Voice manifest ───
+   * Use hardcoded FALLBACK_VOICE_LINES as the source of truth.
+   * The manifest.json is only used to verify audio files exist
+   * but the voice line TEXT always comes from the component. */
   useEffect(() => {
-    fetch('/audio/aria/manifest.json')
+    // Cache-bust the manifest fetch to avoid stale CDN responses
+    fetch(`/audio/aria/manifest.json?v=${Date.now()}`)
       .then(r => r.ok ? r.json() : null)
-      .then(data => { if (Array.isArray(data)) setVoiceLines(data); })
+      .then((data: VoiceLineManifest[] | null) => {
+        if (!Array.isArray(data)) return;
+        // Use the hardcoded text (always up-to-date) but keep any
+        // manifest entries that have matching IDs (validates file paths)
+        const manifestIds = new Set(data.map(d => d.id));
+        const merged = FALLBACK_VOICE_LINES.filter(f => manifestIds.has(f.id));
+        if (merged.length > 0) setVoiceLines(merged);
+      })
       .catch(() => {});
   }, []);
 
