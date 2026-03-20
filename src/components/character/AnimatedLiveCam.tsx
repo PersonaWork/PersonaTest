@@ -64,10 +64,11 @@ function generateParticles(count: number) {
    Component
 
    Architecture:
-   - Two <video> elements (A & B), always muted
+   - Two <video> elements (A & B), idle clips always muted
    - Idle clips loop seamlessly (all start/end at same pose)
-   - Talk clips are lip-synced versions of the idle clip base
-   - Audio plays from mp3 via Audio() element (reliable)
+   - Talk clips ARE the audio source — Kling lip-sync bakes the
+     audio into the video, so we just unmute the video element.
+     This guarantees PERFECT audio-lip sync (no separate mp3).
    - Talk clip force-interrupts any in-progress idle swap
    ═══════════════════════════════════════════════════════════════ */
 
@@ -101,7 +102,6 @@ export default function AnimatedLiveCam({
   useEffect(() => { idleClipsRef.current = idleClips; }, [idleClips]);
   useEffect(() => { talkClipsRef.current = talkClips; }, [talkClips]);
 
-  const activeAudioRef = useRef<HTMLAudioElement | null>(null);
   const fakeIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const speakingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const preloadedIdleRef = useRef<AnimationClip | null>(null);
@@ -128,10 +128,10 @@ export default function AnimatedLiveCam({
   }, []);
 
   /* ─── Swap video to a clip ───
-   * Loads clip into inactive video element, waits for it to be playable,
-   * starts playback, THEN swaps visibility. onReady fires once the new
-   * clip is actually rendering frames so audio can start in perfect sync. */
-  const swapToClip = useCallback((clip: AnimationClip, force = false, onReady?: () => void) => {
+   * Loads clip into inactive element, waits until playable, starts playback,
+   * THEN swaps visibility. For talk clips, unmuted=true plays the video's
+   * own audio track (lip-sync audio is baked into the video file). */
+  const swapToClip = useCallback((clip: AnimationClip, force = false, unmuted = false) => {
     if (!mountedRef.current) return;
 
     if (swapCancelRef.current) {
@@ -161,13 +161,12 @@ export default function AnimatedLiveCam({
 
     const finishSwap = () => {
       if (cancelled || !mountedRef.current) return;
-      // Video is playing — now make it visible
       incoming.style.opacity = '1';
       outgoing.style.opacity = '0';
+      outgoing.muted = true;
       outgoing.pause();
       activeSlotRef.current = isA ? 'B' : 'A';
       swapCancelRef.current = null;
-      if (onReady) onReady();
     };
 
     const onCanPlay = () => {
@@ -177,16 +176,9 @@ export default function AnimatedLiveCam({
       incoming.removeEventListener('canplay', onCanPlay);
       incoming.removeEventListener('error', onErr);
 
-      incoming.muted = true;
+      incoming.muted = !unmuted;
       incoming.currentTime = 0;
-
-      // Wait for play() promise so video is actually rendering frames
-      incoming.play().then(() => {
-        finishSwap();
-      }).catch(() => {
-        // Play failed but still swap so we don't get stuck
-        finishSwap();
-      });
+      incoming.play().then(() => finishSwap()).catch(() => finishSwap());
     };
 
     const onErr = () => {
@@ -196,10 +188,8 @@ export default function AnimatedLiveCam({
       incoming.removeEventListener('canplay', onCanPlay);
       incoming.removeEventListener('error', onErr);
       swapCancelRef.current = null;
-      if (onReady) onReady();
     };
 
-    // Listen for both — canplaythrough is ideal, canplay is fallback
     incoming.addEventListener('canplaythrough', onCanPlay, { once: true });
     incoming.addEventListener('canplay', onCanPlay, { once: true });
     incoming.addEventListener('error', onErr, { once: true });
@@ -208,14 +198,13 @@ export default function AnimatedLiveCam({
         incoming.removeEventListener('canplaythrough', onCanPlay);
         incoming.removeEventListener('canplay', onCanPlay);
         incoming.removeEventListener('error', onErr);
-        // Timeout fallback — try to play anyway
-        incoming.muted = true;
+        incoming.muted = !unmuted;
         incoming.currentTime = 0;
         incoming.play().then(() => finishSwap()).catch(() => finishSwap());
       }
     }, PRELOAD_TIMEOUT_MS);
 
-    incoming.muted = true;
+    incoming.muted = !unmuted;
     incoming.src = clip.videoUrl;
     incoming.load();
   }, []);
@@ -285,12 +274,9 @@ export default function AnimatedLiveCam({
 
   /* ─── Stop audio ─── */
   const stopAudio = useCallback(() => {
-    if (activeAudioRef.current) {
-      activeAudioRef.current.pause();
-      activeAudioRef.current.removeAttribute('src');
-      activeAudioRef.current.load();
-      activeAudioRef.current = null;
-    }
+    // Mute both video elements (audio comes from the video itself now)
+    if (videoRefA.current) videoRefA.current.muted = true;
+    if (videoRefB.current) videoRefB.current.muted = true;
     if (fakeIntervalRef.current) {
       clearInterval(fakeIntervalRef.current);
       fakeIntervalRef.current = null;
@@ -306,13 +292,14 @@ export default function AnimatedLiveCam({
     if (speakingTimeoutRef.current) clearTimeout(speakingTimeoutRef.current);
     speakingTimeoutRef.current = setTimeout(() => setCurrentCaption(''), 1500);
     const next = pickNextIdle();
-    if (next) swapToClip(next, true);
+    if (next) swapToClip(next, true, false); // muted idle
   }, [pickNextIdle, swapToClip, stopAudio]);
 
   /* ─── Play voice line ───
-   * Strategy: preload BOTH audio and video simultaneously, then start
-   * both at the exact same moment once both are ready. A safety timeout
-   * ensures we never hang if one fails to load. */
+   * Simple: swap to the lip-sync clip UNMUTED. The Kling lip-sync API
+   * bakes the audio directly into the video file, so the video IS the
+   * audio source. No separate Audio() element, no sync issues — the
+   * mouth movements and audio are literally the same file. */
   const playVoiceLine = useCallback(() => {
     if (isSpeaking || !audioEnabled || voiceLines.length === 0) return;
 
@@ -327,90 +314,23 @@ export default function AnimatedLiveCam({
       return;
     }
 
+    console.log(`[LiveCam] Playing voice line: ${line.id}`);
     setIsSpeaking(true);
     setCurrentCaption(line.text);
     isTalkingRef.current = true;
-    preloadedIdleRef.current = null; // clear any idle preload
+    preloadedIdleRef.current = null;
 
-    // Pre-create and preload audio
-    const audio = new Audio();
-    audio.preload = 'auto';
-    audio.src = line.file;
-    activeAudioRef.current = audio;
-
-    audio.addEventListener('ended', () => {
-      if (mountedRef.current) returnToIdle();
-    }, { once: true });
-
-    audio.addEventListener('error', () => {
-      console.error(`[LiveCam] Audio error for ${line.id}`);
-      if (mountedRef.current) returnToIdle();
-    }, { once: true });
-
-    // Coordination: wait for BOTH video swap AND audio buffer before playing
-    let audioBuffered = false;
-    let videoSwapped = false;
-    let started = false;
-
-    const tryStartBoth = () => {
-      if (started || !mountedRef.current) return;
-      if (!audioBuffered || !videoSwapped) return;
-      started = true;
-
-      // Both ready — start audio (video is already playing from swapToClip)
-      fakeIntervalRef.current = setInterval(() => {
-        if (mountedRef.current && isTalkingRef.current) {
-          setAudioLevel(0.25 + Math.random() * 0.55);
-        }
-      }, 100);
-
-      audio.currentTime = 0;
-      audio.play().then(() => {
-        console.log(`[LiveCam] Playing audio synced: ${line.id}`);
-      }).catch((err) => {
-        console.error(`[LiveCam] Audio play failed:`, err);
-        setTimeout(() => { if (mountedRef.current) returnToIdle(); }, 6000);
-      });
-
-      // Re-sync: reset the active video to start so lip-sync matches audio
-      const isA = activeSlotRef.current === 'A';
-      const activeVid = isA ? videoRefA.current : videoRefB.current;
-      if (activeVid) {
-        activeVid.currentTime = 0;
+    // Fake audio level visualizer
+    fakeIntervalRef.current = setInterval(() => {
+      if (mountedRef.current && isTalkingRef.current) {
+        setAudioLevel(0.25 + Math.random() * 0.55);
       }
-    };
+    }, 100);
 
-    // Buffer audio
-    const onAudioReady = () => {
-      audio.removeEventListener('canplaythrough', onAudioReady);
-      audio.removeEventListener('canplay', onAudioReady);
-      audioBuffered = true;
-      tryStartBoth();
-    };
-    if (audio.readyState >= 3) {
-      audioBuffered = true;
-    } else {
-      audio.addEventListener('canplaythrough', onAudioReady, { once: true });
-      audio.addEventListener('canplay', onAudioReady, { once: true });
-    }
-    audio.load();
-
-    // Swap to lip-sync clip
-    swapToClip(talkClip, true, () => {
-      videoSwapped = true;
-      tryStartBoth();
-    });
-
-    // Safety: if something hangs, force-start after 3s max wait
-    setTimeout(() => {
-      if (!started && mountedRef.current && isTalkingRef.current) {
-        console.warn(`[LiveCam] Force-starting after timeout`);
-        audioBuffered = true;
-        videoSwapped = true;
-        tryStartBoth();
-      }
-    }, 3000);
-  }, [isSpeaking, audioEnabled, voiceLines, lastLineIndex, swapToClip, returnToIdle]);
+    // Force-swap to lip-sync clip WITH AUDIO (unmuted=true).
+    // The video file contains the audio — perfect lip-sync guaranteed.
+    swapToClip(talkClip, true, true);
+  }, [isSpeaking, audioEnabled, voiceLines, lastLineIndex, swapToClip]);
 
   /* ─── Video event listeners ─── */
   useEffect(() => {
@@ -447,13 +367,9 @@ export default function AnimatedLiveCam({
       if (!isActive) return;
 
       if (isTalkingRef.current) {
-        // Audio still playing? Loop the talk clip seamlessly.
-        if (activeAudioRef.current && !activeAudioRef.current.ended) {
-          v.currentTime = 0;
-          v.play().catch(() => {});
-        } else {
-          returnToIdle();
-        }
+        // Talk clip ended — audio is baked into the video, so when
+        // the video ends the audio is done too. Return to idle.
+        returnToIdle();
         return;
       }
 
@@ -570,6 +486,10 @@ export default function AnimatedLiveCam({
     if (audioEnabled) {
       setAudioEnabled(false);
       stopAudio();
+      // If currently talking, stop the talk and go back to idle
+      if (isTalkingRef.current) {
+        returnToIdle();
+      }
     } else {
       handleEnableAudio();
     }
