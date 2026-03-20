@@ -104,6 +104,8 @@ export default function AnimatedLiveCam({
   const activeAudioRef = useRef<HTMLAudioElement | null>(null);
   const fakeIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const speakingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const preloadedIdleRef = useRef<AnimationClip | null>(null);
+  const preloadingRef = useRef(false);
 
   const particles = useMemo(() => generateParticles(12), []);
 
@@ -125,8 +127,11 @@ export default function AnimatedLiveCam({
     return idle[idx];
   }, []);
 
-  /* ─── Swap video to a clip ─── */
-  const swapToClip = useCallback((clip: AnimationClip, force = false, onComplete?: () => void) => {
+  /* ─── Swap video to a clip ───
+   * Loads clip into inactive video element, waits for it to be playable,
+   * starts playback, THEN swaps visibility. onReady fires once the new
+   * clip is actually rendering frames so audio can start in perfect sync. */
+  const swapToClip = useCallback((clip: AnimationClip, force = false, onReady?: () => void) => {
     if (!mountedRef.current) return;
 
     if (swapCancelRef.current) {
@@ -149,56 +154,134 @@ export default function AnimatedLiveCam({
     swapCancelRef.current = () => {
       cancelled = true;
       clearTimeout(timeoutId);
-      incoming.removeEventListener('canplay', doSwap);
+      incoming.removeEventListener('canplaythrough', onCanPlay);
+      incoming.removeEventListener('canplay', onCanPlay);
       incoming.removeEventListener('error', onErr);
     };
 
-    const doSwap = () => {
+    const finishSwap = () => {
       if (cancelled || !mountedRef.current) return;
-      clearTimeout(timeoutId);
-      incoming.removeEventListener('canplay', doSwap);
-      incoming.removeEventListener('error', onErr);
-
-      incoming.muted = true;
-      incoming.play().catch(() => {});
-
-      // Instant swap — no CSS transition, no blur
+      // Video is playing — now make it visible
       incoming.style.opacity = '1';
       outgoing.style.opacity = '0';
       outgoing.pause();
-
       activeSlotRef.current = isA ? 'B' : 'A';
       swapCancelRef.current = null;
+      if (onReady) onReady();
+    };
 
-      // Fire callback after swap is visually complete
-      if (onComplete) onComplete();
+    const onCanPlay = () => {
+      if (cancelled || !mountedRef.current) return;
+      clearTimeout(timeoutId);
+      incoming.removeEventListener('canplaythrough', onCanPlay);
+      incoming.removeEventListener('canplay', onCanPlay);
+      incoming.removeEventListener('error', onErr);
+
+      incoming.muted = true;
+      incoming.currentTime = 0;
+
+      // Wait for play() promise so video is actually rendering frames
+      incoming.play().then(() => {
+        finishSwap();
+      }).catch(() => {
+        // Play failed but still swap so we don't get stuck
+        finishSwap();
+      });
     };
 
     const onErr = () => {
       if (cancelled) return;
       clearTimeout(timeoutId);
-      incoming.removeEventListener('canplay', doSwap);
+      incoming.removeEventListener('canplaythrough', onCanPlay);
+      incoming.removeEventListener('canplay', onCanPlay);
       incoming.removeEventListener('error', onErr);
       swapCancelRef.current = null;
-      // Fire callback even on error so callers don't hang
-      if (onComplete) onComplete();
+      if (onReady) onReady();
     };
 
-    incoming.addEventListener('canplay', doSwap, { once: true });
+    // Listen for both — canplaythrough is ideal, canplay is fallback
+    incoming.addEventListener('canplaythrough', onCanPlay, { once: true });
+    incoming.addEventListener('canplay', onCanPlay, { once: true });
     incoming.addEventListener('error', onErr, { once: true });
-    timeoutId = setTimeout(() => { if (!cancelled) doSwap(); }, PRELOAD_TIMEOUT_MS);
+    timeoutId = setTimeout(() => {
+      if (!cancelled) {
+        incoming.removeEventListener('canplaythrough', onCanPlay);
+        incoming.removeEventListener('canplay', onCanPlay);
+        incoming.removeEventListener('error', onErr);
+        // Timeout fallback — try to play anyway
+        incoming.muted = true;
+        incoming.currentTime = 0;
+        incoming.play().then(() => finishSwap()).catch(() => finishSwap());
+      }
+    }, PRELOAD_TIMEOUT_MS);
 
     incoming.muted = true;
     incoming.src = clip.videoUrl;
     incoming.load();
   }, []);
 
+  /* ─── Preload next idle into inactive element ─── */
+  const preloadNextIdle = useCallback(() => {
+    if (preloadingRef.current || isTalkingRef.current) return;
+    const next = pickNextIdle();
+    if (!next) return;
+    preloadedIdleRef.current = next;
+    preloadingRef.current = true;
+
+    const isA = activeSlotRef.current === 'A';
+    const inactive = isA ? videoRefB.current : videoRefA.current;
+    if (!inactive) { preloadingRef.current = false; return; }
+
+    inactive.muted = true;
+    inactive.src = next.videoUrl;
+    inactive.load();
+
+    const onLoaded = () => {
+      inactive.removeEventListener('canplaythrough', onLoaded);
+      inactive.removeEventListener('canplay', onLoaded);
+      preloadingRef.current = false;
+    };
+    inactive.addEventListener('canplaythrough', onLoaded, { once: true });
+    inactive.addEventListener('canplay', onLoaded, { once: true });
+  }, [pickNextIdle]);
+
+  /* ─── Instant swap to preloaded idle (no loading delay) ─── */
+  const swapToPreloadedIdle = useCallback(() => {
+    if (isTalkingRef.current) return;
+    const clip = preloadedIdleRef.current;
+    preloadedIdleRef.current = null;
+
+    const isA = activeSlotRef.current === 'A';
+    const incoming = isA ? videoRefB.current : videoRefA.current;
+    const outgoing = isA ? videoRefA.current : videoRefB.current;
+    if (!incoming || !outgoing) return;
+
+    // If we have a preloaded clip and it's already in the inactive element, instant swap
+    if (clip && incoming.src && incoming.src.includes(clip.videoUrl.split('/').pop() || '__none__')) {
+      incoming.muted = true;
+      incoming.currentTime = 0;
+      incoming.play().then(() => {
+        incoming.style.opacity = '1';
+        outgoing.style.opacity = '0';
+        outgoing.pause();
+        activeSlotRef.current = isA ? 'B' : 'A';
+      }).catch(() => {
+        // Fallback to regular swap
+        if (clip) swapToClip(clip, false);
+      });
+      return;
+    }
+
+    // Not preloaded — fall back to regular swap
+    const next = clip || pickNextIdle();
+    if (next) swapToClip(next, false);
+  }, [pickNextIdle, swapToClip]);
+
   /* ─── Idle management ─── */
   const swapToNextIdle = useCallback(() => {
     if (isTalkingRef.current) return;
-    const next = pickNextIdle();
-    if (next) swapToClip(next, false);
-  }, [pickNextIdle, swapToClip]);
+    swapToPreloadedIdle();
+  }, [swapToPreloadedIdle]);
 
   /* ─── Stop audio ─── */
   const stopAudio = useCallback(() => {
@@ -226,7 +309,10 @@ export default function AnimatedLiveCam({
     if (next) swapToClip(next, true);
   }, [pickNextIdle, swapToClip, stopAudio]);
 
-  /* ─── Play voice line ─── */
+  /* ─── Play voice line ───
+   * Strategy: preload BOTH audio and video simultaneously, then start
+   * both at the exact same moment once both are ready. A safety timeout
+   * ensures we never hang if one fails to load. */
   const playVoiceLine = useCallback(() => {
     if (isSpeaking || !audioEnabled || voiceLines.length === 0) return;
 
@@ -244,9 +330,12 @@ export default function AnimatedLiveCam({
     setIsSpeaking(true);
     setCurrentCaption(line.text);
     isTalkingRef.current = true;
+    preloadedIdleRef.current = null; // clear any idle preload
 
-    // Pre-create audio element so it's ready when swap completes
-    const audio = new Audio(line.file);
+    // Pre-create and preload audio
+    const audio = new Audio();
+    audio.preload = 'auto';
+    audio.src = line.file;
     activeAudioRef.current = audio;
 
     audio.addEventListener('ended', () => {
@@ -258,22 +347,69 @@ export default function AnimatedLiveCam({
       if (mountedRef.current) returnToIdle();
     }, { once: true });
 
-    // Force-swap to lip-sync clip — audio starts ONLY after swap is visible
-    swapToClip(talkClip, true, () => {
-      // Fake audio level visualizer
+    // Coordination: wait for BOTH video swap AND audio buffer before playing
+    let audioBuffered = false;
+    let videoSwapped = false;
+    let started = false;
+
+    const tryStartBoth = () => {
+      if (started || !mountedRef.current) return;
+      if (!audioBuffered || !videoSwapped) return;
+      started = true;
+
+      // Both ready — start audio (video is already playing from swapToClip)
       fakeIntervalRef.current = setInterval(() => {
         if (mountedRef.current && isTalkingRef.current) {
           setAudioLevel(0.25 + Math.random() * 0.55);
         }
       }, 100);
 
+      audio.currentTime = 0;
       audio.play().then(() => {
-        console.log(`[LiveCam] Playing audio: ${line.id}`);
+        console.log(`[LiveCam] Playing audio synced: ${line.id}`);
       }).catch((err) => {
         console.error(`[LiveCam] Audio play failed:`, err);
         setTimeout(() => { if (mountedRef.current) returnToIdle(); }, 6000);
       });
+
+      // Re-sync: reset the active video to start so lip-sync matches audio
+      const isA = activeSlotRef.current === 'A';
+      const activeVid = isA ? videoRefA.current : videoRefB.current;
+      if (activeVid) {
+        activeVid.currentTime = 0;
+      }
+    };
+
+    // Buffer audio
+    const onAudioReady = () => {
+      audio.removeEventListener('canplaythrough', onAudioReady);
+      audio.removeEventListener('canplay', onAudioReady);
+      audioBuffered = true;
+      tryStartBoth();
+    };
+    if (audio.readyState >= 3) {
+      audioBuffered = true;
+    } else {
+      audio.addEventListener('canplaythrough', onAudioReady, { once: true });
+      audio.addEventListener('canplay', onAudioReady, { once: true });
+    }
+    audio.load();
+
+    // Swap to lip-sync clip
+    swapToClip(talkClip, true, () => {
+      videoSwapped = true;
+      tryStartBoth();
     });
+
+    // Safety: if something hangs, force-start after 3s max wait
+    setTimeout(() => {
+      if (!started && mountedRef.current && isTalkingRef.current) {
+        console.warn(`[LiveCam] Force-starting after timeout`);
+        audioBuffered = true;
+        videoSwapped = true;
+        tryStartBoth();
+      }
+    }, 3000);
   }, [isSpeaking, audioEnabled, voiceLines, lastLineIndex, swapToClip, returnToIdle]);
 
   /* ─── Video event listeners ─── */
@@ -290,7 +426,15 @@ export default function AnimatedLiveCam({
         (activeSlotRef.current === 'B' && v === b);
       if (!isActive || isTalkingRef.current) return;
 
-      if (v.duration - v.currentTime <= PRELOAD_AHEAD_S) {
+      const remaining = v.duration - v.currentTime;
+
+      // Preload next idle into inactive element ahead of time
+      if (remaining <= PRELOAD_AHEAD_S && !preloadedIdleRef.current && !preloadingRef.current) {
+        preloadNextIdle();
+      }
+
+      // When very close to end, do the swap (clip is already preloaded)
+      if (remaining <= 0.15) {
         swapToNextIdle();
       }
     };
@@ -303,7 +447,7 @@ export default function AnimatedLiveCam({
       if (!isActive) return;
 
       if (isTalkingRef.current) {
-        // Audio still playing? Loop the talk clip. Otherwise return to idle.
+        // Audio still playing? Loop the talk clip seamlessly.
         if (activeAudioRef.current && !activeAudioRef.current.ended) {
           v.currentTime = 0;
           v.play().catch(() => {});
@@ -313,12 +457,13 @@ export default function AnimatedLiveCam({
         return;
       }
 
-      // Idle ended — loop or swap
-      if (idleClipsRef.current.length < 2) {
+      // Idle ended — swap to preloaded or loop current
+      if (preloadedIdleRef.current) {
+        swapToNextIdle();
+      } else {
+        // No preloaded clip — seamlessly loop current one
         v.currentTime = 0;
         v.play().catch(() => {});
-      } else {
-        swapToNextIdle();
       }
     };
 
@@ -332,7 +477,7 @@ export default function AnimatedLiveCam({
       a.removeEventListener('ended', onEnded);
       b.removeEventListener('ended', onEnded);
     };
-  }, [swapToNextIdle, returnToIdle]);
+  }, [swapToNextIdle, preloadNextIdle, returnToIdle]);
 
   /* ─── Fetch clips ─── */
   useEffect(() => {
