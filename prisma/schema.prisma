@@ -19,6 +19,10 @@ model User {
   usdcBalance     Float         @default(0)
   lastGasFundedAt DateTime?
   preferences     Json?
+  referralCode    String?       @unique
+  referredById    String?
+  referredBy      User?         @relation("Referrals", fields: [referredById], references: [id])
+  referrals       User[]        @relation("Referrals")
   createdAt       DateTime      @default(now())
   holdings      Holding[]
   messages      Message[]
@@ -29,6 +33,7 @@ model User {
 
   @@index([privyId])
   @@index([email])
+  @@index([referralCode])
 }
 
 model Character {

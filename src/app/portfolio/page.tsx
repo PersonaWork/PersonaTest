@@ -247,11 +247,38 @@ export default function PortfolioPage() {
                     )}
                 </div>
 
-                {/* Recent Transactions Table */}
+                {/* Recent Transactions */}
                 <div>
                     <h2 className="text-2xl font-bold text-white mb-6">Recent Activity</h2>
                     <Card className="overflow-hidden bg-slate-900/60 border border-slate-700/50" padding="none" hover={false}>
-                        <div className="overflow-x-auto">
+                        {/* Mobile card list */}
+                        <div className="sm:hidden divide-y divide-slate-800/60">
+                            {transactions.length > 0 ? (
+                                transactions.map((tx) => (
+                                    <div key={tx.id} className="p-4">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <span className="font-bold text-white text-sm">{tx.characterName}</span>
+                                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                                                tx.type === 'buy' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'
+                                            }`}>{tx.type}</span>
+                                        </div>
+                                        <div className="flex items-center justify-between text-xs text-slate-400">
+                                            <span>{tx.shares} shares @ ${tx.pricePerShare.toFixed(4)}</span>
+                                            <span className="font-bold text-white">${tx.total.toFixed(2)}</span>
+                                        </div>
+                                        <p className="text-[10px] text-slate-500 mt-1">
+                                            {new Date(tx.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                                        </p>
+                                    </div>
+                                ))
+                            ) : (
+                                <div className="p-12 text-center">
+                                    <p className="font-semibold text-slate-400">No trading activity</p>
+                                </div>
+                            )}
+                        </div>
+                        {/* Desktop table */}
+                        <div className="hidden sm:block overflow-x-auto">
                             <table className="w-full text-left border-collapse">
                                 <thead>
                                     <tr className="border-b border-slate-800 bg-slate-950/40">
@@ -276,7 +303,7 @@ export default function PortfolioPage() {
                                                         {tx.type}
                                                     </span>
                                                 </td>
-                                                <td className="p-5 text-sm font-semibold text-slate-300 text-right whitespace-nowrap">${tx.pricePerShare.toFixed(2)}</td>
+                                                <td className="p-5 text-sm font-semibold text-slate-300 text-right whitespace-nowrap">${tx.pricePerShare.toFixed(4)}</td>
                                                 <td className="p-5 text-sm font-semibold text-slate-300 text-right whitespace-nowrap">{tx.shares.toLocaleString()}</td>
                                                 <td className="p-5 text-sm font-bold text-white text-right whitespace-nowrap">${tx.total.toFixed(2)}</td>
                                                 <td className="p-5 text-xs font-medium text-slate-500 text-right whitespace-nowrap">

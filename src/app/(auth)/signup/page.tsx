@@ -1,14 +1,23 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useEffect, Suspense } from 'react';
 import { Button } from '@/components/ui';
 import { useAuth } from '@/lib/auth/auth-context';
 
-export default function SignupPage() {
+function SignupContent() {
     const router = useRouter();
+    const searchParams = useSearchParams();
     const { isAuthenticated, isLoading, login } = useAuth();
+    const refCode = searchParams.get('ref');
+
+    useEffect(() => {
+        // Store referral code in localStorage so we can apply it after signup
+        if (refCode) {
+            localStorage.setItem('persona_referral_code', refCode);
+        }
+    }, [refCode]);
 
     useEffect(() => {
         if (isAuthenticated && !isLoading) {
@@ -68,6 +77,14 @@ export default function SignupPage() {
                             </div>
                         </div>
 
+                        {refCode && (
+                            <div className="p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20">
+                                <p className="text-xs text-indigo-300 font-semibold text-center">
+                                    Referred by a friend? Your referral code <span className="font-mono">{refCode}</span> will be applied automatically.
+                                </p>
+                            </div>
+                        )}
+
                         <Button
                             onClick={login}
                             className="w-full"
@@ -90,5 +107,13 @@ export default function SignupPage() {
                 </p>
             </div>
         </div>
+    );
+}
+
+export default function SignupPage() {
+    return (
+        <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="w-8 h-8 border-2 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin" /></div>}>
+            <SignupContent />
+        </Suspense>
     );
 }

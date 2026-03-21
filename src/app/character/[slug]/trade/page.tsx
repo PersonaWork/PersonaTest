@@ -568,7 +568,7 @@ export default function TradePage() {
             </div>
           </div>
 
-          <div className="hidden sm:flex border border-slate-800 rounded-lg overflow-hidden bg-slate-900/50">
+          <div className="flex border border-slate-800 rounded-lg overflow-hidden bg-slate-900/50">
             <Link href={`/character/${slug}`} className="px-4 py-2 text-sm font-semibold text-slate-400 hover:text-white hover:bg-slate-800 transition-colors">
               Overview
             </Link>
@@ -582,36 +582,33 @@ export default function TradePage() {
         </div>
 
         {/* Market Stats */}
-        <div className="flex flex-wrap items-center gap-6 mb-6 bg-slate-900/40 p-5 rounded-2xl border border-slate-800/80">
+        <div className="grid grid-cols-2 sm:flex sm:flex-wrap sm:items-center gap-4 sm:gap-6 mb-6 bg-slate-900/40 p-4 sm:p-5 rounded-2xl border border-slate-800/80">
           <div>
             <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Price</p>
-            <p className="text-3xl font-black text-white">${formatPrice(character.currentPrice)}</p>
+            <p className="text-2xl sm:text-3xl font-black text-white">${formatPrice(character.currentPrice)}</p>
           </div>
-          <div className="w-px h-12 bg-slate-800/80" />
+          <div className="hidden sm:block w-px h-12 bg-slate-800/80" />
           <div>
             <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Market Cap</p>
-            <p className="text-2xl font-bold text-white">{formatMarketCap(character.marketCap)}</p>
+            <p className="text-xl sm:text-2xl font-bold text-white">{formatMarketCap(character.marketCap)}</p>
           </div>
-          <div className="w-px h-12 bg-slate-800/80 hidden sm:block" />
-          <div className="hidden sm:block">
+          <div className="hidden sm:block w-px h-12 bg-slate-800/80" />
+          <div>
             <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">
               {isGraduated ? 'Total Supply' : 'Shares Issued'}
             </p>
-            <p className="text-2xl font-bold text-white">
+            <p className="text-xl sm:text-2xl font-bold text-white">
               {character.sharesIssued.toLocaleString()}
-              {!isGraduated && <span className="text-slate-500 text-base"> / {character.totalShares.toLocaleString()}</span>}
+              {!isGraduated && <span className="text-slate-500 text-sm sm:text-base"> / {character.totalShares.toLocaleString()}</span>}
             </p>
           </div>
           {isGraduated && orderBook && (
-            <>
-              <div className="w-px h-12 bg-slate-800/80 hidden md:block" />
-              <div className="hidden md:block">
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Spread</p>
-                <p className="text-2xl font-bold text-white">
-                  {orderBook.spreadPercent != null ? `${orderBook.spreadPercent.toFixed(2)}%` : '--'}
-                </p>
-              </div>
-            </>
+            <div>
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Spread</p>
+              <p className="text-xl sm:text-2xl font-bold text-white">
+                {orderBook.spreadPercent != null ? `${orderBook.spreadPercent.toFixed(2)}%` : '--'}
+              </p>
+            </div>
           )}
         </div>
 

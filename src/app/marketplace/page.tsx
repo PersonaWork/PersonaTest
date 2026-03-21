@@ -132,24 +132,49 @@ export default function MarketplacePage() {
                 </div>
             </div>
 
-            {/* Trending Strip */}
-            <div className="max-w-6xl mx-auto px-6 mb-10">
-                <Card className="p-4" hover={false}>
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                        <div>
-                            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Trending today</p>
-                            <p className="text-sm text-slate-300">Fast-moving characters. Tap to watch before the price moves.</p>
+            {/* Trending Strip — data-driven */}
+            {sortedCharacters.length > 0 && (
+                <div className="max-w-6xl mx-auto px-6 mb-10">
+                    <Card className="p-4 sm:p-5" hover={false}>
+                        <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Hot right now</p>
+                        <div className="flex gap-3 overflow-x-auto pb-1">
+                            {sortedCharacters
+                                .filter(c => c.status === 'LIVE')
+                                .sort((a, b) => {
+                                    // Sort by a momentum score: holders * marketCap * (1 + change)
+                                    const scoreA = a.holders * a.marketCap * (1 + Math.abs(a.change / 100));
+                                    const scoreB = b.holders * b.marketCap * (1 + Math.abs(b.change / 100));
+                                    return scoreB - scoreA;
+                                })
+                                .slice(0, 5)
+                                .map((c) => (
+                                    <Link key={c.id} href={`/character/${c.slug}`} className="flex-shrink-0">
+                                        <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-slate-900/60 border border-slate-800/80 hover:border-indigo-500/30 transition-colors min-w-[180px]">
+                                            <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-indigo-600 to-purple-500 flex items-center justify-center flex-shrink-0">
+                                                <span className="text-white text-xs font-black">{c.name.charAt(0)}</span>
+                                            </div>
+                                            <div className="min-w-0">
+                                                <p className="text-sm font-bold text-white truncate">{c.name}</p>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-xs text-slate-400">${c.price.toFixed(4)}</span>
+                                                    <span className={`text-[10px] font-bold ${c.change >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                        {c.change >= 0 ? '+' : ''}{c.change.toFixed(1)}%
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <div className="ml-auto flex items-center gap-1">
+                                                <svg className="w-3 h-3 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                                </svg>
+                                                <span className="text-[10px] text-slate-500 font-semibold">{c.holders}</span>
+                                            </div>
+                                        </div>
+                                    </Link>
+                                ))}
                         </div>
-                        <div className="flex flex-wrap gap-2">
-                            {['AI Characters', 'Live 24/7', 'Revenue share', 'Shareholder chat'].map((tag) => (
-                                <span key={tag} className="px-3 py-1 rounded-full bg-slate-900/50 border border-slate-800 text-xs font-semibold text-slate-300">
-                                    {tag}
-                                </span>
-                            ))}
-                        </div>
-                    </div>
-                </Card>
-            </div>
+                    </Card>
+                </div>
+            )}
 
             {/* Filters & Sort */}
             <div className="max-w-6xl mx-auto px-6 mb-8">
