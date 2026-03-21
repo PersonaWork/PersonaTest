@@ -9,7 +9,15 @@ export async function GET(
   try {
     const { slug } = await params;
     const { claims } = await requireAuth(request.headers);
-    const userId = claims.userId;
+
+    // Look up DB user by Privy ID (claims.userId is the Privy ID, not DB ID)
+    const user = await prisma.user.findUnique({
+      where: { privyId: claims.userId }
+    });
+
+    if (!user) {
+      return NextResponse.json({ hasAccess: false });
+    }
 
     // Get character ID only
     const character = await prisma.character.findUnique({
@@ -28,7 +36,7 @@ export async function GET(
     const holding = await prisma.holding.findUnique({
       where: {
         userId_characterId: {
-          userId,
+          userId: user.id,
           characterId: character.id
         }
       },
