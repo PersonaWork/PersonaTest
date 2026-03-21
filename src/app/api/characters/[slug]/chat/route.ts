@@ -20,7 +20,17 @@ export async function POST(
       return errorResponse(parsed.error.issues[0].message, 400);
     }
     const { message } = parsed.data;
-    const userId = claims.userId;
+
+    // Look up DB user by Privy ID (claims.userId is Privy ID, not DB ID)
+    const user = await prisma.user.findUnique({
+      where: { privyId: claims.userId }
+    });
+
+    if (!user) {
+      return errorResponse('User not found', 404);
+    }
+
+    const userId = user.id;
 
     // Get character (only fields needed for chat)
     const character = await prisma.character.findUnique({
