@@ -4,6 +4,7 @@ import "./globals.css";
 import Providers from "./providers";
 import Navigation from "@/components/Navigation";
 import { ToastProvider } from "@/components/ui";
+import WelcomeTour from "@/components/onboarding/WelcomeTour";
 
 const outfit = Outfit({
   variable: "--font-display",
@@ -36,6 +37,7 @@ export default function RootLayout({
         <Providers>
           <Navigation />
           {children}
+          <WelcomeTour />
           <ToastProvider />
         </Providers>
       </body>

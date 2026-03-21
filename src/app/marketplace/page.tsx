@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Card } from '@/components/ui';
 import CharacterCard from '@/components/marketplace/CharacterCard';
 import Link from 'next/link';
@@ -19,6 +19,8 @@ interface Character {
     sharesIssued: number;
     holders: number;
     status: string;
+    phase?: string;
+    graduationProgress?: number;
 }
 
 type SortOption = 'market_cap' | 'price' | 'change' | 'holders';
@@ -29,14 +31,30 @@ export default function MarketplacePage() {
     const [loading, setLoading] = useState(true);
     const [sortBy, setSortBy] = useState<SortOption>('market_cap');
     const [filter, setFilter] = useState<FilterOption>('all');
+    const [searchQuery, setSearchQuery] = useState('');
+    const [debouncedSearch, setDebouncedSearch] = useState('');
+    const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    // Debounce search input
+    useEffect(() => {
+        if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+        searchTimerRef.current = setTimeout(() => {
+            setDebouncedSearch(searchQuery);
+        }, 300);
+        return () => {
+            if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+        };
+    }, [searchQuery]);
 
     const fetchCharacters = useCallback(async () => {
         try {
             setLoading(true);
-            const url = filter === 'all'
-                ? '/api/characters'
-                : `/api/characters?status=${filter === 'live' ? 'live' : 'launching'}`;
+            const params = new URLSearchParams();
+            if (filter === 'live') params.set('status', 'live');
+            else if (filter === 'launching') params.set('status', 'launching');
+            if (debouncedSearch.trim()) params.set('search', debouncedSearch.trim());
 
+            const url = `/api/characters${params.toString() ? `?${params.toString()}` : ''}`;
             const response = await fetch(url);
             if (!response.ok) throw new Error('Failed to fetch characters');
 
@@ -44,14 +62,14 @@ export default function MarketplacePage() {
             if (json.success && json.data) {
                 setCharacters(json.data);
             } else {
-                setCharacters(json); // fallback if it's the old shape
+                setCharacters(json);
             }
         } catch (error) {
             console.error('Failed to fetch characters:', error);
         } finally {
             setLoading(false);
         }
-    }, [filter]);
+    }, [filter, debouncedSearch]);
 
     useEffect(() => {
         fetchCharacters();
@@ -76,15 +94,39 @@ export default function MarketplacePage() {
     return (
         <div className="min-h-screen pb-20">
             {/* Header */}
-            <div className="pt-8 pb-8 px-6">
+            <div className="pt-8 pb-6 px-4 sm:px-6">
                 <div className="max-w-6xl mx-auto">
-                    <h1 className="text-4xl md:text-5xl font-black text-white mb-3">Marketplace</h1>
-                    <p className="text-lg text-slate-400 font-medium">Discover and own the next generation of digital icons.</p>
+                    <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-white mb-3">Marketplace</h1>
+                    <p className="text-base sm:text-lg text-slate-400 font-medium">Discover and own the next generation of digital icons.</p>
+
+                    {/* Search Bar */}
+                    <div className="mt-5 relative max-w-lg">
+                        <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                        <input
+                            type="text"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder="Search characters by name..."
+                            className="w-full pl-12 pr-4 py-3 bg-slate-900/60 border border-slate-700/50 rounded-xl text-white text-sm placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500/50 transition-all"
+                        />
+                        {searchQuery && (
+                            <button
+                                onClick={() => setSearchQuery('')}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors"
+                            >
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        )}
+                    </div>
                 </div>
             </div>
 
             {/* Live Now Stories Row */}
-            <div className="max-w-6xl mx-auto px-6 mb-8">
+            <div className="max-w-6xl mx-auto px-4 sm:px-6 mb-8">
                 <div className="flex items-center justify-between mb-4">
                     <h2 className="text-lg font-bold text-white">Live Now</h2>
                     <Link href="/" className="text-sm font-semibold text-slate-400 hover:text-white transition-colors">
