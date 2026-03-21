@@ -9,21 +9,29 @@ import crypto from 'crypto';
  */
 export async function GET(request: NextRequest) {
   try {
-    const { dbUser } = await requireAuth(request.headers);
+    const { claims } = await requireAuth(request.headers);
+
+    const user = await prisma.user.findUnique({
+      where: { privyId: claims.userId },
+    });
+
+    if (!user) {
+      return errorResponse('User not found', 404);
+    }
 
     // Generate referral code if user doesn't have one
-    let referralCode = dbUser.referralCode;
+    let referralCode = user.referralCode;
     if (!referralCode) {
-      referralCode = `${dbUser.username}-${crypto.randomBytes(3).toString('hex')}`.toUpperCase();
+      referralCode = `${user.username}-${crypto.randomBytes(3).toString('hex')}`.toUpperCase();
       await prisma.user.update({
-        where: { id: dbUser.id },
+        where: { id: user.id },
         data: { referralCode },
       });
     }
 
     // Get referral stats
     const referrals = await prisma.user.findMany({
-      where: { referredById: dbUser.id },
+      where: { referredById: user.id },
       select: {
         id: true,
         username: true,
@@ -63,7 +71,7 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const { dbUser } = await requireAuth(request.headers);
+    const { claims } = await requireAuth(request.headers);
     const body = await request.json();
     const { referralCode } = body;
 
@@ -71,8 +79,16 @@ export async function POST(request: NextRequest) {
       return errorResponse('Referral code is required', 400);
     }
 
+    const user = await prisma.user.findUnique({
+      where: { privyId: claims.userId },
+    });
+
+    if (!user) {
+      return errorResponse('User not found', 404);
+    }
+
     // Don't allow if user already has a referrer
-    if (dbUser.referredById) {
+    if (user.referredById) {
       return errorResponse('You already have a referrer', 400);
     }
 
@@ -85,13 +101,13 @@ export async function POST(request: NextRequest) {
       return errorResponse('Invalid referral code', 404);
     }
 
-    if (referrer.id === dbUser.id) {
+    if (referrer.id === user.id) {
       return errorResponse('You cannot refer yourself', 400);
     }
 
     // Apply the referral
     await prisma.user.update({
-      where: { id: dbUser.id },
+      where: { id: user.id },
       data: { referredById: referrer.id },
     });
 
