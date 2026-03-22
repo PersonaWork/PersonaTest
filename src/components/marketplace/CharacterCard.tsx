@@ -109,7 +109,7 @@ const CharacterCard = memo(function CharacterCard({ character, showStats = true 
                                 <p className="text-xs text-slate-500">@{character.slug}_persona</p>
                             </div>
                             <div className="text-right">
-                                <p className="text-xl font-black text-white tabular-nums">${(character.price ?? 0).toFixed(2)}</p>
+                                <p className="text-xl font-black text-white font-mono tabular-nums">${(character.price ?? 0).toFixed(2)}</p>
                             </div>
                         </div>
 
@@ -143,13 +143,13 @@ const CharacterCard = memo(function CharacterCard({ character, showStats = true 
                                     <div className="flex-1 grid grid-cols-2 gap-2">
                                         <div className="p-2.5 rounded-lg bg-slate-900/50">
                                             <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">MCap</p>
-                                            <p className="text-sm font-bold text-white tabular-nums">
+                                            <p className="text-sm font-bold text-white font-mono tabular-nums">
                                                 ${((character.marketCap ?? 0) / 1000).toFixed(0)}K
                                             </p>
                                         </div>
                                         <div className="p-2.5 rounded-lg bg-slate-900/50">
                                             <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Holders</p>
-                                            <p className="text-sm font-bold text-white tabular-nums">
+                                            <p className="text-sm font-bold text-white font-mono tabular-nums">
                                                 {character.holders?.toLocaleString() || '--'}
                                             </p>
                                         </div>

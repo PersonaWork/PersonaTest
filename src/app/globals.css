@@ -49,6 +49,7 @@
   --color-foreground: var(--text-primary);
   --font-sans: 'Plus Jakarta Sans', sans-serif;
   --font-display: 'Outfit', sans-serif;
+  --font-mono: 'Space Grotesk', monospace;
 }
 
 /* Base styles */
@@ -489,10 +490,18 @@ a:hover {
 
 /* Stat display */
 .stat-value {
-  font-family: 'Outfit', sans-serif;
+  font-family: 'Space Grotesk', 'Outfit', sans-serif;
   font-size: 1.75rem;
   font-weight: 700;
   color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Price / number font utility */
+.font-price {
+  font-family: 'Space Grotesk', 'Outfit', monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
 }
 
 .stat-label {

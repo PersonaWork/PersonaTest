@@ -4,6 +4,104 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth/auth-context';
 
+/* ── Custom mobile nav icons (filled when active, stroke when inactive) ── */
+const NavIcon = {
+  home: (active: boolean) => (
+    <svg className="w-[22px] h-[22px]" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      {active ? (
+        <path d="M3 10.5L12 3l9 7.5V20a1 1 0 01-1 1h-4.5v-5.5a1 1 0 00-1-1h-3a1 1 0 00-1 1V21H6a1 1 0 01-1-1v-4.5H3V10.5z" fill="currentColor"/>
+      ) : (
+        <>
+          <path d="M4 11.5l8-7 8 7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M6 10v9a1 1 0 001 1h3v-5a1 1 0 011-1h2a1 1 0 011 1v5h3a1 1 0 001-1v-9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+        </>
+      )}
+    </svg>
+  ),
+  market: (active: boolean) => (
+    <svg className="w-[22px] h-[22px]" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      {active ? (
+        <>
+          <rect x="3" y="3" width="18" height="18" rx="4" fill="currentColor" opacity="0.15"/>
+          <path d="M7 17l3.5-4.5L14 15l4-6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+          <circle cx="18" cy="9" r="1.5" fill="currentColor"/>
+        </>
+      ) : (
+        <>
+          <rect x="3" y="3" width="18" height="18" rx="4" stroke="currentColor" strokeWidth="1.6"/>
+          <path d="M7 17l3.5-4.5L14 15l4-6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+        </>
+      )}
+    </svg>
+  ),
+  portfolio: (active: boolean) => (
+    <svg className="w-[22px] h-[22px]" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      {active ? (
+        <>
+          <rect x="3" y="3" width="18" height="18" rx="4" fill="currentColor" opacity="0.15"/>
+          <path d="M8 16V11m4 5V8m4 8v-4" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
+        </>
+      ) : (
+        <>
+          <rect x="3" y="3" width="18" height="18" rx="4" stroke="currentColor" strokeWidth="1.6"/>
+          <path d="M8 16V11m4 5V8m4 8v-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+        </>
+      )}
+    </svg>
+  ),
+  people: (active: boolean) => (
+    <svg className="w-[22px] h-[22px]" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      {active ? (
+        <>
+          <circle cx="9" cy="7" r="3.5" fill="currentColor"/>
+          <path d="M2 20c0-3.3 3-6 7-6s7 2.7 7 6" fill="currentColor" opacity="0.3"/>
+          <circle cx="17" cy="8" r="2.5" fill="currentColor" opacity="0.6"/>
+          <path d="M18 14c2.2.5 4 2.2 4 4.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+        </>
+      ) : (
+        <>
+          <circle cx="9" cy="7" r="3" stroke="currentColor" strokeWidth="1.6"/>
+          <path d="M2 20c0-3 2.7-5.5 7-5.5S16 17 16 20" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+          <circle cx="17" cy="8" r="2.2" stroke="currentColor" strokeWidth="1.4"/>
+          <path d="M18 14c2 .5 3.5 2 3.5 4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+        </>
+      )}
+    </svg>
+  ),
+  profile: (active: boolean) => (
+    <svg className="w-[22px] h-[22px]" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      {active ? (
+        <>
+          <circle cx="12" cy="8" r="4" fill="currentColor"/>
+          <path d="M4 21c0-3.5 3.6-6.5 8-6.5s8 3 8 6.5" fill="currentColor" opacity="0.3"/>
+        </>
+      ) : (
+        <>
+          <circle cx="12" cy="8" r="3.5" stroke="currentColor" strokeWidth="1.6"/>
+          <path d="M4 21c0-3.5 3.6-6 8-6s8 2.5 8 6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+        </>
+      )}
+    </svg>
+  ),
+  join: (active: boolean) => (
+    <svg className="w-[22px] h-[22px]" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      {active ? (
+        <>
+          <circle cx="10" cy="8" r="4" fill="currentColor"/>
+          <path d="M3 21c0-3.5 3-6 7-6s7 2.5 7 6" fill="currentColor" opacity="0.3"/>
+          <path d="M19 8v5m-2.5-2.5h5" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"/>
+        </>
+      ) : (
+        <>
+          <circle cx="10" cy="8" r="3.5" stroke="currentColor" strokeWidth="1.6"/>
+          <path d="M3 21c0-3 2.7-5.5 7-5.5s7 2.5 7 5.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+          <path d="M19 8v5m-2.5-2.5h5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+        </>
+      )}
+    </svg>
+  ),
+};
+
 export default function MobileNav() {
   const pathname = usePathname();
   const { isAuthenticated } = useAuth();
@@ -14,91 +112,47 @@ export default function MobileNav() {
   };
 
   const navItems = [
-    {
-      href: '/',
-      label: 'Home',
-      icon: (active: boolean) => (
-        <svg className={`w-5 h-5 ${active ? 'text-indigo-400' : 'text-slate-500'}`} fill={active ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={active ? 0 : 2}>
-          {active ? (
-            <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
-          ) : (
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-          )}
-        </svg>
-      ),
-    },
-    {
-      href: '/marketplace',
-      label: 'Market',
-      icon: (active: boolean) => (
-        <svg className={`w-5 h-5 ${active ? 'text-indigo-400' : 'text-slate-500'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={active ? 2.5 : 2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-        </svg>
-      ),
-    },
-    {
-      href: '/portfolio',
-      label: 'Portfolio',
-      requiresAuth: true,
-      icon: (active: boolean) => (
-        <svg className={`w-5 h-5 ${active ? 'text-indigo-400' : 'text-slate-500'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={active ? 2.5 : 2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-        </svg>
-      ),
-    },
-    {
-      href: '/users',
-      label: 'People',
-      icon: (active: boolean) => (
-        <svg className={`w-5 h-5 ${active ? 'text-indigo-400' : 'text-slate-500'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={active ? 2.5 : 2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-        </svg>
-      ),
-    },
+    { href: '/', label: 'Home', icon: NavIcon.home },
+    { href: '/marketplace', label: 'Market', icon: NavIcon.market },
+    ...(isAuthenticated ? [{ href: '/portfolio', label: 'Portfolio', icon: NavIcon.portfolio, requiresAuth: true }] : []),
+    { href: '/users', label: 'People', icon: NavIcon.people },
     {
       href: isAuthenticated ? '/settings' : '/signup',
       label: isAuthenticated ? 'Profile' : 'Join',
-      icon: (active: boolean) =>
-        isAuthenticated ? (
-          <svg className={`w-5 h-5 ${active ? 'text-indigo-400' : 'text-slate-500'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={active ? 2.5 : 2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-          </svg>
-        ) : (
-          <svg className={`w-5 h-5 ${active ? 'text-indigo-400' : 'text-slate-500'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={active ? 2.5 : 2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-          </svg>
-        ),
+      icon: isAuthenticated ? NavIcon.profile : NavIcon.join,
     },
   ];
 
-  const filteredItems = navItems.filter(
-    (item) => !item.requiresAuth || isAuthenticated
-  );
-
   return (
     <div className="fixed bottom-0 left-0 right-0 z-50 sm:hidden">
-      {/* Gradient fade */}
-      <div className="h-6 bg-gradient-to-t from-[#0a0a0f] to-transparent pointer-events-none" />
-      <nav className="bg-slate-950/95 backdrop-blur-xl border-t border-slate-800/60 px-2 pb-[env(safe-area-inset-bottom)]">
+      {/* Gradient fade above */}
+      <div className="h-8 bg-gradient-to-t from-[#0a0a0f] to-transparent pointer-events-none" />
+
+      <nav className="bg-[#0a0a0f]/95 backdrop-blur-2xl border-t border-white/[0.06] px-1 pb-[env(safe-area-inset-bottom)]">
         <div className="flex items-center justify-around">
-          {filteredItems.map((item) => {
+          {navItems.map((item) => {
             const active = isActive(item.href);
             return (
               <Link
                 key={item.href}
                 href={item.href}
                 className={`
-                  flex flex-col items-center gap-0.5 py-2.5 px-3 rounded-xl transition-all min-w-[56px]
+                  relative flex flex-col items-center gap-0.5 py-2 px-3 min-w-[52px] transition-all duration-200
                   ${active ? 'text-indigo-400' : 'text-slate-500'}
                 `}
               >
-                <div className={`relative ${active ? 'scale-110' : ''} transition-transform`}>
+                {/* Active glow */}
+                {active && (
+                  <div className="absolute -top-px left-1/2 -translate-x-1/2 w-8 h-[2px] rounded-full bg-gradient-to-r from-indigo-500 to-purple-500" />
+                )}
+
+                <div className={`transition-transform duration-200 ${active ? 'scale-105' : ''}`}>
                   {item.icon(active)}
-                  {active && (
-                    <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-indigo-400" />
-                  )}
                 </div>
-                <span className={`text-[10px] font-bold ${active ? 'text-indigo-400' : 'text-slate-600'}`}>
+
+                <span className={`text-[10px] font-bold leading-tight ${
+                  active ? 'text-indigo-400' : 'text-slate-600'
+                }`}>
                   {item.label}
                 </span>
               </Link>

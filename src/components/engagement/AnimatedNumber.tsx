@@ -69,7 +69,7 @@ export default function AnimatedNumber({
   return (
     <span
       className={`
-        transition-colors duration-300 tabular-nums
+        transition-colors duration-300 tabular-nums font-mono
         ${flash === 'up' ? 'text-emerald-400' : ''}
         ${flash === 'down' ? 'text-red-400' : ''}
         ${className}
