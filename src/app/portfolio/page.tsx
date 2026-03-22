@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { Button, Card, Skeleton } from '@/components/ui';
 import { useAuth } from '@/lib/auth/auth-context';
 import { usePrivy } from '@privy-io/react-auth';
+import AnimatedNumber from '@/components/engagement/AnimatedNumber';
 
 interface Holding {
     id: string;
@@ -130,27 +131,45 @@ export default function PortfolioPage() {
                 </div>
 
                 {/* Global Stats Board */}
-                <Card hover={false} className="mb-16 bg-slate-900/40 border border-slate-700/50 p-1">
-                    <div className="grid md:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-slate-800/60">
+                <Card hover={false} className="mb-16 bg-slate-900/40 border border-slate-700/50 p-1 overflow-hidden relative">
+                    {/* Subtle animated glow based on P/L */}
+                    <div className={`absolute inset-0 opacity-20 pointer-events-none ${
+                        isProfit ? 'bg-gradient-to-r from-emerald-500/10 to-transparent' : 'bg-gradient-to-r from-red-500/10 to-transparent'
+                    }`} />
+                    <div className="grid md:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-slate-800/60 relative">
                         <div className="p-8">
                             <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Total Value</p>
-                            <p className="text-4xl lg:text-5xl font-black text-white tracking-tight">${totalValue.toFixed(2)}</p>
+                            <AnimatedNumber
+                                value={totalValue}
+                                prefix="$"
+                                className="text-4xl lg:text-5xl font-black text-white tracking-tight"
+                            />
                         </div>
                         <div className="p-8">
                             <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Total Invested</p>
-                            <p className="text-4xl lg:text-5xl font-black text-white tracking-tight">${totalCost.toFixed(2)}</p>
+                            <AnimatedNumber
+                                value={totalCost}
+                                prefix="$"
+                                className="text-4xl lg:text-5xl font-black text-white tracking-tight"
+                            />
                         </div>
                         <div className="p-8">
                             <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Profit / Loss</p>
-                            <p className={`text-4xl lg:text-5xl font-black tracking-tight ${isProfit ? 'text-emerald-400' : 'text-red-400'}`}>
-                                {isProfit ? '+' : ''}${totalProfit.toFixed(2)}
-                            </p>
+                            <AnimatedNumber
+                                value={totalProfit}
+                                prefix={isProfit ? '+$' : '-$'}
+                                className={`text-4xl lg:text-5xl font-black tracking-tight ${isProfit ? 'text-emerald-400' : 'text-red-400'}`}
+                            />
                         </div>
                         <div className="p-8">
                             <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Total Return</p>
-                            <p className={`text-4xl lg:text-5xl font-black tracking-tight ${isProfit ? 'text-emerald-400' : 'text-red-400'}`}>
-                                {isProfit ? '+' : ''}{totalProfitPercent.toFixed(1)}%
-                            </p>
+                            <AnimatedNumber
+                                value={Math.abs(totalProfitPercent)}
+                                prefix={isProfit ? '+' : '-'}
+                                suffix="%"
+                                decimals={1}
+                                className={`text-4xl lg:text-5xl font-black tracking-tight ${isProfit ? 'text-emerald-400' : 'text-red-400'}`}
+                            />
                         </div>
                     </div>
                 </Card>

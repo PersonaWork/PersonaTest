@@ -5,6 +5,9 @@ import Providers from "./providers";
 import Navigation from "@/components/Navigation";
 import { ToastProvider } from "@/components/ui";
 import WelcomeTour from "@/components/onboarding/WelcomeTour";
+import LiveTicker from "@/components/engagement/LiveTicker";
+import MobileNav from "@/components/engagement/MobileNav";
+import ActivityToast from "@/components/engagement/ActivityToast";
 
 const outfit = Outfit({
   variable: "--font-display",
@@ -36,7 +39,12 @@ export default function RootLayout({
       >
         <Providers>
           <Navigation />
-          {children}
+          <LiveTicker />
+          <div className="pb-mobile-nav">
+            {children}
+          </div>
+          <MobileNav />
+          <ActivityToast />
           <WelcomeTour />
           <ToastProvider />
         </Providers>

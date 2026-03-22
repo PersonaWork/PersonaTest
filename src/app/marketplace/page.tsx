@@ -5,6 +5,7 @@ import { Card } from '@/components/ui';
 import CharacterCard from '@/components/marketplace/CharacterCard';
 import Link from 'next/link';
 import Image from 'next/image';
+import AnimatedNumber from '@/components/engagement/AnimatedNumber';
 
 interface Character {
     id: string;
@@ -257,27 +258,42 @@ export default function MarketplacePage() {
             {/* Market Stats */}
             <div className="max-w-6xl mx-auto px-6 mb-10">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <Card className="p-4" hover={false}>
+                    <Card className="p-4 relative overflow-hidden" hover={false}>
+                        <div className="absolute top-0 right-0 w-20 h-20 bg-indigo-500/5 rounded-full -translate-y-1/2 translate-x-1/2" />
                         <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Total Market Cap</p>
-                        <p className="text-2xl font-black text-white">
-                            ${characters.reduce((sum, c) => sum + c.marketCap, 0).toLocaleString()}
-                        </p>
+                        <AnimatedNumber
+                            value={characters.reduce((sum, c) => sum + c.marketCap, 0)}
+                            prefix="$"
+                            decimals={0}
+                            className="text-2xl font-black text-white"
+                        />
                     </Card>
-                    <Card className="p-4" hover={false}>
+                    <Card className="p-4 relative overflow-hidden" hover={false}>
+                        <div className="absolute top-0 right-0 w-20 h-20 bg-purple-500/5 rounded-full -translate-y-1/2 translate-x-1/2" />
                         <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Characters</p>
-                        <p className="text-2xl font-black text-white">{characters.length}</p>
+                        <AnimatedNumber
+                            value={characters.length}
+                            decimals={0}
+                            className="text-2xl font-black text-white"
+                        />
                     </Card>
-                    <Card className="p-4" hover={false}>
+                    <Card className="p-4 relative overflow-hidden" hover={false}>
+                        <div className="absolute top-0 right-0 w-20 h-20 bg-emerald-500/5 rounded-full -translate-y-1/2 translate-x-1/2" />
                         <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Floor Price</p>
-                        <p className="text-2xl font-black text-emerald-400">
-                            ${characters.length > 0 ? Math.min(...characters.map(c => c.price)).toFixed(2) : '0.00'}
-                        </p>
+                        <AnimatedNumber
+                            value={characters.length > 0 ? Math.min(...characters.map(c => c.price)) : 0}
+                            prefix="$"
+                            className="text-2xl font-black text-emerald-400"
+                        />
                     </Card>
-                    <Card className="p-4" hover={false}>
+                    <Card className="p-4 relative overflow-hidden" hover={false}>
+                        <div className="absolute top-0 right-0 w-20 h-20 bg-pink-500/5 rounded-full -translate-y-1/2 translate-x-1/2" />
                         <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Total Holders</p>
-                        <p className="text-2xl font-black text-indigo-400">
-                            {characters.reduce((sum, c) => sum + c.holders, 0).toLocaleString()}
-                        </p>
+                        <AnimatedNumber
+                            value={characters.reduce((sum, c) => sum + c.holders, 0)}
+                            decimals={0}
+                            className="text-2xl font-black text-indigo-400"
+                        />
                     </Card>
                 </div>
             </div>
