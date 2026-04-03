@@ -98,9 +98,9 @@ export default function MarketplacePage() {
     return (
         <div className="min-h-screen pb-20 page-enter">
             {/* Ambient background */}
-            <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
-                <div className="orb orb-indigo w-[600px] h-[600px] -top-[200px] right-[10%]" />
-                <div className="orb orb-purple w-[400px] h-[400px] bottom-[20%] left-[5%]" />
+            <div className="fixed inset-0 overflow-hidden pointer-events-none" style={{ zIndex: -1 }}>
+                <div className="orb orb-indigo" style={{ width: 600, height: 600, top: -200, right: '10%' }} />
+                <div className="orb orb-purple" style={{ width: 400, height: 400, bottom: '20%', left: '5%' }} />
             </div>
 
             {/* Header */}
@@ -279,9 +279,8 @@ export default function MarketplacePage() {
             </div>
 
             {/* Market Stats */}
-            <ScrollReveal>
             <div className="max-w-6xl mx-auto px-6 mb-10">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 stagger-grid">
+                <ScrollReveal className="grid grid-cols-2 md:grid-cols-4 gap-4 stagger-grid">
                     <Card className="p-4 relative overflow-hidden" hover={false}>
                         <div className="absolute top-0 right-0 w-20 h-20 bg-indigo-500/5 rounded-full -translate-y-1/2 translate-x-1/2" />
                         <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Total Market Cap</p>
@@ -319,9 +318,8 @@ export default function MarketplacePage() {
                             className="text-2xl font-black text-indigo-400"
                         />
                     </Card>
-                </div>
+                </ScrollReveal>
             </div>
-            </ScrollReveal>
 
             {/* Character Grid */}
             <div className="max-w-6xl mx-auto px-6">
@@ -332,11 +330,11 @@ export default function MarketplacePage() {
                         ))}
                     </div>
                 ) : sortedCharacters.length > 0 ? (
-                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 stagger-grid">
+                    <ScrollReveal className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 stagger-grid">
                         {sortedCharacters.map((char) => (
                             <CharacterCard key={char.id} character={char} />
                         ))}
-                    </div>
+                    </ScrollReveal>
                 ) : (
                     <Card className="text-center py-16" hover={false}>
                         <div className="text-6xl mb-4">🔍</div>

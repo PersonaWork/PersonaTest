@@ -22,10 +22,10 @@ function LoginContent() {
     return (
         <div className="min-h-screen flex items-center justify-center px-4 py-12 page-enter">
             {/* Background */}
-            <div className="fixed inset-0 -z-10 overflow-hidden">
-                <div className="orb orb-indigo w-[600px] h-[600px] top-0 left-[15%]" />
-                <div className="orb orb-purple w-[500px] h-[500px] bottom-0 right-[15%]" />
-                <div className="orb orb-pink w-[400px] h-[400px] top-[40%] left-[40%]" />
+            <div className="fixed inset-0 overflow-hidden" style={{ zIndex: -1 }}>
+                <div className="orb orb-indigo" style={{ width: 600, height: 600, top: 0, left: '15%' }} />
+                <div className="orb orb-purple" style={{ width: 500, height: 500, bottom: 0, right: '15%' }} />
+                <div className="orb orb-pink" style={{ width: 400, height: 400, top: '40%', left: '40%' }} />
             </div>
 
             <div className="w-full max-w-md">

@@ -65,10 +65,10 @@ export default async function HomePage() {
 
       {/* Hero Section */}
       <section className="relative overflow-hidden">
-        <div className="absolute inset-0 -z-10">
-          <div className="absolute top-0 left-1/4 w-[700px] h-[700px] bg-indigo-600/20 rounded-full blur-[140px]" />
-          <div className="absolute bottom-0 right-1/4 w-[650px] h-[650px] bg-purple-600/15 rounded-full blur-[130px]" />
-          <div className="absolute top-1/2 left-1/2 w-[500px] h-[500px] bg-pink-600/10 rounded-full blur-[110px] transform -translate-x-1/2 -translate-y-1/2" />
+        <div className="absolute inset-0 overflow-hidden" style={{ zIndex: -1 }}>
+          <div className="orb orb-indigo" style={{ width: 700, height: 700, top: -200, left: '10%' }} />
+          <div className="orb orb-purple" style={{ width: 600, height: 600, bottom: -150, right: '5%' }} />
+          <div className="orb orb-pink" style={{ width: 500, height: 500, top: '30%', left: '50%', transform: 'translateX(-50%)' }} />
         </div>
 
         <div className="max-w-6xl mx-auto px-6 pt-16 pb-14">

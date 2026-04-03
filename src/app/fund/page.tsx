@@ -434,9 +434,9 @@ export default function FundPage() {
 
   return (
     <div className="min-h-screen pb-20 page-enter">
-      <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
-        <div className="orb orb-indigo w-[500px] h-[500px] top-[10%] right-[20%]" />
-        <div className="orb orb-pink w-[400px] h-[400px] bottom-[20%] left-[10%]" />
+      <div className="fixed inset-0 overflow-hidden pointer-events-none" style={{ zIndex: -1 }}>
+        <div className="orb orb-indigo" style={{ width: 500, height: 500, top: '10%', right: '20%' }} />
+        <div className="orb orb-pink" style={{ width: 400, height: 400, bottom: '20%', left: '10%' }} />
       </div>
       <div className="pt-10 pb-8 px-6">
         <div className="max-w-3xl mx-auto">

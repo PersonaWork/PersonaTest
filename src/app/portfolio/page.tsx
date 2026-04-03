@@ -118,9 +118,9 @@ export default function PortfolioPage() {
 
     return (
         <div className="min-h-screen pb-20 page-enter">
-            <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
-                <div className="orb orb-purple w-[500px] h-[500px] -top-[150px] left-[15%]" />
-                <div className="orb orb-indigo w-[400px] h-[400px] bottom-[10%] right-[10%]" />
+            <div className="fixed inset-0 overflow-hidden pointer-events-none" style={{ zIndex: -1 }}>
+                <div className="orb orb-purple" style={{ width: 500, height: 500, top: -150, left: '15%' }} />
+                <div className="orb orb-indigo" style={{ width: 400, height: 400, bottom: '10%', right: '10%' }} />
             </div>
             <div className="max-w-7xl mx-auto px-6 pt-12">
                 {/* Page Header */}
