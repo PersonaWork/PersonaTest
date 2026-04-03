@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
 import { successResponse, errorResponse } from '@/lib/api';
+import { tradeLimiter } from '@/lib/rate-limit';
 import { matchLimitOrders } from '@/lib/trading/order-matcher';
 import { matchMarketBuy } from '@/lib/trading/p2p-matcher';
 import { BONDING_FEE_RATE, BONDING_CURVE_FACTOR, VIRTUAL_LIQUIDITY, PHASE_GRADUATED, MAX_WHALE_PERCENT } from '@/lib/wallet/base';
@@ -15,6 +16,11 @@ const BuySchema = z.object({
 export async function POST(request: NextRequest) {
   try {
     const { claims } = await requireAuth(request.headers);
+
+    // Rate limit: 5 trades per 10 seconds
+    const rl = tradeLimiter(claims.userId);
+    if (!rl.success) return errorResponse('Too many trades. Slow down.', 429);
+
     const body = await request.json().catch(() => ({}));
 
     const parsed = BuySchema.safeParse(body);

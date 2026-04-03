@@ -2,7 +2,8 @@ import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { successResponse, errorResponse } from '@/lib/api';
 import { requireAuth } from '@/lib/auth';
-import { sendUsdcFromTreasury, WITHDRAWAL_FEE } from '@/lib/wallet/base';
+import { walletLimiter } from '@/lib/rate-limit';
+import { sendUsdcFromTreasury, WITHDRAWAL_FEE_RATE, WITHDRAWAL_FEE_MIN } from '@/lib/wallet/base';
 import { z } from 'zod';
 
 const WithdrawSchema = z.object({
@@ -21,6 +22,10 @@ const WithdrawSchema = z.object({
 export async function POST(request: NextRequest) {
   try {
     const { claims } = await requireAuth(request.headers);
+
+    const rl = walletLimiter(claims.userId);
+    if (!rl.success) return errorResponse('Too many withdrawal attempts. Please wait.', 429);
+
     const user = await prisma.user.findUnique({ where: { privyId: claims.userId } });
     if (!user) return errorResponse('User not found', 404);
     if (!user.walletAddress) return errorResponse('No wallet address on file', 400);
@@ -32,12 +37,13 @@ export async function POST(request: NextRequest) {
     }
 
     const { amount } = parsed.data;
-    const fee = WITHDRAWAL_FEE; // $0.50 flat fee — subtracted from withdrawal
-    const sendAmount = amount - fee; // User receives amount minus fee
+    // 2% fee with $1.00 minimum
+    const fee = Math.max(amount * WITHDRAWAL_FEE_RATE, WITHDRAWAL_FEE_MIN);
+    const sendAmount = amount - fee;
 
-    // Minimum withdrawal ($2 so user gets at least $1.00 after fee)
-    if (amount < 2) {
-      return errorResponse('Minimum withdrawal is $2.00 USDC', 400);
+    // Minimum withdrawal ($5 so fee isn't disproportionate)
+    if (amount < 5) {
+      return errorResponse('Minimum withdrawal is $5.00 USDC', 400);
     }
 
     // Check sufficient balance
@@ -85,7 +91,7 @@ export async function POST(request: NextRequest) {
     });
 
     return successResponse({
-      message: `Withdrew ${amount.toFixed(2)} USDC — you receive ${sendAmount.toFixed(2)} USDC after $${fee.toFixed(2)} fee`,
+      message: `Withdrew $${amount.toFixed(2)} USDC — you receive $${sendAmount.toFixed(2)} after ${(WITHDRAWAL_FEE_RATE * 100).toFixed(0)}% fee ($${fee.toFixed(2)})`,
       txHash,
       fee,
       amountSent: sendAmount,

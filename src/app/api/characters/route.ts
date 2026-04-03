@@ -10,12 +10,20 @@ export async function GET(request: NextRequest) {
     try {
         const { searchParams } = new URL(request.url);
         const status = searchParams.get('status'); // 'live' | 'launching'
+        const search = searchParams.get('search');
+        const phase = searchParams.get('phase'); // 'BONDING_CURVE' | 'GRADUATED'
 
-        const where = status === 'live'
-            ? { isLaunched: true }
-            : status === 'launching'
-                ? { isLaunched: false }
-                : {};
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const where: any = {};
+        if (status === 'live') where.isLaunched = true;
+        else if (status === 'launching') where.isLaunched = false;
+        if (phase) where.phase = phase;
+        if (search) {
+            where.OR = [
+                { name: { contains: search, mode: 'insensitive' } },
+                { description: { contains: search, mode: 'insensitive' } },
+            ];
+        }
 
         const characters = await prisma.character.findMany({
             where,

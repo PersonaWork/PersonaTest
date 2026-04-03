@@ -115,6 +115,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             walletAddress: u.walletAddress || null,
             hasSetUsername: u.hasSetUsername ?? false,
           });
+
+          // Auto-apply referral code if stored from signup link
+          try {
+            const storedRef = localStorage.getItem('persona_referral_code');
+            if (storedRef) {
+              localStorage.removeItem('persona_referral_code');
+              const refToken = await getAccessToken();
+              if (refToken) {
+                fetch('/api/referrals', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${refToken}`,
+                  },
+                  body: JSON.stringify({ referralCode: storedRef }),
+                }).catch(() => { /* ignore referral errors */ });
+              }
+            }
+          } catch {
+            // localStorage not available
+          }
         }
       }
     } catch (err) {

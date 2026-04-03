@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { Button, Card, Skeleton } from '@/components/ui';
 import { useAuth } from '@/lib/auth/auth-context';
 import { usePrivy } from '@privy-io/react-auth';
+import AnimatedNumber from '@/components/engagement/AnimatedNumber';
 
 interface Holding {
     id: string;
@@ -116,7 +117,11 @@ export default function PortfolioPage() {
     const isProfit = totalProfit >= 0;
 
     return (
-        <div className="min-h-screen pb-20">
+        <div className="min-h-screen pb-20 page-enter">
+            <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
+                <div className="orb orb-purple w-[500px] h-[500px] -top-[150px] left-[15%]" />
+                <div className="orb orb-indigo w-[400px] h-[400px] bottom-[10%] right-[10%]" />
+            </div>
             <div className="max-w-7xl mx-auto px-6 pt-12">
                 {/* Page Header */}
                 <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
@@ -130,27 +135,45 @@ export default function PortfolioPage() {
                 </div>
 
                 {/* Global Stats Board */}
-                <Card hover={false} className="mb-16 bg-slate-900/40 border border-slate-700/50 p-1">
-                    <div className="grid md:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-slate-800/60">
+                <Card hover={false} className="mb-16 bg-slate-900/40 border border-slate-700/50 p-1 overflow-hidden relative">
+                    {/* Subtle animated glow based on P/L */}
+                    <div className={`absolute inset-0 opacity-20 pointer-events-none ${
+                        isProfit ? 'bg-gradient-to-r from-emerald-500/10 to-transparent' : 'bg-gradient-to-r from-red-500/10 to-transparent'
+                    }`} />
+                    <div className="grid md:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-slate-800/60 relative">
                         <div className="p-8">
                             <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Total Value</p>
-                            <p className="text-4xl lg:text-5xl font-black text-white tracking-tight">${totalValue.toFixed(2)}</p>
+                            <AnimatedNumber
+                                value={totalValue}
+                                prefix="$"
+                                className="text-4xl lg:text-5xl font-black text-white tracking-tight"
+                            />
                         </div>
                         <div className="p-8">
                             <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Total Invested</p>
-                            <p className="text-4xl lg:text-5xl font-black text-white tracking-tight">${totalCost.toFixed(2)}</p>
+                            <AnimatedNumber
+                                value={totalCost}
+                                prefix="$"
+                                className="text-4xl lg:text-5xl font-black text-white tracking-tight"
+                            />
                         </div>
                         <div className="p-8">
                             <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Profit / Loss</p>
-                            <p className={`text-4xl lg:text-5xl font-black tracking-tight ${isProfit ? 'text-emerald-400' : 'text-red-400'}`}>
-                                {isProfit ? '+' : ''}${totalProfit.toFixed(2)}
-                            </p>
+                            <AnimatedNumber
+                                value={totalProfit}
+                                prefix={isProfit ? '+$' : '-$'}
+                                className={`text-4xl lg:text-5xl font-black tracking-tight ${isProfit ? 'text-emerald-400' : 'text-red-400'}`}
+                            />
                         </div>
                         <div className="p-8">
                             <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Total Return</p>
-                            <p className={`text-4xl lg:text-5xl font-black tracking-tight ${isProfit ? 'text-emerald-400' : 'text-red-400'}`}>
-                                {isProfit ? '+' : ''}{totalProfitPercent.toFixed(1)}%
-                            </p>
+                            <AnimatedNumber
+                                value={Math.abs(totalProfitPercent)}
+                                prefix={isProfit ? '+' : '-'}
+                                suffix="%"
+                                decimals={1}
+                                className={`text-4xl lg:text-5xl font-black tracking-tight ${isProfit ? 'text-emerald-400' : 'text-red-400'}`}
+                            />
                         </div>
                     </div>
                 </Card>
@@ -247,11 +270,38 @@ export default function PortfolioPage() {
                     )}
                 </div>
 
-                {/* Recent Transactions Table */}
+                {/* Recent Transactions */}
                 <div>
                     <h2 className="text-2xl font-bold text-white mb-6">Recent Activity</h2>
                     <Card className="overflow-hidden bg-slate-900/60 border border-slate-700/50" padding="none" hover={false}>
-                        <div className="overflow-x-auto">
+                        {/* Mobile card list */}
+                        <div className="sm:hidden divide-y divide-slate-800/60">
+                            {transactions.length > 0 ? (
+                                transactions.map((tx) => (
+                                    <div key={tx.id} className="p-4">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <span className="font-bold text-white text-sm">{tx.characterName}</span>
+                                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                                                tx.type === 'buy' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'
+                                            }`}>{tx.type}</span>
+                                        </div>
+                                        <div className="flex items-center justify-between text-xs text-slate-400">
+                                            <span>{tx.shares} shares @ ${tx.pricePerShare.toFixed(4)}</span>
+                                            <span className="font-bold text-white">${tx.total.toFixed(2)}</span>
+                                        </div>
+                                        <p className="text-[10px] text-slate-500 mt-1">
+                                            {new Date(tx.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                                        </p>
+                                    </div>
+                                ))
+                            ) : (
+                                <div className="p-12 text-center">
+                                    <p className="font-semibold text-slate-400">No trading activity</p>
+                                </div>
+                            )}
+                        </div>
+                        {/* Desktop table */}
+                        <div className="hidden sm:block overflow-x-auto">
                             <table className="w-full text-left border-collapse">
                                 <thead>
                                     <tr className="border-b border-slate-800 bg-slate-950/40">
@@ -276,7 +326,7 @@ export default function PortfolioPage() {
                                                         {tx.type}
                                                     </span>
                                                 </td>
-                                                <td className="p-5 text-sm font-semibold text-slate-300 text-right whitespace-nowrap">${tx.pricePerShare.toFixed(2)}</td>
+                                                <td className="p-5 text-sm font-semibold text-slate-300 text-right whitespace-nowrap">${tx.pricePerShare.toFixed(4)}</td>
                                                 <td className="p-5 text-sm font-semibold text-slate-300 text-right whitespace-nowrap">{tx.shares.toLocaleString()}</td>
                                                 <td className="p-5 text-sm font-bold text-white text-right whitespace-nowrap">${tx.total.toFixed(2)}</td>
                                                 <td className="p-5 text-xs font-medium text-slate-500 text-right whitespace-nowrap">

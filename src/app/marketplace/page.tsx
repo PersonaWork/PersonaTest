@@ -1,10 +1,14 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Card } from '@/components/ui';
 import CharacterCard from '@/components/marketplace/CharacterCard';
 import Link from 'next/link';
 import Image from 'next/image';
+import AnimatedNumber from '@/components/engagement/AnimatedNumber';
+import OnlineIndicator from '@/components/engagement/OnlineIndicator';
+import MarketPulse from '@/components/engagement/MarketPulse';
+import ScrollReveal from '@/components/ui/ScrollReveal';
 
 interface Character {
     id: string;
@@ -19,6 +23,8 @@ interface Character {
     sharesIssued: number;
     holders: number;
     status: string;
+    phase?: string;
+    graduationProgress?: number;
 }
 
 type SortOption = 'market_cap' | 'price' | 'change' | 'holders';
@@ -29,14 +35,30 @@ export default function MarketplacePage() {
     const [loading, setLoading] = useState(true);
     const [sortBy, setSortBy] = useState<SortOption>('market_cap');
     const [filter, setFilter] = useState<FilterOption>('all');
+    const [searchQuery, setSearchQuery] = useState('');
+    const [debouncedSearch, setDebouncedSearch] = useState('');
+    const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    // Debounce search input
+    useEffect(() => {
+        if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+        searchTimerRef.current = setTimeout(() => {
+            setDebouncedSearch(searchQuery);
+        }, 300);
+        return () => {
+            if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+        };
+    }, [searchQuery]);
 
     const fetchCharacters = useCallback(async () => {
         try {
             setLoading(true);
-            const url = filter === 'all'
-                ? '/api/characters'
-                : `/api/characters?status=${filter === 'live' ? 'live' : 'launching'}`;
+            const params = new URLSearchParams();
+            if (filter === 'live') params.set('status', 'live');
+            else if (filter === 'launching') params.set('status', 'launching');
+            if (debouncedSearch.trim()) params.set('search', debouncedSearch.trim());
 
+            const url = `/api/characters${params.toString() ? `?${params.toString()}` : ''}`;
             const response = await fetch(url);
             if (!response.ok) throw new Error('Failed to fetch characters');
 
@@ -44,14 +66,14 @@ export default function MarketplacePage() {
             if (json.success && json.data) {
                 setCharacters(json.data);
             } else {
-                setCharacters(json); // fallback if it's the old shape
+                setCharacters(json);
             }
         } catch (error) {
             console.error('Failed to fetch characters:', error);
         } finally {
             setLoading(false);
         }
-    }, [filter]);
+    }, [filter, debouncedSearch]);
 
     useEffect(() => {
         fetchCharacters();
@@ -74,24 +96,65 @@ export default function MarketplacePage() {
     });
 
     return (
-        <div className="min-h-screen pb-20">
+        <div className="min-h-screen pb-20 page-enter">
+            {/* Ambient background */}
+            <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
+                <div className="orb orb-indigo w-[600px] h-[600px] -top-[200px] right-[10%]" />
+                <div className="orb orb-purple w-[400px] h-[400px] bottom-[20%] left-[5%]" />
+            </div>
+
             {/* Header */}
-            <div className="pt-8 pb-8 px-6">
+            <div className="pt-8 pb-6 px-4 sm:px-6">
                 <div className="max-w-6xl mx-auto">
-                    <h1 className="text-4xl md:text-5xl font-black text-white mb-3">Marketplace</h1>
-                    <p className="text-lg text-slate-400 font-medium">Discover and own the next generation of digital icons.</p>
+                    <ScrollReveal>
+                        <div className="flex items-center justify-between mb-3">
+                            <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-white">Marketplace</h1>
+                            <OnlineIndicator className="hidden sm:flex" />
+                        </div>
+                        <div className="flex flex-wrap items-center gap-4">
+                            <p className="text-base sm:text-lg text-slate-400 font-medium">Discover and own the next generation of digital icons.</p>
+                            <MarketPulse />
+                        </div>
+                    </ScrollReveal>
+
+                    {/* Search Bar */}
+                    <ScrollReveal delay={1}>
+                    <div className="mt-5 relative max-w-lg search-glow rounded-xl transition-shadow duration-300">
+                        <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                        <input
+                            type="text"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder="Search characters by name..."
+                            className="w-full pl-12 pr-4 py-3 bg-slate-900/60 border border-slate-700/50 rounded-xl text-white text-sm placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500/50 transition-all"
+                        />
+                        {searchQuery && (
+                            <button
+                                onClick={() => setSearchQuery('')}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors"
+                            >
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        )}
+                    </div>
+                    </ScrollReveal>
                 </div>
             </div>
 
             {/* Live Now Stories Row */}
-            <div className="max-w-6xl mx-auto px-6 mb-8">
+            <ScrollReveal delay={2}>
+            <div className="max-w-6xl mx-auto px-4 sm:px-6 mb-8">
                 <div className="flex items-center justify-between mb-4">
                     <h2 className="text-lg font-bold text-white">Live Now</h2>
                     <Link href="/" className="text-sm font-semibold text-slate-400 hover:text-white transition-colors">
                         How it works
                     </Link>
                 </div>
-                <div className="flex gap-4 overflow-x-auto pb-2">
+                <div className="flex gap-4 overflow-x-auto pb-2 stories-scroll">
                     {sortedCharacters
                         .filter(c => c.status === 'LIVE')
                         .slice(0, 8)
@@ -131,25 +194,53 @@ export default function MarketplacePage() {
                         })}
                 </div>
             </div>
+            </ScrollReveal>
 
-            {/* Trending Strip */}
-            <div className="max-w-6xl mx-auto px-6 mb-10">
-                <Card className="p-4" hover={false}>
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                        <div>
-                            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Trending today</p>
-                            <p className="text-sm text-slate-300">Fast-moving characters. Tap to watch before the price moves.</p>
+            {/* Trending Strip — data-driven */}
+            {sortedCharacters.length > 0 && (
+                <ScrollReveal delay={3}>
+                <div className="max-w-6xl mx-auto px-6 mb-10">
+                    <Card className="p-4 sm:p-5 shimmer-border" hover={false}>
+                        <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Hot right now</p>
+                        <div className="flex gap-3 overflow-x-auto pb-1">
+                            {sortedCharacters
+                                .filter(c => c.status === 'LIVE')
+                                .sort((a, b) => {
+                                    // Sort by a momentum score: holders * marketCap * (1 + change)
+                                    const scoreA = a.holders * a.marketCap * (1 + Math.abs(a.change / 100));
+                                    const scoreB = b.holders * b.marketCap * (1 + Math.abs(b.change / 100));
+                                    return scoreB - scoreA;
+                                })
+                                .slice(0, 5)
+                                .map((c) => (
+                                    <Link key={c.id} href={`/character/${c.slug}`} className="flex-shrink-0">
+                                        <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-slate-900/60 border border-slate-800/80 hover:border-indigo-500/30 transition-colors min-w-[180px]">
+                                            <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-indigo-600 to-purple-500 flex items-center justify-center flex-shrink-0">
+                                                <span className="text-white text-xs font-black">{c.name.charAt(0)}</span>
+                                            </div>
+                                            <div className="min-w-0">
+                                                <p className="text-sm font-bold text-white truncate">{c.name}</p>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-xs text-slate-400">${c.price.toFixed(4)}</span>
+                                                    <span className={`text-[10px] font-bold ${c.change >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                        {c.change >= 0 ? '+' : ''}{c.change.toFixed(1)}%
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <div className="ml-auto flex items-center gap-1">
+                                                <svg className="w-3 h-3 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                                </svg>
+                                                <span className="text-[10px] text-slate-500 font-semibold">{c.holders}</span>
+                                            </div>
+                                        </div>
+                                    </Link>
+                                ))}
                         </div>
-                        <div className="flex flex-wrap gap-2">
-                            {['AI Characters', 'Live 24/7', 'Revenue share', 'Shareholder chat'].map((tag) => (
-                                <span key={tag} className="px-3 py-1 rounded-full bg-slate-900/50 border border-slate-800 text-xs font-semibold text-slate-300">
-                                    {tag}
-                                </span>
-                            ))}
-                        </div>
-                    </div>
-                </Card>
-            </div>
+                    </Card>
+                </div>
+                </ScrollReveal>
+            )}
 
             {/* Filters & Sort */}
             <div className="max-w-6xl mx-auto px-6 mb-8">
@@ -188,32 +279,49 @@ export default function MarketplacePage() {
             </div>
 
             {/* Market Stats */}
+            <ScrollReveal>
             <div className="max-w-6xl mx-auto px-6 mb-10">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <Card className="p-4" hover={false}>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 stagger-grid">
+                    <Card className="p-4 relative overflow-hidden" hover={false}>
+                        <div className="absolute top-0 right-0 w-20 h-20 bg-indigo-500/5 rounded-full -translate-y-1/2 translate-x-1/2" />
                         <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Total Market Cap</p>
-                        <p className="text-2xl font-black text-white">
-                            ${characters.reduce((sum, c) => sum + c.marketCap, 0).toLocaleString()}
-                        </p>
+                        <AnimatedNumber
+                            value={characters.reduce((sum, c) => sum + c.marketCap, 0)}
+                            prefix="$"
+                            decimals={0}
+                            className="text-2xl font-black text-white"
+                        />
                     </Card>
-                    <Card className="p-4" hover={false}>
+                    <Card className="p-4 relative overflow-hidden" hover={false}>
+                        <div className="absolute top-0 right-0 w-20 h-20 bg-purple-500/5 rounded-full -translate-y-1/2 translate-x-1/2" />
                         <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Characters</p>
-                        <p className="text-2xl font-black text-white">{characters.length}</p>
+                        <AnimatedNumber
+                            value={characters.length}
+                            decimals={0}
+                            className="text-2xl font-black text-white"
+                        />
                     </Card>
-                    <Card className="p-4" hover={false}>
+                    <Card className="p-4 relative overflow-hidden" hover={false}>
+                        <div className="absolute top-0 right-0 w-20 h-20 bg-emerald-500/5 rounded-full -translate-y-1/2 translate-x-1/2" />
                         <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Floor Price</p>
-                        <p className="text-2xl font-black text-emerald-400">
-                            ${characters.length > 0 ? Math.min(...characters.map(c => c.price)).toFixed(2) : '0.00'}
-                        </p>
+                        <AnimatedNumber
+                            value={characters.length > 0 ? Math.min(...characters.map(c => c.price)) : 0}
+                            prefix="$"
+                            className="text-2xl font-black text-emerald-400"
+                        />
                     </Card>
-                    <Card className="p-4" hover={false}>
+                    <Card className="p-4 relative overflow-hidden" hover={false}>
+                        <div className="absolute top-0 right-0 w-20 h-20 bg-pink-500/5 rounded-full -translate-y-1/2 translate-x-1/2" />
                         <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Total Holders</p>
-                        <p className="text-2xl font-black text-indigo-400">
-                            {characters.reduce((sum, c) => sum + c.holders, 0).toLocaleString()}
-                        </p>
+                        <AnimatedNumber
+                            value={characters.reduce((sum, c) => sum + c.holders, 0)}
+                            decimals={0}
+                            className="text-2xl font-black text-indigo-400"
+                        />
                     </Card>
                 </div>
             </div>
+            </ScrollReveal>
 
             {/* Character Grid */}
             <div className="max-w-6xl mx-auto px-6">
@@ -224,7 +332,7 @@ export default function MarketplacePage() {
                         ))}
                     </div>
                 ) : sortedCharacters.length > 0 ? (
-                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 stagger-grid">
                         {sortedCharacters.map((char) => (
                             <CharacterCard key={char.id} character={char} />
                         ))}

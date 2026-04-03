@@ -292,6 +292,18 @@ export default async function HomePage() {
           </Link>
         </div>
       </section>
+
+      {/* Footer */}
+      <footer className="border-t border-white/[0.06] py-8 px-6">
+        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+          <p className="text-xs text-slate-600">&copy; {new Date().getFullYear()} Persona. All rights reserved.</p>
+          <div className="flex items-center gap-6 text-xs text-slate-600">
+            <Link href="/terms" className="hover:text-white transition-colors">Terms of Service</Link>
+            <Link href="/privacy" className="hover:text-white transition-colors">Privacy Policy</Link>
+            <Link href="/risk-disclaimer" className="hover:text-white transition-colors">Risk Disclaimer</Link>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

@@ -12,4 +12,4 @@ export { default as WalletConnect, WalletIndicator } from '../wallet/WalletConne
 export { default as TradingPanel } from '../marketplace/TradingPanel';
 export { default as CharacterCard } from '../marketplace/CharacterCard';
 export { default as LiveCam } from '../character/LiveCam';
-export { default as ChatWindow } from '../character/ChatWindow';
+

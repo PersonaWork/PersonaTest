@@ -66,6 +66,27 @@ export async function requireAuth(headers: Headers) {
 }
 
 /**
+ * Check if a Privy user ID is an admin.
+ */
+export function isAdmin(privyUserId: string): boolean {
+    const adminIds = (process.env.ADMIN_PRIVY_IDS || '').split(',').map(s => s.trim()).filter(Boolean);
+    return adminIds.includes(privyUserId);
+}
+
+/**
+ * Require admin authentication. Throws 403 if not an admin.
+ */
+export async function requireAdmin(headers: Headers) {
+    const { claims, token } = await requireAuth(headers);
+    if (!isAdmin(claims.userId)) {
+        const err = new Error('Admin access required');
+        (err as Error & { statusCode: number }).statusCode = 403;
+        throw err;
+    }
+    return { claims, token };
+}
+
+/**
  * Get or create a user in the database from Privy claims.
  * Called after successful auth to ensure user exists in DB.
  */

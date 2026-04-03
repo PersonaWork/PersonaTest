@@ -20,12 +20,12 @@ function LoginContent() {
     }, [isAuthenticated, isLoading, redirect, router]);
 
     return (
-        <div className="min-h-screen flex items-center justify-center px-4 py-12">
+        <div className="min-h-screen flex items-center justify-center px-4 py-12 page-enter">
             {/* Background */}
-            <div className="fixed inset-0 -z-10">
-                <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-indigo-600/20 rounded-full blur-[120px]" />
-                <div className="absolute bottom-0 right-1/4 w-[500px] h-[500px] bg-purple-600/15 rounded-full blur-[100px]" />
-                <div className="absolute top-1/2 left-1/2 w-[400px] h-[400px] bg-pink-600/10 rounded-full blur-[100px] -translate-x-1/2 -translate-y-1/2" />
+            <div className="fixed inset-0 -z-10 overflow-hidden">
+                <div className="orb orb-indigo w-[600px] h-[600px] top-0 left-[15%]" />
+                <div className="orb orb-purple w-[500px] h-[500px] bottom-0 right-[15%]" />
+                <div className="orb orb-pink w-[400px] h-[400px] top-[40%] left-[40%]" />
             </div>
 
             <div className="w-full max-w-md">

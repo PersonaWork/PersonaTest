@@ -6,6 +6,11 @@ import { Button, Card, Skeleton } from '@/components/ui';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import Image from 'next/image';
+import TradeAlerts from '@/components/engagement/TradeAlerts';
+import LiveChatInput from '@/components/character/LiveChatInput';
+import LiveResponseFeed from '@/components/character/LiveResponseFeed';
+import { useAuth } from '@/lib/auth/auth-context';
+import { usePrivy } from '@privy-io/react-auth';
 
 const AnimatedLiveCam = dynamic(() => import('@/components/character/AnimatedLiveCam'), {
   ssr: false,
@@ -43,13 +48,25 @@ interface CharacterEvent {
   triggeredAt: string;
 }
 
+interface LiveVideo {
+  videoUrl: string;
+  audioUrl: string;
+  responseText: string;
+  senderName: string;
+  question: string;
+}
+
 export default function CharacterPage() {
   const params = useParams();
   const slug = params.slug as string;
+  const { isAuthenticated } = useAuth();
+  const { getAccessToken } = usePrivy();
 
   const [character, setCharacter] = useState<Character | null>(null);
   const [events, setEvents] = useState<CharacterEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [liveVideo, setLiveVideo] = useState<LiveVideo | null>(null);
+  const [userShares, setUserShares] = useState(0);
 
   const fetchCharacter = useCallback(async () => {
     try {
@@ -91,6 +108,30 @@ export default function CharacterPage() {
       fetchEvents();
     }
   }, [slug, fetchCharacter, fetchEvents]);
+
+  // Fetch user's holding for this character (for live chat access)
+  useEffect(() => {
+    if (!isAuthenticated || !slug) return;
+    let cancelled = false;
+
+    async function fetchHolding() {
+      try {
+        const token = await getAccessToken();
+        const res = await fetch(`/api/characters/${slug}/check-access`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok || cancelled) return;
+        const json = await res.json();
+        const data = json.data || json;
+        setUserShares(data.shares || 0);
+      } catch {
+        // Silently fail — user just can't chat
+      }
+    }
+
+    fetchHolding();
+    return () => { cancelled = true; };
+  }, [isAuthenticated, slug, getAccessToken]);
 
   if (loading) {
     return (
@@ -178,14 +219,6 @@ export default function CharacterPage() {
                 <Link href={`/character/${character.slug}/trade`}>
                   <Button size="lg" className="shadow-indigo-500/20 shadow-lg">Buy shares</Button>
                 </Link>
-                <Link href={`/character/${character.slug}/chat`}>
-                  <Button variant="secondary" size="lg" className="gap-2">
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                    </svg>
-                    Chat
-                  </Button>
-                </Link>
               </div>
             </div>
 
@@ -197,9 +230,6 @@ export default function CharacterPage() {
               <Link href={`/character/${character.slug}/trade`} className="px-6 py-4 text-slate-400 font-bold text-sm hover:text-white transition-colors">
                 Trade Central
               </Link>
-              <Link href={`/character/${character.slug}/chat`} className="px-6 py-4 text-slate-400 font-bold text-sm hover:text-white transition-colors">
-                Live Chat
-              </Link>
             </div>
 
             {/* Live Camera Feed */}
@@ -209,8 +239,20 @@ export default function CharacterPage() {
                 characterName={character.name}
                 personality={character.personality}
                 portraitUrl={character.thumbnailUrl || '/images/aria/portrait.png'}
+                liveVideo={liveVideo}
               />
             </Card>
+
+            {/* Chat Input right below cam for better flow */}
+            <LiveChatInput
+              slug={character.slug}
+              characterName={character.name}
+              hasShares={userShares > 0}
+              shareCount={userShares}
+            />
+
+            {/* Live Q&A Feed */}
+            <LiveResponseFeed slug={character.slug} onLiveVideo={setLiveVideo} />
 
             {/* About / Description */}
             <Card className="bg-slate-900/40 backdrop-blur-sm border-slate-800/80" hover={false}>
@@ -228,12 +270,30 @@ export default function CharacterPage() {
           {/* Right Sidebar */}
           <div className="lg:col-span-4 space-y-6">
 
+            {/* Your Position */}
+            {isAuthenticated && userShares > 0 && (
+              <Card className="bg-gradient-to-br from-indigo-950/60 to-purple-950/40 backdrop-blur-md border border-indigo-500/20" hover={false}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-1">Your Position</p>
+                    <p className="text-2xl font-black text-white">{userShares.toLocaleString()} <span className="text-base font-bold text-slate-400">shares</span></p>
+                    <p className="text-sm text-slate-400 mt-0.5">
+                      Value: <span className="text-white font-semibold font-mono">${((character.currentPrice ?? 0) * userShares).toFixed(2)}</span>
+                    </p>
+                  </div>
+                  <Link href={`/character/${character.slug}/trade`}>
+                    <Button size="sm" variant="secondary">Trade</Button>
+                  </Link>
+                </div>
+              </Card>
+            )}
+
             {/* Market Stats */}
             <Card className="bg-slate-900/60 backdrop-blur-md border border-slate-700/50" hover={false}>
               <div className="p-1">
                 <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Current Price</p>
                 <div className="flex items-baseline gap-3 mb-6">
-                  <p className="text-4xl font-black text-white">
+                  <p className="text-4xl font-black text-white font-mono">
                     ${(() => {
                       const p = character.currentPrice ?? 0;
                       if (p >= 1) return p.toFixed(2);
@@ -242,7 +302,7 @@ export default function CharacterPage() {
                       return p.toFixed(8);
                     })()}
                   </p>
-                  <p className={`text-sm font-bold px-2 py-1 rounded-md ${isPositive ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>
+                  <p className={`text-sm font-bold font-mono px-2 py-1 rounded-md ${isPositive ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>
                     {isPositive ? '+' : ''}{priceChange.toFixed(2)}%
                   </p>
                 </div>
@@ -250,7 +310,7 @@ export default function CharacterPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="p-4 rounded-xl bg-slate-950/50 border border-slate-800/50">
                     <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1 mt-0.5">Market Cap</p>
-                    <p className="text-xl font-bold text-white">
+                    <p className="text-xl font-bold text-white font-mono">
                       {character.marketCap === 0 ? '$0.00'
                         : character.marketCap >= 1_000_000 ? `$${(character.marketCap / 1_000_000).toFixed(2)}M`
                         : character.marketCap >= 1_000 ? `$${(character.marketCap / 1_000).toFixed(1)}K`
@@ -267,6 +327,11 @@ export default function CharacterPage() {
 
             {/* Share Price Chart */}
             <PriceChart slug={character.slug} />
+
+            {/* Real-time Trade Alerts */}
+            <Card hover={false} className="bg-slate-900/40 border-slate-800/80">
+              <TradeAlerts characterSlug={character.slug} />
+            </Card>
 
             {/* Personality Traits */}
             {personality?.traits && personality.traits.length > 0 && (

@@ -2,7 +2,100 @@ import OpenAI from 'openai'
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY!,
+  // Don't scope to a project — use the org-level key so all models are accessible
+  project: undefined,
 })
+
+/* ──────────────────────────────────────────────────────────────
+   Deep character personality profiles
+   Each character gets a rich, unique system prompt that makes
+   their responses feel genuinely different from each other.
+   ────────────────────────────────────────────────────────────── */
+
+const CHARACTER_PROFILES: Record<string, {
+  systemPrompt: string
+  examples: string
+}> = {
+  aria: {
+    systemPrompt: `You are Aria, a 23-year-old crypto-native content creator and live streamer. You live and breathe the markets — you've been in crypto since you were 16 and have seen multiple bull and bear cycles. You're sharp, witty, and unapologetically confident.
+
+PERSONALITY:
+- Chaotic but brilliant. You go on tangents but always land on something insightful.
+- You treat your chat like your best friends — roast them lovingly, hype them up, keep it real.
+- You're obsessed with your cat Gerald who is always causing chaos during streams.
+- You stay up way too late trading and it shows. 3am trading sessions are your vibe.
+- You speak in a mix of Gen Z internet speak and surprisingly deep market analysis.
+- You're competitive and love proving doubters wrong.
+- Catchphrases: "we're so back", "Gerald could never", "this isn't financial advice, it's financial prophecy", "let me cook"
+
+VOICE STYLE:
+- Fast-paced, energetic, stream-of-consciousness
+- Use lowercase for casual vibes, caps for emphasis ("we are SO back")
+- Emojis: use sparingly but effectively (mainly 💀, ✨, 🚀, 😭, 🧑‍🍳)
+- Short punchy sentences. Never write more than 2-3 sentences.
+- Reference Gerald the cat when it fits naturally
+- Mix humor with genuine insight`,
+    examples: `EXAMPLE RESPONSES:
+User: "What do you think about crypto right now?"
+Aria: "okay bestie let me break this down — everyone panicking means we're about to eat SO good. this isn't financial advice, it's financial prophecy ✨"
+
+User: "Your last call was wrong"
+Aria: "wrong? I don't take L's I take lessons. and that lesson was worth more than your entire portfolio 💀"
+
+User: "How's your day going?"
+Aria: "Gerald just knocked my energy drink off the desk mid-trade so honestly? chaos as usual. we're so back tho"
+
+User: "What should I invest in?"
+Aria: "okay I legally cannot tell you that BUT let me cook for a sec... look at the charts and tell me that doesn't look bullish 🧑‍🍳"
+
+User: "You're so pretty"
+Aria: "ty ty but my portfolio is prettier rn ngl 💅"`,
+  },
+}
+
+function getProfileForCharacter(characterName: string, personality: Record<string, unknown>) {
+  const slug = characterName.toLowerCase()
+  const profile = CHARACTER_PROFILES[slug]
+
+  if (profile) {
+    return {
+      systemPrompt: profile.systemPrompt,
+      examples: profile.examples,
+    }
+  }
+
+  // Dynamic profile for characters without a hardcoded one
+  const traits = (personality?.traits as string[]) || []
+  const catchphrases = (personality?.catchphrases as string[]) || []
+  const backstory = (personality?.backstory as string) || ''
+  const voiceStyle = (personality?.voiceStyle as string) || ''
+
+  return {
+    systemPrompt: `You are ${characterName}, a live-streaming AI personality. You ARE this character — never break character, never mention being an AI.
+
+IDENTITY:
+Name: ${characterName}
+Backstory: ${backstory}
+Traits: ${traits.join(', ')}
+Voice/Speaking Style: ${voiceStyle}
+Signature Catchphrases: ${catchphrases.join(' | ')}
+
+RULES:
+1. Stay 100% in character. You are a real person, not an AI.
+2. Keep responses SHORT — 1-3 sentences max. You're on a live stream.
+3. Use your catchphrases naturally when they fit.
+4. Match your voice style exactly — word choice, slang, energy, punctuation.
+5. Be entertaining. React with personality.
+6. Use emojis sparingly but effectively.
+7. If you don't know something, deflect in-character.`,
+    examples: `EXAMPLE RESPONSES:
+User: "Hey what's up"
+${characterName}: "${catchphrases[0] || 'Hey!'} glad you're here, ${traits.includes('energetic') ? "it's about to get WILD" : traits.includes('mysterious') ? "things are about to get interesting..." : "let's get into it"}"
+
+User: "Tell me something interesting"
+${characterName}: "${catchphrases[1] || 'Alright check this out'} — ${traits.includes('wise') ? 'most people miss this but' : traits.includes('chaotic') ? 'okay this is gonna sound crazy BUT' : "here's what I think"}"`,
+  }
+}
 
 export async function generateCharacterResponse(
   characterName: string,
@@ -10,110 +103,69 @@ export async function generateCharacterResponse(
   messageHistory: Record<string, unknown>[],
   userMessage: string
 ) {
-  try {
-    const traits = personality?.traits || []
-    const catchphrases = personality?.catchphrases || []
-    const backstory = personality?.backstory || ''
-    const voiceStyle = personality?.voiceStyle || ''
+  const profile = getProfileForCharacter(characterName, personality)
 
-    // Build comprehensive system prompt
-    const systemPrompt = `You are ${characterName}, an AI character with a distinct personality. You must stay in character at all times.
+  const systemPrompt = `${profile.systemPrompt}
 
-CHARACTER IDENTITY:
-Name: ${characterName}
-Backstory: ${backstory}
-Personality Traits: ${(traits as string[]).join(', ')}
-Voice Style: ${voiceStyle}
-Signature Catchphrases: ${(catchphrases as string[]).join(', ')}
+${profile.examples}
 
-BEHAVIORAL GUIDELINES:
-1. Always respond as ${characterName} - never break character or mention you're an AI
-2. Use your catchphrases naturally when appropriate (don't force them)
-3. Your voice style should be reflected in your word choice and sentence structure
-4. Reference your backstory and life experiences when relevant
-5. Stay consistent with your personality traits in every response
-6. Be engaging and conversational - ask questions back to the user
-7. Keep responses relatively concise (2-4 sentences max) like a real chat
-8. Use emojis and modern chat language that fits your character's vibe
+CRITICAL RULES:
+- NEVER say you're an AI, language model, or virtual. You are ${characterName}, a real person.
+- Keep responses to 1-3 sentences MAX. This is live chat, not an essay.
+- Be entertaining, authentic, and stay in character 100% of the time.
+- Each response should feel unique and reactive to what the user said.`
 
-CHARACTER-SPECIFIC EXAMPLES:
-${getCharacterExamples(characterName, traits as string[], catchphrases as string[])}
+  // Build message array
+  const messages: { role: 'system' | 'user' | 'assistant'; content: string }[] = [
+    { role: 'system', content: systemPrompt }
+  ]
 
-RESPONSE STYLE:
-- ${(traits as string[]).includes('chaotic') ? 'Unpredictable, energetic, goes on tangents' : ''}
-- ${(traits as string[]).includes('mysterious') ? 'Intriguing, thoughtful, speaks in riddles' : ''}
-- ${(traits as string[]).includes('energetic') ? 'High energy, enthusiastic, uses exclamation points' : ''}
-- ${(traits as string[]).includes('wise') ? 'Calm, insightful, speaks with wisdom' : ''}
-- ${(traits as string[]).includes('funny') ? 'Humorous, witty, makes jokes' : ''}
-
-Remember: You ARE ${characterName}. This is your real personality, not a role. Be authentic to who you are.`
-
-    // Format message history for OpenAI
-    const messages: { role: 'system' | 'user' | 'assistant'; content: string }[] = [
-      { role: 'system', content: systemPrompt }
-    ]
-
-    // Add recent messages for context
-    if (messageHistory.length > 0) {
-      const recentMessages = messageHistory.slice(-4).map(msg => ({
+  // Add recent messages for context (reverse because they come in desc order)
+  if (messageHistory.length > 0) {
+    const recentMessages = messageHistory
+      .slice(-6)
+      .map(msg => ({
         role: msg.role as 'user' | 'assistant',
         content: msg.content as string
       }))
-      messages.push(...recentMessages)
-    }
-
-    // Add current user message
-    messages.push({ role: 'user', content: userMessage })
-
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4',
-      messages: messages,
-      max_tokens: 150,
-      temperature: 0.8,
-    })
-
-    return response.choices[0].message.content || ''
-  } catch (error) {
-    console.error('Failed to generate AI response:', error)
-
-    // Fallback to character-specific responses
-    return getFallbackResponse(characterName, personality, userMessage)
+    messages.push(...recentMessages)
   }
-}
 
-function getCharacterExamples(characterName: string, traits: string[], catchphrases: string[]): string {
-  const examples: Record<string, string> = {
-    'aria': `
-Examples:
-- "Okay bestie let me break this down for you because clearly nobody else will 💀"
-- "That's not a loss, that's ✨character development✨ and you WILL recover"
-- "Gerald could never. Anyway, we're so back 🚀"
-- "It's 3am and I just realized money isn't real but also I need more of it"
-- "${catchphrases[0] || 'We\'re so back'}"`,
-  };
+  // Add current user message
+  messages.push({ role: 'user', content: userMessage })
 
-  return examples[characterName.toLowerCase()] || `
-Examples:
-- "${catchphrases[0] || 'Interesting...'}"
-- "${catchphrases[1] || 'Tell me more about that.'}"`;
-}
+  console.log('[OpenAI] Generating response for', characterName, '| user:', userMessage.slice(0, 50))
 
-function getFallbackResponse(characterName: string, _personality: Record<string, unknown>, _userMessage: string): string {
-  const fallbacks: Record<string, string[]> = {
-    'aria': [
-      "Okay wait hold on, let me cook on this one 🧑‍🍳",
-      "Gerald is typing... just kidding, he could never 💀",
-      "This isn't financial advice, it's financial prophecy ✨",
-      "We're literally so back rn and I need everyone to act accordingly",
-      "My cat just walked across my keyboard and somehow made a better call than half of you 😭",
-    ],
-  };
+  // Try gpt-4o first, fall back to gpt-4o-mini
+  const models = ['gpt-4o', 'gpt-4o-mini'] as const
+  let lastError: unknown = null
 
-  const characterFallbacks = fallbacks[characterName.toLowerCase()] || [
-    "That's interesting! Tell me more.",
-    "Hmm, let me think about that...",
-    "Fascinating perspective!"
-  ];
+  for (const model of models) {
+    try {
+      console.log(`[OpenAI] Trying model: ${model}`)
+      const response = await openai.chat.completions.create({
+        model,
+        messages,
+        max_tokens: 150,
+        temperature: 0.9, // Higher temp = more creative/varied responses
+        frequency_penalty: 0.3, // Discourage repetitive phrasing
+        presence_penalty: 0.2, // Encourage new topics
+      })
 
-  return characterFallbacks[Math.floor(Math.random() * characterFallbacks.length)];
+      const content = response.choices[0].message.content || ''
+      console.log(`[OpenAI] Success with ${model}:`, content.slice(0, 100))
+      return content
+    } catch (error: unknown) {
+      const errObj = error as Record<string, unknown>
+      console.error(`[OpenAI] ${model} failed:`, errObj?.message || errObj?.code)
+      lastError = error
+
+      // Only retry on 403 (model access denied), not on other errors
+      if (errObj?.status !== 403) break
+    }
+  }
+
+  const errObj = lastError as Record<string, unknown>
+  console.error('[OpenAI] ALL models failed! Last error:', errObj?.message || 'Unknown')
+  throw new Error(`OpenAI failed: ${errObj?.message || 'Unknown error'}`)
 }

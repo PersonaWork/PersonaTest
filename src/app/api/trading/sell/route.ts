@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
 import { successResponse, errorResponse } from '@/lib/api';
+import { tradeLimiter } from '@/lib/rate-limit';
 import { matchLimitOrders } from '@/lib/trading/order-matcher';
 import { matchMarketSell } from '@/lib/trading/p2p-matcher';
 import { BONDING_FEE_RATE, BONDING_CURVE_FACTOR, PRICE_FLOOR, VIRTUAL_LIQUIDITY, PHASE_GRADUATED } from '@/lib/wallet/base';
@@ -15,6 +16,10 @@ const SellSchema = z.object({
 export async function POST(request: NextRequest) {
   try {
     const { claims } = await requireAuth(request.headers);
+
+    const rl = tradeLimiter(claims.userId);
+    if (!rl.success) return errorResponse('Too many trades. Slow down.', 429);
+
     const body = await request.json().catch(() => ({}));
 
     const parsed = SellSchema.safeParse(body);

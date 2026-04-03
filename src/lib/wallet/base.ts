@@ -30,12 +30,18 @@ export const PRICE_FLOOR = 0.0000001;      // Absolute minimum price to prevent 
 
 // ── Platform fees ──────────────────────────────────────────────────
 // Bonding curve phase: protocol is counterparty, takes a premium
-export const BONDING_FEE_RATE = 0.02;     // 2% on bonding curve buys/sells
+export const BONDING_FEE_RATE = 0.03;     // 3% on bonding curve buys/sells
 // Graduated P2P phase: competitive market rate, charged per side
-export const P2P_FEE_RATE = 0.01;         // 1% per side (buyer pays 1%, seller pays 1% = 2% total)
+export const P2P_FEE_RATE = 0.015;        // 1.5% per side (buyer 1.5% + seller 1.5% = 3% total)
 // Legacy alias — some imports still reference this
 export const PLATFORM_FEE_RATE = BONDING_FEE_RATE;
-export const WITHDRAWAL_FEE = 1.00;        // $1.00 USDC flat fee on withdrawals
+// Withdrawal: percentage-based with minimum
+export const WITHDRAWAL_FEE_RATE = 0.02;   // 2% on withdrawals
+export const WITHDRAWAL_FEE_MIN = 1.00;    // Minimum $1.00 USDC withdrawal fee
+export const WITHDRAWAL_FEE = 1.00;        // Legacy alias — used by existing code
+// Tipping: platform takes a cut of all tips sent in chat / on trades
+export const TIP_FEE_RATE = 0.10;          // 10% platform cut on tips
+export const LIVE_CHAT_FEE = 0.25;         // $0.25 per live chat message to AI character
 export const FEE_COLLECTOR_ADDRESS = '0x43c661401D7a80ed3260D6252Cc1f431380e0809' as const;
 
 // ── Gas sponsoring (Base L2 — gas is extremely cheap) ────────────

@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { successResponse, errorResponse } from '@/lib/api';
+import { requireAdmin } from '@/lib/auth';
 
 export const revalidate = 60;
 
@@ -107,6 +108,7 @@ export async function PUT(
     { params }: { params: Promise<{ slug: string }> }
 ) {
     try {
+        await requireAdmin(request.headers);
         const { slug } = await params;
         const body = await request.json();
 
@@ -153,7 +155,11 @@ export async function PUT(
 
         return successResponse(character);
 
-    } catch (error) {
+    } catch (error: unknown) {
+        const err = error as Error & { statusCode?: number };
+        if (err.statusCode === 401 || err.statusCode === 403) {
+            return errorResponse(err.message, err.statusCode);
+        }
         console.error('Failed to update character:', error);
         return errorResponse('Failed to update character', 500);
     }
@@ -168,6 +174,7 @@ export async function DELETE(
     { params }: { params: Promise<{ slug: string }> }
 ) {
     try {
+        await requireAdmin(request.headers);
         const { slug } = await params;
 
         const existing = await prisma.character.findUnique({
@@ -193,7 +200,11 @@ export async function DELETE(
 
         return successResponse({ success: true });
 
-    } catch (error) {
+    } catch (error: unknown) {
+        const err = error as Error & { statusCode?: number };
+        if (err.statusCode === 401 || err.statusCode === 403) {
+            return errorResponse(err.message, err.statusCode);
+        }
         console.error('Failed to delete character:', error);
         return errorResponse('Failed to delete character', 500);
     }

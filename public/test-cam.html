@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html><head><title>Cam Test</title></head>
+<body style="background:#000;color:#fff;font-family:monospace;display:flex;flex-direction:column;align-items:center;padding:20px;">
+<h2>Live Cam Video Test</h2>
+<div id="s">Loading clips from API...</div>
+<br>
+<h3>1. Proxy (same-origin /api/video-proxy)</h3>
+<video id="v1" width="480" height="270" muted playsinline autoplay style="border:2px solid lime;background:#111;"></video>
+<div id="s1" style="margin-bottom:20px;">waiting...</div>
+
+<h3>2. Direct FAL URL</h3>
+<video id="v2" width="480" height="270" muted playsinline autoplay style="border:2px solid orange;background:#111;"></video>
+<div id="s2">waiting...</div>
+
+<script>
+(async function(){
+  // Detect if we're on the production domain or elsewhere
+  var BASE = window.location.origin.includes('persona-test') ? '' : 'https://persona-test-omega.vercel.app';
+  var s = document.getElementById('s');
+
+  try {
+    var res = await fetch(BASE + '/api/characters/aria/animations');
+    var json = await res.json();
+    var clips = json.data ? json.data.clips : json.clips;
+
+    // Find idle-a
+    var clip = null;
+    var types = ['idle-a','idle-breathe','idle-ambient','idle-blink','idle-look','idle-b','idle-c'];
+    for (var i = 0; i < types.length; i++) {
+      if (clips[types[i]] && clips[types[i]].length > 0) {
+        clip = clips[types[i]][0];
+        break;
+      }
+    }
+    if (!clip) { s.textContent = 'No idle clips found!'; return; }
+    s.textContent = 'Found clip type=' + types.find(function(t){return clips[t] && clips[t][0] === clip;}) + ' url=' + clip.videoUrl.slice(-40);
+
+    // Test 1: proxy
+    var proxyUrl = BASE + '/api/video-proxy?url=' + encodeURIComponent(clip.videoUrl);
+    var v1 = document.getElementById('v1');
+    var s1 = document.getElementById('s1');
+    v1.src = proxyUrl;
+    v1.load();
+    v1.oncanplay = function(){ s1.textContent = 'canplay fired!'; };
+    v1.onplaying = function(){ s1.textContent = 'PLAYING via proxy!'; s1.style.color = 'lime'; };
+    v1.onerror = function(){ s1.textContent = 'ERROR: ' + (v1.error ? v1.error.message + ' code=' + v1.error.code : 'unknown'); s1.style.color = 'red'; };
+    v1.onstalled = function(){ s1.textContent += ' (stalled)'; };
+
+    // Test 2: direct
+    var v2 = document.getElementById('v2');
+    var s2 = document.getElementById('s2');
+    v2.src = clip.videoUrl;
+    v2.load();
+    v2.oncanplay = function(){ s2.textContent = 'canplay fired!'; };
+    v2.onplaying = function(){ s2.textContent = 'PLAYING direct!'; s2.style.color = 'lime'; };
+    v2.onerror = function(){ s2.textContent = 'ERROR: ' + (v2.error ? v2.error.message + ' code=' + v2.error.code : 'unknown'); s2.style.color = 'red'; };
+
+    // Timeout status
+    setTimeout(function(){
+      s.textContent += ' | v1: rs=' + v1.readyState + ' p=' + v1.paused + ' | v2: rs=' + v2.readyState + ' p=' + v2.paused;
+    }, 15000);
+
+  } catch(e) { s.textContent = 'Error: ' + e.message; }
+})();
+</script>
+</body></html>

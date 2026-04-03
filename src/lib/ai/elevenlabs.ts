@@ -6,7 +6,7 @@ const elevenlabs = new ElevenLabsClient({
 
 // Character voice mappings
 const CHARACTER_VOICES: Record<string, string> = {
-  'aria': process.env.ARIA_VOICE_ID || 'KUzPe92RSM0pccaVxERU',
+  'aria': (process.env.ARIA_VOICE_ID || 'KUzPe92RSM0pccaVxERU').trim(),
 }
 
 export async function generateCharacterVoice(

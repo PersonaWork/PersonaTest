@@ -43,9 +43,10 @@ export async function GET(
       select: { shares: true }
     });
 
-    const hasAccess = holding && holding.shares > 0;
+    const shares = holding?.shares ?? 0;
+    const hasAccess = shares > 0;
 
-    return NextResponse.json({ hasAccess });
+    return NextResponse.json({ hasAccess, shares });
   } catch (error) {
     console.error('Failed to check access:', error);
     return NextResponse.json(

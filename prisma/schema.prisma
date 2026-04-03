@@ -19,6 +19,13 @@ model User {
   usdcBalance     Float         @default(0)
   lastGasFundedAt DateTime?
   preferences     Json?
+  referralCode    String?       @unique
+  referredById    String?
+  referredBy      User?         @relation("Referrals", fields: [referredById], references: [id])
+  referrals       User[]        @relation("Referrals")
+  dailyStreak     Int           @default(0)
+  lastClaimAt     DateTime?
+  totalClaimed    Float         @default(0)
   createdAt       DateTime      @default(now())
   holdings      Holding[]
   messages      Message[]
@@ -26,9 +33,13 @@ model User {
   buyerTxns     Transaction[] @relation("BuyerTransactions")
   sellerTxns    Transaction[] @relation("SellerTransactions")
   limitOrders   LimitOrder[]
+  chatMessages  ChatMessage[]
+  liveMessages  LiveMessage[]
+  liveResponses LiveResponse[]
 
   @@index([privyId])
   @@index([email])
+  @@index([referralCode])
 }
 
 model Character {
@@ -60,6 +71,8 @@ model Character {
   animationClips  AnimationClip[]
   payouts         Payout[]
   limitOrders     LimitOrder[]
+  liveMessages    LiveMessage[]
+  liveResponses   LiveResponse[]
 
   @@index([slug])
   @@index([isLaunched])
@@ -205,4 +218,52 @@ model LimitOrder {
   @@index([characterId, side, status])
   @@index([userId, status])
   @@index([status, expiresAt])
+}
+
+model ChatMessage {
+  id          String    @id @default(cuid())
+  userId      String
+  content     String
+  roomId      String    @default("trading-floor") // "trading-floor" or character slug for per-character chat
+  createdAt   DateTime  @default(now())
+  user        User      @relation(fields: [userId], references: [id])
+
+  @@index([roomId, createdAt])
+  @@index([userId])
+}
+
+model LiveMessage {
+  id          String        @id @default(cuid())
+  userId      String
+  characterId String
+  content     String
+  shares      Int           // snapshot of user's shares at send time (for priority)
+  fee         Float
+  status      String        @default("pending") // pending | processing | completed | failed
+  createdAt   DateTime      @default(now())
+  user        User          @relation(fields: [userId], references: [id])
+  character   Character     @relation(fields: [characterId], references: [id])
+  response    LiveResponse?
+
+  @@index([characterId, status, shares])
+  @@index([userId])
+}
+
+model LiveResponse {
+  id              String      @id @default(cuid())
+  liveMessageId   String      @unique
+  characterId     String
+  userId          String
+  senderName      String
+  questionText    String
+  responseText    String
+  audioUrl        String
+  videoUrl        String?     // lip-synced video from FAL
+  audioDuration   Float       @default(0)
+  createdAt       DateTime    @default(now())
+  liveMessage     LiveMessage @relation(fields: [liveMessageId], references: [id])
+  character       Character   @relation(fields: [characterId], references: [id])
+  user            User        @relation(fields: [userId], references: [id])
+
+  @@index([characterId, createdAt])
 }

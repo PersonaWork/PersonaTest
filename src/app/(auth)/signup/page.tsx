@@ -1,14 +1,23 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useEffect, Suspense } from 'react';
 import { Button } from '@/components/ui';
 import { useAuth } from '@/lib/auth/auth-context';
 
-export default function SignupPage() {
+function SignupContent() {
     const router = useRouter();
+    const searchParams = useSearchParams();
     const { isAuthenticated, isLoading, login } = useAuth();
+    const refCode = searchParams.get('ref');
+
+    useEffect(() => {
+        // Store referral code in localStorage so we can apply it after signup
+        if (refCode) {
+            localStorage.setItem('persona_referral_code', refCode);
+        }
+    }, [refCode]);
 
     useEffect(() => {
         if (isAuthenticated && !isLoading) {
@@ -17,12 +26,12 @@ export default function SignupPage() {
     }, [isAuthenticated, isLoading, router]);
 
     return (
-        <div className="min-h-screen flex items-center justify-center px-4 py-12">
+        <div className="min-h-screen flex items-center justify-center px-4 py-12 page-enter">
             {/* Background */}
-            <div className="fixed inset-0 -z-10">
-                <div className="absolute top-0 right-1/4 w-[600px] h-[600px] bg-purple-600/20 rounded-full blur-[120px]" />
-                <div className="absolute bottom-0 left-1/4 w-[500px] h-[500px] bg-indigo-600/15 rounded-full blur-[100px]" />
-                <div className="absolute top-1/2 left-1/2 w-[400px] h-[400px] bg-pink-600/10 rounded-full blur-[100px] -translate-x-1/2 -translate-y-1/2" />
+            <div className="fixed inset-0 -z-10 overflow-hidden">
+                <div className="orb orb-purple w-[600px] h-[600px] top-0 right-[15%]" />
+                <div className="orb orb-indigo w-[500px] h-[500px] bottom-0 left-[15%]" />
+                <div className="orb orb-pink w-[400px] h-[400px] top-[40%] left-[40%]" />
             </div>
 
             <div className="w-full max-w-md">
@@ -68,6 +77,14 @@ export default function SignupPage() {
                             </div>
                         </div>
 
+                        {refCode && (
+                            <div className="p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20">
+                                <p className="text-xs text-indigo-300 font-semibold text-center">
+                                    Referred by a friend? Your referral code <span className="font-mono">{refCode}</span> will be applied automatically.
+                                </p>
+                            </div>
+                        )}
+
                         <Button
                             onClick={login}
                             className="w-full"
@@ -90,5 +107,13 @@ export default function SignupPage() {
                 </p>
             </div>
         </div>
+    );
+}
+
+export default function SignupPage() {
+    return (
+        <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="w-8 h-8 border-2 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin" /></div>}>
+            <SignupContent />
+        </Suspense>
     );
 }
